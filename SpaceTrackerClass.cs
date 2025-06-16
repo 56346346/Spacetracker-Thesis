@@ -102,8 +102,7 @@ namespace SpaceTracker
             //  _databaseUpdateEvent = ExternalEvent.Create(_databaseUpdateHandler);
             _cmdManager = CommandManager.Instance;
 
-            CreateRibbonUI(application);
-            RegisterDocumentEvents(application);
+          
 
 
 
@@ -558,37 +557,38 @@ namespace SpaceTracker
                     Debug.WriteLine("[SpaceTracker] Neuer Graph - initialer Upload der Modelldaten.");
                     _extractor.CreateInitialGraph(doc);  // alle vorhandenen Elemente ins Queue einreihen
                                                          // Änderungen in einem Batch an Neo4j senden (Push)
-                   if (CommandManager.Instance.cypherCommands.Count > 0)
+                    if (CommandManager.Instance.cypherCommands.Count > 0)
                     {
-                        try
-                        {
-                          
+                        // Befehle kopieren, damit die Queue sofort wieder benutzt werden kann
+                        var cmds = CommandManager.Instance.cypherCommands.ToList();
 
-                            // Push direkt, damit beim Editieren kein Delta verloren geht
-                            _neo4jConnector.PushChangesAsync(
-                                CommandManager.Instance.cypherCommands.ToList(),
-                                CommandManager.Instance.SessionId,
-                                Environment.UserName
-                            ).GetAwaiter().GetResult();
-
-                            // Queues leeren für normale Delta-Verarbeitung
-                            CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
-                            CommandManager.Instance.PersistSyncTime();
-                            _neo4jConnector.CleanupObsoleteChangeLogsAsync()
-                                         .GetAwaiter().GetResult();
-                        }
-                        catch (Exception ex)
+                        // Asynchron pushen, um die Revit-Oberfläche nicht zu blockieren
+                        Task.Run(async () =>
                         {
-                            Logger.LogCrash("DocumentOpened", ex);
-                            TaskDialog.Show("Initial Sync Fehler", $"Initialer Neo4j-Upload fehlgeschlagen: {ex.Message}");
-                        }
+
+                            try
+                            {
+                                await _neo4jConnector.PushChangesAsync(
+                                    cmds,
+                                    CommandManager.Instance.SessionId,
+                                    Environment.UserName).ConfigureAwait(false);
+
+                                CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
+                                CommandManager.Instance.PersistSyncTime();
+                                await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogCrash("DocumentOpened", ex);
+                            }
+                        });
                     }
-                }
-                else
-                {
-                    // Neo4j-Graph enthält bereits Daten -> keine Überschreibung, Status-Ampel auf Gelb setzen
-                    Debug.WriteLine("[SpaceTracker] Vorhandene Graph-Daten erkannt - bitte Pull/Check durchführen.");
-                    SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
+                    else
+                    {
+                        // Neo4j-Graph enthält bereits Daten -> keine Überschreibung, Status-Ampel auf Gelb setzen
+                        Debug.WriteLine("[SpaceTracker] Vorhandene Graph-Daten erkannt - bitte Pull/Check durchführen.");
+                        SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
+                    }
                 }
             }
             catch (Exception ex)

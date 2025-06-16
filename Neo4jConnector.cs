@@ -86,7 +86,7 @@ namespace SpaceTracker
                 ).ConfigureAwait(false);
 
                 // 3) Regex zum Extrahieren der ElementId aus dem Cypher-String
-                var idRegex = new Regex(@"ElementId\D+(\d+)"); 
+                var idRegex = new Regex(@"ElementId\D+(\d+)");
 
                 // 4) Alle Commands durchlaufen
                 foreach (string cmd in cypherCommands)
@@ -122,7 +122,7 @@ namespace SpaceTracker
                   })",
                         new
                         {
-                             session = sessionId,
+                            session = sessionId,
                             user = userName,
                             time = logTime,
                             type = changeType,
@@ -190,6 +190,26 @@ namespace SpaceTracker
                   WHERE cl.timestamp < $cutoff
                   DELETE cl",
                         new { cutoff = cutoff.ToString() }).ConfigureAwait(false);
+                });
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+        public async Task UpdateSessionLastSyncAsync(string sessionId, DateTime syncTime)
+        {
+            var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    await tx.RunAsync(
+                        @"MERGE (s:Session { id: $session })
+                          SET s.lastSync = datetime($time)",
+                        new { session = sessionId, time = syncTime.ToString("o") }
+                    ).ConfigureAwait(false);
                 });
             }
             finally

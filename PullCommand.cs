@@ -45,6 +45,20 @@ namespace SpaceTracker
 
             if (changeRecords.Count == 0)
             {
+
+                cmdMgr.LastSyncTime = DateTime.UtcNow;
+                cmdMgr.PersistSyncTime();
+                try
+                {
+                    connector.UpdateSessionLastSyncAsync(sessionId, cmdMgr.LastSyncTime)
+                             .GetAwaiter().GetResult();
+                    connector.CleanupObsoleteChangeLogsAsync()
+                             .GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Pull] Fehler beim Session-Update: {ex.Message}");
+                }
                 TaskDialog.Show("Pull", "Der Neo4j-Graph ist bereits auf dem neuesten Stand (keine neuen Änderungen).");
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
                 return Result.Succeeded;
@@ -117,7 +131,7 @@ namespace SpaceTracker
                                     try
                                     {
                                         var recs = Task.Run(async () => await connector.RunReadQueryAsync(
-                                            "MATCH (r:Room {ElementId: $id}) RETURN r.Name AS name", 
+                                            "MATCH (r:Room {ElementId: $id}) RETURN r.Name AS name",
                                             new { id = elemId })).GetAwaiter().GetResult();
                                         newName = recs.FirstOrDefault()?["name"].As<string>() ?? "";
                                     }
@@ -142,16 +156,16 @@ namespace SpaceTracker
                                     try
                                     {
                                         var recs = Task.Run(async () => await connector.RunReadQueryAsync(
-                                            "MATCH (l:Level {ElementId: $id}) RETURN l.Name AS name", 
+                                            "MATCH (l:Level {ElementId: $id}) RETURN l.Name AS name",
                                             new { id = elemId })).GetAwaiter().GetResult();
                                         newName = recs.FirstOrDefault()?["name"].As<string>() ?? "";
                                     }
                                     catch { }
                                     if (!string.IsNullOrEmpty(newName) && newName != level.Name)
                                     {
-                                        try 
-                                        { 
-                                            level.Name = newName; 
+                                        try
+                                        {
+                                            level.Name = newName;
                                             applied = true;
                                             Debug.WriteLine($"[Pull] Level {elemId} Name -> {newName}");
                                         }
@@ -168,7 +182,7 @@ namespace SpaceTracker
                                     try
                                     {
                                         var recs = Task.Run(async () => await connector.RunReadQueryAsync(
-                                            "MATCH (w:Wall {ElementId: $id}) RETURN coalesce(w.Name, w.Type) AS newName", 
+                                            "MATCH (w:Wall {ElementId: $id}) RETURN coalesce(w.Name, w.Type) AS newName",
                                             new { id = elemId })).GetAwaiter().GetResult();
                                         newName = recs.FirstOrDefault()?["newName"].As<string>() ?? "";
                                     }
@@ -178,9 +192,9 @@ namespace SpaceTracker
                                         WallType wType = wall.WallType;
                                         if (wType.Name != newName)
                                         {
-                                            try 
-                                            { 
-                                                wType.Name = newName; 
+                                            try
+                                            {
+                                                wType.Name = newName;
                                                 applied = true;
                                                 Debug.WriteLine($"[Pull] WallType von Wand {elemId} umbenannt -> {newName}");
                                             }
@@ -198,7 +212,7 @@ namespace SpaceTracker
                                     try
                                     {
                                         var recs = Task.Run(async () => await connector.RunReadQueryAsync(
-                                            "MATCH (d:Door {ElementId: $id}) RETURN d.Name AS mark", 
+                                            "MATCH (d:Door {ElementId: $id}) RETURN d.Name AS mark",
                                             new { id = elemId })).GetAwaiter().GetResult();
                                         newMark = recs.FirstOrDefault()?["mark"].As<string>() ?? "";
                                     }
@@ -208,8 +222,8 @@ namespace SpaceTracker
                                         var markParam = fi.get_Parameter(BuiltInParameter.DOOR_NUMBER);
                                         if (markParam != null && !markParam.IsReadOnly && markParam.AsString() != newMark)
                                         {
-                                            try 
-                                            { 
+                                            try
+                                            {
                                                 markParam.Set(newMark);
                                                 applied = true;
                                                 Debug.WriteLine($"[Pull] Tür {elemId} Nummer -> {newMark}");
@@ -268,16 +282,26 @@ namespace SpaceTracker
             }
 
             // LastSyncTime auf Zeitpunkt des letzten übernommenen Logs setzen
-           string latestTs = changeRecords.Last()["ts"].As<string>();
-  // letzter Datensatz
+            string latestTs = changeRecords.Last()["ts"].As<string>();
+            // letzter Datensatz
             try
             {
                 cmdMgr.LastSyncTime = DateTime.Parse(latestTs);
             }
             catch { cmdMgr.LastSyncTime = DateTime.UtcNow; }
             // Synchronisationszeitpunkt persistieren
-            string syncFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker", "last_sync.txt");
-            File.WriteAllText(syncFilePath, cmdMgr.LastSyncTime.ToString("o"));
+            cmdMgr.PersistSyncTime();
+            try
+            {
+                connector.UpdateSessionLastSyncAsync(sessionId, cmdMgr.LastSyncTime)
+                         .GetAwaiter().GetResult();
+                connector.CleanupObsoleteChangeLogsAsync()
+                         .GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Pull] Fehler beim Session-Update: {ex.Message}");
+            }
 
             // Ergebnis auswerten und Benutzer informieren
             if (notCreatedIds.Count == 0 && conflictIds.Count == 0)

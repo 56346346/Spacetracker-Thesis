@@ -37,7 +37,7 @@ C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTra
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.csproj.GenerateResource.cache
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.csproj.CoreCompileInputs.cache
+C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.sourcelink.json
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTra.4DA3D387.Up2Date
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.pdb
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.sourcelink.json
