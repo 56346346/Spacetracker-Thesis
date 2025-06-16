@@ -26,7 +26,7 @@ namespace SpaceTracker
             var commands = cmdMgr.cypherCommands.ToList();
             cmdMgr.cypherCommands = new ConcurrentQueue<string>();
 
-            if (cmdMgr.cypherCommands.Count == 0)
+            if (commands.Count == 0)
             {
                 TaskDialog.Show("Push", "Keine Änderungen zum Übertragen vorhanden.");
                 return Result.Succeeded;

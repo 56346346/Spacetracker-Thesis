@@ -416,7 +416,14 @@ namespace SpaceTracker
                     }
                 }
                 ProcessWalls(doc, lvl);
-                ProcessStairs(doc, lvl);
+                var stairFilter = new ElementLevelFilter(lvl.Id);
+                foreach (Element e in new FilteredElementCollector(doc)
+                    .OfCategory(BuiltInCategory.OST_Stairs)
+                    .WherePasses(stairFilter)
+                    .WhereElementIsNotElementType())
+                {
+                    ProcessStair(e, doc);
+                }
 
                 var doorCollector = new FilteredElementCollector(doc)
                     .OfCategory(BuiltInCategory.OST_Doors).OfClass(typeof(FamilyInstance)).WherePasses(lvlFilter);
@@ -509,9 +516,8 @@ namespace SpaceTracker
                             ProcessDoor(element, doc);
                             break;
                         case BuiltInCategory.OST_Stairs:
-                            var lvl = doc.GetElement(element.LevelId) as Level;
-                            if (lvl != null)
-                                ProcessStairs(doc, lvl);
+
+                            ProcessStair(element, doc);
                             break;
                         default:
                             Debug.WriteLine($"[Neo4j] Ignoriere Kategorie: {bic}");
@@ -522,6 +528,44 @@ namespace SpaceTracker
                 }
             }
         }
+        /// <summary>
+        /// Verarbeitet eine einzelne Treppen-Instanz und verbindet sie mit den Basis- und Ober-Ebenen.
+        /// </summary>
+        private void ProcessStair(Element stairElem, Document doc)
+        {
+            // 1) Basis- und Ober-Ebenen-Parameter auslesen
+            var baseParam = stairElem.get_Parameter(BuiltInParameter.STAIRS_BASE_LEVEL_PARAM);
+            var topParam = stairElem.get_Parameter(BuiltInParameter.STAIRS_TOP_LEVEL_PARAM);
+
+            ElementId baseLevelId = baseParam != null
+                ? baseParam.AsElementId()
+                : ElementId.InvalidElementId;
+            ElementId topLevelId = topParam != null
+                ? topParam.AsElementId()
+                : ElementId.InvalidElementId;
+
+            // 2) Revit-Level-Instanzen
+            var baseLevel = doc.GetElement(baseLevelId) as Level;
+            var topLevel = doc.GetElement(topLevelId) as Level;
+            if (baseLevel == null || topLevel == null)
+                return;  // ohne beide Ebenen keine Relationship
+
+            // 3) Lesbarer Name für die Treppe
+            string stairName = $"Treppe {EscapeString(baseLevel.Name)}→{EscapeString(topLevel.Name)}";
+
+            // 4) Cypher-Statement: Node MERGE + Beziehungen
+            string cy =
+                $"MERGE (s:Stair {{ElementId: {stairElem.Id.Value}}}) " +
+                $"SET s.Name = '{EscapeString(stairName)}' " +
+                $"WITH s " +
+                $"MATCH (b:Level {{ElementId: {baseLevelId.Value}}}), (t:Level {{ElementId: {topLevelId.Value}}}) " +
+                $"MERGE (b)-[:CONNECTS_TO]->(s) " +
+                $"MERGE (s)-[:CONNECTS_TO]->(t)";
+
+            _cmdManager.cypherCommands.Enqueue(cy);
+            Debug.WriteLine("[Neo4j] Cypher erzeugt (Stair-Verbindungen): " + cy);
+        }
+
 
         /*private string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
         {

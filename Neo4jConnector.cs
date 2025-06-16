@@ -46,9 +46,9 @@ namespace SpaceTracker
             try
             {
                 var resultCursor = parameters == null
-                    ? await session.RunAsync(query)
-                    : await session.RunAsync(query, parameters);
-                return await resultCursor.ToListAsync();
+                     ? await session.RunAsync(query).ConfigureAwait(false)
+                    : await session.RunAsync(query, parameters).ConfigureAwait(false);
+                return await resultCursor.ToListAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -69,7 +69,7 @@ namespace SpaceTracker
             try
             {
                 // 2) Transaction starten
-                var tx = await session.BeginTransactionAsync();
+                var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
 
                 // ─────────────────────────────────────────────────────────
                 // ► SESSION-KNOTEN ERSTELLEN / UPDATEN (MERGE ganz am Anfang)
@@ -83,16 +83,16 @@ namespace SpaceTracker
                         session = userId,
                         time = initTime
                     }
-                );
+                ).ConfigureAwait(false);
 
                 // 3) Regex zum Extrahieren der ElementId aus dem Cypher-String
-                var idRegex = new Regex(@"ElementId\D+(\d+)");
+                var idRegex = new Regex(@"ElementId\D+(\d+)"); 
 
                 // 4) Alle Commands durchlaufen
                 foreach (string cmd in cypherCommands)
                 {
                     // 4.1) Änderungsbefehl ausführen – jetzt mit $session-Parameter
-                    await tx.RunAsync(cmd, new { session = userId });
+                    await tx.RunAsync(cmd, new { session = userId }).ConfigureAwait(false);
 
                     // 4.2) Änderungstyp bestimmen (Insert/Modify/Delete)
                     string changeType;
@@ -126,11 +126,11 @@ namespace SpaceTracker
                             type = changeType,
                             eid = elementId
                         }
-                    );
+                    ).ConfigureAwait(false);
                 }
 
                 // 5) Transaction committen
-                await tx.CommitAsync();
+                await tx.CommitAsync().ConfigureAwait(false);
                 Debug.WriteLine($"[Neo4j] PushChanges: {cypherCommands.Count()} Änderungen übertragen und protokolliert.");
             }
             catch (Exception ex)
@@ -139,7 +139,7 @@ namespace SpaceTracker
                 // 6) Bei Fehler: Rollback
                 try
                 {
-                    await session.CloseAsync(); // Session sauber schließen
+                    await session.CloseAsync().ConfigureAwait(false); // Session sauber schließen
                 }
                 catch { /* ignore */ }
                 throw;
@@ -147,7 +147,7 @@ namespace SpaceTracker
             finally
             {
                 // 7) Session schließen
-                await session.CloseAsync();
+                await session.CloseAsync().ConfigureAwait(false);
             }
         }
 
@@ -158,8 +158,8 @@ namespace SpaceTracker
 
             try
             {
-                var result = await session.RunAsync(query);
-                await result.ConsumeAsync();
+                var result = await session.RunAsync(query).ConfigureAwait(false);
+                await result.ConsumeAsync().ConfigureAwait(false);
                 Debug.WriteLine($"[Neo4j] Query erfolgreich: {query}");
             }
             catch (Exception ex)
@@ -178,8 +178,8 @@ namespace SpaceTracker
                 {
                     // 1) ältesten Zeitstempel aller Sessions ermitteln
                     var res = await tx.RunAsync(
-                        "MATCH (s:Session) RETURN min(s.lastSync) AS cutoff");
-                    var record = await res.SingleAsync();
+                        "MATCH (s:Session) RETURN min(s.lastSync) AS cutoff").ConfigureAwait(false);
+                    var record = await res.SingleAsync().ConfigureAwait(false);
                     var cutoff = record["cutoff"].As<ZonedDateTime>();
 
                     // 2) ChangeLogs löschen, die älter sind
@@ -187,12 +187,12 @@ namespace SpaceTracker
                         @"MATCH (cl:ChangeLog)
                   WHERE cl.timestamp < $cutoff
                   DELETE cl",
-                        new { cutoff = cutoff.ToString() });
+                        new { cutoff = cutoff.ToString() }).ConfigureAwait(false);
                 });
             }
             finally
             {
-                await session.CloseAsync();
+                await session.CloseAsync().ConfigureAwait(false);
             }
         }
 
@@ -207,7 +207,7 @@ namespace SpaceTracker
                     return;
                 }
 
-                var commands = await Task.Run(() => File.ReadAllLines(_cypherFilePath));
+                var commands = await Task.Run(() => File.ReadAllLines(_cypherFilePath)).ConfigureAwait(false);
 
                 await using var session = _driver.AsyncSession();
                 foreach (var cmd in commands)
@@ -216,8 +216,8 @@ namespace SpaceTracker
                     {
                         try
                         {
-                            var result = await session.RunAsync(cmd);
-                            await result.ConsumeAsync();
+                            var result = await session.RunAsync(cmd).ConfigureAwait(false);
+                            await result.ConsumeAsync().ConfigureAwait(false);
                             Debug.WriteLine("[Neo4j] Erfolgreich: " + cmd);
                         }
                         catch (Exception ex)

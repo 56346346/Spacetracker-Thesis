@@ -82,7 +82,7 @@ namespace SpaceTracker
         /// Catch startup and mount event handlers
         /// </summary>
         /// <param name="application"></param>
-        /// <returns5></returns>
+        /// <returns></returns>
         public Result OnStartup(UIControlledApplication application)
         {
             //  SQLitePCL.Batteries.Init();
@@ -518,10 +518,7 @@ namespace SpaceTracker
 
                 // 7. Änderungen zur Verarbeitung einreihen
                 _databaseUpdateHandler.EnqueueChange(changeData);
-                if (App.UpdateEvent != null)
-                {
-                    App.UpdateEvent.Raise();
-                }
+                
             }
             catch (Exception ex)
             {
