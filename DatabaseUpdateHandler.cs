@@ -1,0 +1,184 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
+using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
+using System.IO.Compression;
+using System.Xml.Linq;
+
+using SpaceTracker;
+
+namespace SpaceTracker
+{
+    public class DatabaseUpdateHandler : IExternalEventHandler
+    {
+        private readonly ConcurrentQueue<ChangeData> _changeQueue = new ConcurrentQueue<ChangeData>();
+        private readonly SQLiteConnector _sqliteConnector; // Statt _sqlite
+        private readonly SpaceExtractor _extractor;
+
+        //private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
+
+        // private string _rulesetId;
+
+
+        private ExternalEvent _externalEvent;
+
+
+        public void Execute(UIApplication app)
+        {
+            var doc = app.ActiveUIDocument?.Document;
+            if (doc == null) return;
+
+            try
+            {
+                // 1. Prozessiere alle wartenden Changes
+                while (_changeQueue.TryDequeue(out var change))
+                {
+                    _extractor.UpdateGraph(doc,
+                                           change.AddedElements,
+                                           change.DeletedElementIds,
+                                           change.ModifiedElements);
+                }
+
+                // 2. Abarbeitung der Neo4j-Queue **einmalig** synchron
+                CommandManager.Instance
+                              .ProcessCypherQueueAsync()
+                              .GetAwaiter()
+                              .GetResult();
+
+                _ = CommandManager.Instance.ProcessCypherQueueAsync();
+            }
+            catch (Exception ex)
+            {
+                // Absichern gegen jeden Fehler im Handler
+                Logger.LogCrash("ExternalEvent", ex);
+            }
+
+
+            /* try
+             {
+                 // 1. Betroffene + Kontext-ElementIds sammeln
+                 var deltaIds = _changeQueue
+                     .SelectMany(c => c.AddedElements.Select(e => e.Id)
+                         .Concat(c.ModifiedElements.Select(e => e.Id)))
+                     .Distinct()
+                     .ToList();
+
+                 // Beispiel: für Räume angrenzende Wände ergänzen
+                 foreach (var change in _changeQueue)
+                 {
+                     foreach (var room in change.AddedElements.OfType<Room>()
+                         .Concat(change.ModifiedElements.OfType<Room>()))
+                     {
+                         var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+                         foreach (var segList in boundaries)
+                             foreach (var seg in segList)
+                                 if (!deltaIds.Contains(seg.ElementId))
+                                     deltaIds.Add(seg.ElementId);
+                     }
+                 }
+
+                 // 2. IFC-Subset exportieren
+                 string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
+
+                 // 3. Solibri REST API-Aufrufe
+                 string modelId = _solibriClient.ImportIfcAsync(ifcPath).GetAwaiter().GetResult();
+
+                 if (string.IsNullOrEmpty(_rulesetId))
+                     _rulesetId = _solibriClient
+                         .ImportRulesetAsync(@"C:\Pfad\zu\IhrerRegelsatz.cset")
+                         .GetAwaiter().GetResult();
+
+                 _solibriClient.CheckModelAsync(modelId, _rulesetId).GetAwaiter().GetResult();
+
+                 string bcfZip = _solibriClient
+                     .ExportBcfAsync(modelId, Path.GetTempPath())
+                     .GetAwaiter().GetResult();
+
+                 // 4. BCF parsen und Issues zurück nach Neo4j
+                 ProcessBcfAndWriteToNeo4j(bcfZip);
+             }
+
+             catch (Exception ex)
+             {
+                 Logger.LogCrash("Solibri Delta-Prüfung", ex);
+             }*/
+        }
+
+
+
+
+        public string GetName() => "SpaceTracker Real-Time Sync";
+
+        public void EnqueueChange(ChangeData data)
+        {
+            _changeQueue.Enqueue(data);
+            RaiseEvent();
+        }
+
+        /*private void ProcessBcfAndWriteToNeo4j(string bcfZipPath)
+        {
+            using var archive = ZipFile.OpenRead(bcfZipPath);
+            foreach (var entry in arc  hive.Entries.Where(e => e.Name.Equals("markup.bcf", StringComparison.OrdinalIgnoreCase)))
+            {
+                using var stream = entry.Open();
+                var xdoc = XDocument.Load(stream);
+
+                var components = xdoc.Descendants("Component")
+                    .Select(x => (string)x.Attribute("IfcGuid"))
+                    .Where(g => !string.IsNullOrEmpty(g))
+                    .ToList();
+
+                var title = xdoc.Descendants("Title").FirstOrDefault()?.Value ?? "Issue";
+                var desc = xdoc.Descendants("Description").FirstOrDefault()?.Value ?? "";
+
+                foreach (var guid in components)
+                {
+                    string cy = $@"
+                MERGE (e {{ ifcGuid: '{guid}' }})
+                MERGE (i:Issue {{ title: '{title}', description: '{desc}' }})
+                MERGE (e)-[:HAS_ISSUE]->(i)";
+                    CommandManager.Instance.cypherCommands.Enqueue(cy);
+                }
+            }
+        }*/
+
+
+        public void Initialize()
+        {
+            _externalEvent = ExternalEvent.Create(this);
+        }
+
+        public DatabaseUpdateHandler(SQLiteConnector sqliteConnector, SpaceExtractor extractor)
+        {
+            _sqliteConnector = sqliteConnector;
+            _extractor = extractor;
+            _externalEvent = ExternalEvent.Create(this);
+        }
+
+
+        private void RaiseEvent()
+        {
+            if (_externalEvent != null && !_externalEvent.IsPending)
+            {
+                _externalEvent.Raise();
+            }
+
+
+        }
+
+
+
+    }
+
+    public class ChangeData
+    {
+        public List<Element> AddedElements { get; set; } = new List<Element>();
+        public List<ElementId> DeletedElementIds { get; set; } = new List<ElementId>();
+        public List<Element> ModifiedElements { get; set; } = new List<Element>();
+    }
+
+}

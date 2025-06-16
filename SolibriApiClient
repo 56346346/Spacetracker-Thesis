@@ -1,0 +1,67 @@
+using System;
+using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Threading.Tasks;
+
+namespace SpaceTracker.Utilities
+{
+    public class SolibriApiClient
+    {
+        private readonly string _baseUrl;
+
+        public SolibriApiClient(int port)
+        {
+            _baseUrl = $"http://localhost:{port}";
+        }
+
+        public async Task<string> ImportIfcAsync(string ifcFilePath)
+        {
+            using var client = new HttpClient();
+            using var fs = File.OpenRead(ifcFilePath);
+            var content = new StreamContent(fs);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            var resp = await client.PostAsync($"{_baseUrl}/models", content);
+            resp.EnsureSuccessStatusCode();
+            var modelUri = resp.Headers.Location?.ToString();
+            if (string.IsNullOrEmpty(modelUri)) throw new Exception("Model-URI fehlt!");
+            return modelUri.Split('/')[^1];
+        }
+
+        public async Task<string> ImportRulesetAsync(string csetPath)
+        {
+            using var client = new HttpClient();
+            using var fs = File.OpenRead(csetPath);
+            var content = new StreamContent(fs);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            var resp = await client.PostAsync($"{_baseUrl}/rulesets", content);
+            resp.EnsureSuccessStatusCode();
+            var rulesetUri = resp.Headers.Location?.ToString();
+            if (string.IsNullOrEmpty(rulesetUri)) throw new Exception("Ruleset-URI fehlt!");
+            return rulesetUri.Split('/')[^1];
+        }
+
+        public async Task CheckModelAsync(string modelId, string rulesetId)
+        {
+            using var client = new HttpClient();
+            var payload = new StringContent(
+                $"{{\"rulesetIds\": [\"{rulesetId}\"]}}",
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+            var resp = await client.PostAsync($"{_baseUrl}/models/{modelId}/check", payload);
+            resp.EnsureSuccessStatusCode();
+        }
+
+        public async Task<string> ExportBcfAsync(string modelId, string outDir)
+        {
+            using var client = new HttpClient();
+            var resp = await client.GetAsync($"{_baseUrl}/models/{modelId}/bcfxml/two_one?scope=all");
+            resp.EnsureSuccessStatusCode();
+            var tempBcf = Path.Combine(outDir, $"result_{modelId}.bcfzip");
+            await using var fs = File.Create(tempBcf);
+            await resp.Content.CopyToAsync(fs);
+            return tempBcf;
+        }
+    }
+}
