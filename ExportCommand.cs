@@ -51,7 +51,7 @@ namespace SpaceTracker
             try
             {
                 // 3) Synchroner Push—kein Task.Run mehr
-                connector.PushChangesAsync(commands, sessionId)
+                connector.PushChangesAsync(commands, sessionId, Environment.UserName)
                          .GetAwaiter().GetResult();
 
                 // 4) Unmittelbar danach: ChangeLogs aufräumen

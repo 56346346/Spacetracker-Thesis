@@ -573,12 +573,15 @@ namespace SpaceTracker
                             // Push direkt, damit beim Editieren kein Delta verloren geht
                             _neo4jConnector.PushChangesAsync(
                                 CommandManager.Instance.cypherCommands.ToList(),
+                                CommandManager.Instance.SessionId,
                                 Environment.UserName
                             ).GetAwaiter().GetResult();
 
                             // Queues leeren für normale Delta-Verarbeitung
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
+                            _neo4jConnector.CleanupObsoleteChangeLogsAsync()
+                                         .GetAwaiter().GetResult();
                         }
                         catch (Exception ex)
                         {

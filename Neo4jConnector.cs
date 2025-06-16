@@ -61,7 +61,7 @@ namespace SpaceTracker
         /// Überträgt eine Liste von Cypher-Befehlen als Atomar-Transaktion an Neo4j 
         /// und protokolliert jede Änderung im ChangeLog (mit Benutzer & Timestamp).
         /// </summary>
-        public async Task PushChangesAsync(IEnumerable<string> cypherCommands, string userId)
+        public async Task PushChangesAsync(IEnumerable<string> cypherCommands, string sessionId, string userName)
         {
             // 1) Asynchrone Neo4j-Session öffnen
             var session = _driver.AsyncSession();
@@ -80,7 +80,7 @@ namespace SpaceTracker
               SET s.lastSync = datetime($time)",
                     new
                     {
-                        session = userId,
+                        session = sessionId,
                         time = initTime
                     }
                 ).ConfigureAwait(false);
@@ -92,7 +92,7 @@ namespace SpaceTracker
                 foreach (string cmd in cypherCommands)
                 {
                     // 4.1) Änderungsbefehl ausführen – jetzt mit $session-Parameter
-                    await tx.RunAsync(cmd, new { session = userId }).ConfigureAwait(false);
+                    await tx.RunAsync(cmd, new { session = sessionId }).ConfigureAwait(false);
 
                     // 4.2) Änderungstyp bestimmen (Insert/Modify/Delete)
                     string changeType;
@@ -115,13 +115,15 @@ namespace SpaceTracker
                     await tx.RunAsync(
                         @"CREATE (cl:ChangeLog {
                     sessionId: $session,
+                     user: $user,
                     timestamp: datetime($time),
                     type:      $type,
                     elementId: $eid
                   })",
                         new
                         {
-                            session = userId,
+                             session = sessionId,
+                            user = userName,
                             time = logTime,
                             type = changeType,
                             eid = elementId
