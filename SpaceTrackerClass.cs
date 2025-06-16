@@ -558,17 +558,11 @@ namespace SpaceTracker
                     Debug.WriteLine("[SpaceTracker] Neuer Graph - initialer Upload der Modelldaten.");
                     _extractor.CreateInitialGraph(doc);  // alle vorhandenen Elemente ins Queue einreihen
                                                          // Änderungen in einem Batch an Neo4j senden (Push)
-                    List<string> initialCommands = new List<string>();
-                    while (CommandManager.Instance.cypherCommands.TryDequeue(out string cmd))
-                    {
-                        initialCommands.Add(cmd);
-                    }
-                    if (initialCommands.Count > 0)
+                   if (CommandManager.Instance.cypherCommands.Count > 0)
                     {
                         try
                         {
-                            // Erzeuge den initialen Graph aus dem Dokument
-                            _extractor.CreateInitialGraph(e.Document);
+                          
 
                             // Push direkt, damit beim Editieren kein Delta verloren geht
                             _neo4jConnector.PushChangesAsync(
