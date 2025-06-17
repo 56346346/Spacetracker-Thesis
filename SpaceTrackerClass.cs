@@ -20,6 +20,8 @@ using System.Windows.Media;           // für ImageSource
 using System.Windows.Media.Imaging;
 using System.Net.Http;
 using System.Collections.Concurrent;
+using System.Threading;
+
 
 
 

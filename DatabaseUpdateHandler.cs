@@ -9,6 +9,11 @@ using Autodesk.Revit.UI;
 using System.IO.Compression;
 using System.Xml.Linq;
 
+using System.IO;                     // für Path
+             // für XDocument
+using Autodesk.Revit.DB.Architecture;// für Room
+  
+
 using SpaceTracker;
 
 namespace SpaceTracker
@@ -115,7 +120,7 @@ namespace SpaceTracker
         private void ProcessBcfAndWriteToNeo4j(string bcfZipPath)
         {
             using var archive = ZipFile.OpenRead(bcfZipPath);
-            foreach (var entry in arc  hive.Entries.Where(e => e.Name.Equals("markup.bcf", StringComparison.OrdinalIgnoreCase)))
+            foreach (var entry in archive.Entries.Where(e => e.Name.Equals("markup.bcf", StringComparison.OrdinalIgnoreCase)))
             {
                 using var stream = entry.Open();
                 var xdoc = XDocument.Load(stream);

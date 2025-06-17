@@ -58,44 +58,7 @@ namespace SpaceTracker
             }
         }
 
-        public string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
-        {
-            // 1. Temporäre 3D-View isolieren
-            View3D view;
-            using (var tx = new Transaction(doc, "Tmp Isolate"))
-            {
-                tx.Start();
-                view = new FilteredElementCollector(doc)
-                    .OfClass(typeof(View3D))
-                    .Cast<View3D>()
-                    .FirstOrDefault(v => !v.IsTemplate && v.CanBePrinted)
-                    ?? throw new InvalidOperationException("Keine 3D-View gefunden");
-                view.IsolateElementsTemporary(elementsToExport);
-                tx.Commit();
-            }
-
-            // 2. IFC-Export-Optionen
-            var opts = new IFCExportOptions
-            {
-                FileVersion = IFCVersion.IFC4,
-                FilterViewId = view.Id,
-                ExportBaseQuantities = true
-            };
-
-            // 3. Export
-            var path = Path.Combine(Path.GetTempPath(), $"delta_{Guid.NewGuid():N}.ifc");
-            doc.Export(Path.GetDirectoryName(path), Path.GetFileName(path), opts);
-
-            // 4. Isolation zurücksetzen
-            using (var tx = new Transaction(doc, "Tmp Unisolate"))
-            {
-                tx.Start();
-                view.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate);
-                tx.Commit();
-            }
-
-            return path;
-        }
+       
 
         private void ProcessWall(Element wall, Document doc)
         {
@@ -523,7 +486,7 @@ namespace SpaceTracker
         }
 
 
-        private string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
+        public string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
         {
             // 1. Temporäre 3D-Ansicht erstellen und Elemente isolieren
             View3D view = null;
