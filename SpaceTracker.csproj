@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <ProjectGuid>{BB69BA08-FC9D-4320-B6B1-4F992415820D}</ProjectGuid>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <TargetFramework>net481</TargetFramework>
     <AssemblyTitle>SpaceTracker</AssemblyTitle>
      <PlatformTarget>x64</PlatformTarget>
