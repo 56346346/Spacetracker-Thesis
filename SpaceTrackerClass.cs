@@ -37,9 +37,9 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private ExternalEvent _databaseUpdateEvent;
 
-        // private Process _solibriProcess;
-        //private string _rulesetId;
-        //private const int SolibriApiPort = 10876;
+         private Process _solibriProcess;
+        private string _rulesetId;
+        private const int SolibriApiPort = 10876;
 
 
         private readonly Dictionary<ElementId, ElementMetadata> _elementCache =
@@ -92,14 +92,14 @@ namespace SpaceTracker
             _neo4jConnector = new Neo4jConnector();
 
             CommandManager.Initialize(_neo4jConnector, _sqliteConnector);
-            //StartSolibriRestApi();
+            StartSolibriRestApi();
 
             // Instanz abrufen
 
             _extractor = new SpaceExtractor(CommandManager.Instance);
             _databaseUpdateHandler = new DatabaseUpdateHandler(_sqliteConnector, _extractor);
-            //  _databaseUpdateHandler.Initialize();
-            //  _databaseUpdateEvent = ExternalEvent.Create(_databaseUpdateHandler);
+              _databaseUpdateHandler.Initialize();
+              _databaseUpdateEvent = ExternalEvent.Create(_databaseUpdateHandler);
             _cmdManager = CommandManager.Instance;
 
           
@@ -226,7 +226,7 @@ namespace SpaceTracker
             };
         }
 
-        /*private void StartSolibriRestApi()
+        private void StartSolibriRestApi()
         {
             var solibriExe = @"C:\Program Files\Solibri\SOLIBRI\Solibri.exe"; // ggf. anpassen
             var startInfo = new ProcessStartInfo(solibriExe, $"--rest-api-server-port={SolibriApiPort}")
@@ -253,7 +253,7 @@ namespace SpaceTracker
                 Thread.Sleep(1000);
             }
             throw new Exception("Solibri REST API nicht erreichbar!");
-        }*/
+        }
 
 
         private void CreateRibbonUI(UIControlledApplication application)
@@ -465,8 +465,8 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentCreated -= documentCreated;
             _neo4jConnector?.Dispose();
             _sqliteConnector?.Dispose();
-            //if (_solibriProcess != null && !_solibriProcess.HasExited)
-            // _solibriProcess.Kill();
+            if (_solibriProcess != null && !_solibriProcess.HasExited)
+             _solibriProcess.Kill();
             return Result.Succeeded;
 
         }
