@@ -112,6 +112,32 @@ namespace SpaceTracker.Utilities
             }
         }
 
+        public async Task PartialUpdateAsync(string modelId, string ifcFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(modelId))
+                throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
+            if (string.IsNullOrWhiteSpace(ifcFilePath))
+                throw new ArgumentException("Pfad zur IFC-Datei darf nicht leer sein.", nameof(ifcFilePath));
+
+            try
+            {
+                using var client = new HttpClient();
+                using var fs = File.OpenRead(ifcFilePath);
+                var content = new StreamContent(fs);
+                content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                var response = await client.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Fehler beim partiellen Update des IFC-Modells: {ex.Message}", ex);
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
         public async Task<string> ExportBcfAsync(string modelId, string outDirectory)
         {
             if (string.IsNullOrWhiteSpace(modelId))

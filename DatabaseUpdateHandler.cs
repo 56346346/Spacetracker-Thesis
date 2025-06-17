@@ -84,7 +84,12 @@ namespace SpaceTracker
                 string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
 
                 // 3. Solibri REST API-Aufrufe
-                string modelId = _solibriClient.ImportIfcAsync(ifcPath).GetAwaiter().GetResult();
+string modelId = SpaceTrackerClass.SolibriModelUUID;
+                _solibriClient.PartialUpdateAsync(modelId, ifcPath).GetAwaiter().GetResult();
+ string rulesetId = SpaceTrackerClass.SolibriRulesetId;
+                _solibriClient.CheckModelAsync(modelId, rulesetId).GetAwaiter().GetResult();
+
+                string bcfZip = _solibriClient.ExportBcfAsync(modelId, Path.GetTempPath()).GetAwaiter().GetResult();
 
                 if (string.IsNullOrEmpty(_rulesetId))
                     _rulesetId = _solibriClient
@@ -93,9 +98,7 @@ namespace SpaceTracker
 
                 _solibriClient.CheckModelAsync(modelId, _rulesetId).GetAwaiter().GetResult();
 
-                string bcfZip = _solibriClient
-                    .ExportBcfAsync(modelId, Path.GetTempPath())
-                    .GetAwaiter().GetResult();
+                
 
                 // 4. BCF parsen und Issues zurück nach Neo4j
                 ProcessBcfAndWriteToNeo4j(bcfZip);

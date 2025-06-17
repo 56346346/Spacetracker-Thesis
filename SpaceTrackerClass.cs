@@ -48,6 +48,10 @@ namespace SpaceTracker
        new Dictionary<ElementId, ElementMetadata>();
         private SpaceExtractor _extractor;
         private CommandManager _cmdManager;
+  
+    
+        public const string SolibriModelUUID = "441081f9-7562-4a10-8d2e-7dd3add07eee";
+        public static string SolibriRulesetId;
 
         public static PushButton StatusIndicatorButton;
         internal static ImageSource GreenIcon, YellowIcon, RedIcon;
@@ -95,6 +99,8 @@ namespace SpaceTracker
 
             CommandManager.Initialize(_neo4jConnector, _sqliteConnector);
             StartSolibriRestApi();
+             var solibriClient = new SolibriApiClient(SolibriApiPort);
+            SolibriRulesetId = solibriClient.ImportRulesetAsync(@"C:\Path\To\MeinDeltaRuleset.cset").GetAwaiter().GetResult();
 
             // Instanz abrufen
 
