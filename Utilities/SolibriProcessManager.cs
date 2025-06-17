@@ -20,7 +20,7 @@ namespace SpaceTracker.Utilities
                 return;
             }
 
-            var startInfo = new ProcessStartInfo(SolibriExePath, $"--rest-api-server-port={Port}")
+            var startInfo = new ProcessStartInfo(SolibriExePath, $"--rest-api-server-port={Port} --rest-api-server-http --rest-api-server-local-content")
             {
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -36,7 +36,7 @@ namespace SpaceTracker.Utilities
             {
                 try
                 {
-                    var resp = http.GetAsync($"http://localhost:{Port}/status").Result;
+                    var resp = http.GetAsync($"http://localhost:{Port}/solibri/v1/status").Result;
                     if (resp.IsSuccessStatusCode)
                     {
                         return;

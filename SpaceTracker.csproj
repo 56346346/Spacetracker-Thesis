@@ -117,7 +117,14 @@
     <Compile Remove="obj\ARM64\Debug\.NETFramework,Version=v4.8.AssemblyAttributes.cs" />
   </ItemGroup>
    <ItemGroup>
-    <Compile Include="Utilities/SolibriApiClient.cs" />
+     <Compile Include="ExportCommand.cs" />
+    <Compile Include="PullCommand.cs" />
+    <Compile Include="PushCommand.cs" />
+    <Compile Include="SpaceExtractor.cs" />
+    <Compile Include="SpaceTrackerClass.cs" />
+    <Compile Include="DatabaseUpdateHandler.cs" />
+    <Compile Include="Utilities\SolibriApiClient.cs" />
+    <Compile Include="SQLiteConnector.cs" />
     <Compile Include="Utilities/SolibriProcessManager.cs" />
   </ItemGroup>
   <ItemGroup>
