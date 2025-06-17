@@ -21,6 +21,7 @@ using System.Windows.Media.Imaging;
 using System.Net.Http;
 using System.Collections.Concurrent;
 using System.Threading;
+using SpaceTracker.Utilities;
 
 
 
@@ -39,7 +40,7 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private ExternalEvent _databaseUpdateEvent;
 
-         private Process _solibriProcess;
+  
         private string _rulesetId;
         public const int SolibriApiPort = 10876;
 
@@ -223,44 +224,8 @@ namespace SpaceTracker
 
         private void RegisterGlobalExceptionHandlers()
         {
-            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
-            {
-                var ex = e.ExceptionObject as Exception;
-                Logger.LogCrash("Unhandled", ex);
-            };
-            System.Windows.Forms.Application.ThreadException += (s, e) =>
-            {
-                Logger.LogCrash("UI Thread", e.Exception);
-            };
-        }
-
-        private void StartSolibriRestApi()
-        {
-            var solibriExe = @"C:\Program Files\Solibri\SOLIBRI\Solibri.exe"; // ggf. anpassen
-            var startInfo = new ProcessStartInfo(solibriExe, $"--rest-api-server-port={SolibriApiPort}")
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            _solibriProcess = Process.Start(startInfo);
-            // Optional: Warten bis API erreichbar ist
-            WaitForSolibriApiAvailable();
-        }
-
-        private void WaitForSolibriApiAvailable()
-        {
-            var http = new HttpClient();
-            for (int i = 0; i < 30; i++) // max 30 Sekunden warten
-            {
-                try
-                {
-                    var resp = http.GetAsync($"http://localhost:{SolibriApiPort}/status").Result;
-                    if (resp.IsSuccessStatusCode) return;
-                }
-                catch { }
-                Thread.Sleep(1000);
-            }
-            throw new Exception("Solibri REST API nicht erreichbar!");
+         SolibriProcessManager.Port = SolibriApiPort;
+            SolibriProcessManager.EnsureStarted();
         }
 
 
@@ -473,8 +438,7 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentCreated -= documentCreated;
             _neo4jConnector?.Dispose();
             _sqliteConnector?.Dispose();
-            if (_solibriProcess != null && !_solibriProcess.HasExited)
-             _solibriProcess.Kill();
+             SolibriProcessManager.Stop();
             return Result.Succeeded;
 
         }
