@@ -41,7 +41,7 @@ namespace SpaceTracker
 
          private Process _solibriProcess;
         private string _rulesetId;
-        private const int SolibriApiPort = 10876;
+        public const int SolibriApiPort = 10876;
 
 
         private readonly Dictionary<ElementId, ElementMetadata> _elementCache =

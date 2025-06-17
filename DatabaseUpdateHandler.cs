@@ -10,9 +10,10 @@ using System.IO.Compression;
 using System.Xml.Linq;
 
 using System.IO;                     // für Path
-             // für XDocument
+                                     // für XDocument
 using Autodesk.Revit.DB.Architecture;// für Room
-  
+using SpaceTracker.Utilities;
+
 
 using SpaceTracker;
 
@@ -26,7 +27,7 @@ namespace SpaceTracker
 
         private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
 
-         private string _rulesetId;
+        private string _rulesetId;
 
 
         private ExternalEvent _externalEvent;
@@ -57,53 +58,53 @@ namespace SpaceTracker
 
 
             try
-             {
-                 // 1. Betroffene + Kontext-ElementIds sammeln
-                 var deltaIds = _changeQueue
-                     .SelectMany(c => c.AddedElements.Select(e => e.Id)
-                         .Concat(c.ModifiedElements.Select(e => e.Id)))
-                     .Distinct()
-                     .ToList();
+            {
+                // 1. Betroffene + Kontext-ElementIds sammeln
+                var deltaIds = _changeQueue
+                    .SelectMany(c => c.AddedElements.Select(e => e.Id)
+                        .Concat(c.ModifiedElements.Select(e => e.Id)))
+                    .Distinct()
+                    .ToList();
 
-                 // Beispiel: für Räume angrenzende Wände ergänzen
-                 foreach (var change in _changeQueue)
-                 {
-                     foreach (var room in change.AddedElements.OfType<Room>()
-                         .Concat(change.ModifiedElements.OfType<Room>()))
-                     {
-                         var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
-                         foreach (var segList in boundaries)
-                             foreach (var seg in segList)
-                                 if (!deltaIds.Contains(seg.ElementId))
-                                     deltaIds.Add(seg.ElementId);
-                     }
-                 }
+                // Beispiel: für Räume angrenzende Wände ergänzen
+                foreach (var change in _changeQueue)
+                {
+                    foreach (var room in change.AddedElements.OfType<Room>()
+                        .Concat(change.ModifiedElements.OfType<Room>()))
+                    {
+                        var boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+                        foreach (var segList in boundaries)
+                            foreach (var seg in segList)
+                                if (!deltaIds.Contains(seg.ElementId))
+                                    deltaIds.Add(seg.ElementId);
+                    }
+                }
 
-                 // 2. IFC-Subset exportieren
-                 string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
+                // 2. IFC-Subset exportieren
+                string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
 
-                 // 3. Solibri REST API-Aufrufe
-                 string modelId = _solibriClient.ImportIfcAsync(ifcPath).GetAwaiter().GetResult();
+                // 3. Solibri REST API-Aufrufe
+                string modelId = _solibriClient.ImportIfcAsync(ifcPath).GetAwaiter().GetResult();
 
-                 if (string.IsNullOrEmpty(_rulesetId))
-                     _rulesetId = _solibriClient
-                         .ImportRulesetAsync(@"C:\Pfad\zu\IhrerRegelsatz.cset")
-                         .GetAwaiter().GetResult();
+                if (string.IsNullOrEmpty(_rulesetId))
+                    _rulesetId = _solibriClient
+                        .ImportRulesetAsync(@"C:\Pfad\zu\IhrerRegelsatz.cset")
+                        .GetAwaiter().GetResult();
 
-                 _solibriClient.CheckModelAsync(modelId, _rulesetId).GetAwaiter().GetResult();
+                _solibriClient.CheckModelAsync(modelId, _rulesetId).GetAwaiter().GetResult();
 
-                 string bcfZip = _solibriClient
-                     .ExportBcfAsync(modelId, Path.GetTempPath())
-                     .GetAwaiter().GetResult();
+                string bcfZip = _solibriClient
+                    .ExportBcfAsync(modelId, Path.GetTempPath())
+                    .GetAwaiter().GetResult();
 
-                 // 4. BCF parsen und Issues zurück nach Neo4j
-                 ProcessBcfAndWriteToNeo4j(bcfZip);
-             }
+                // 4. BCF parsen und Issues zurück nach Neo4j
+                ProcessBcfAndWriteToNeo4j(bcfZip);
+            }
 
-             catch (Exception ex)
-             {
-                 Logger.LogCrash("Solibri Delta-Prüfung", ex);
-             }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Solibri Delta-Prüfung", ex);
+            }
         }
 
 

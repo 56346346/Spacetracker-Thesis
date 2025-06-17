@@ -38,7 +38,7 @@ namespace SpaceTracker.Utilities
                     throw new Exception("Model-URI fehlt!");
 
                 var parts = modelUri.Split('/');
-                var modelId = parts[^1];
+                var modelId = parts[parts.Length - 1];
                 return modelId;
             }
             catch (HttpRequestException ex)
@@ -73,7 +73,7 @@ namespace SpaceTracker.Utilities
                     throw new Exception("Ruleset-URI fehlt!");
 
                 var parts = rulesetUri.Split('/');
-                var rulesetId = parts[^1];
+                var rulesetId = parts[parts.Length - 1];
                 return rulesetId;
             }
             catch (HttpRequestException ex)
@@ -97,7 +97,7 @@ namespace SpaceTracker.Utilities
             {
                 using var client = new HttpClient();
                 var payloadObj = new { rulesetIds = new[] { rulesetId } };
-                var json = System.Text.Json.JsonSerializer.Serialize(payloadObj);
+                var json = $"{{\"rulesetIds\":[\"{rulesetId}\"]}}";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = await client.PostAsync($"{_baseUrl}/models/{modelId}/check", content);
                 response.EnsureSuccessStatusCode();
