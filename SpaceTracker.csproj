@@ -17,8 +17,7 @@
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <ErrorReport>prompt</ErrorReport>
     <LangVersion>8.0</LangVersion>
-    <BaseOutputPath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\</BaseOutputPath>
-  </PropertyGroup>
+ </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugType>full</DebugType>
     <OutputPath>bin\$(Configuration)\</OutputPath>
@@ -126,7 +125,4 @@
     </Content>
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /Y /R &quot;$(TargetPath)&quot; &quot;C:\Users\Vitus\AppData\Roaming\Autodesk\Revit\Addins\2026\&quot;&#xD;&#xA;" />
-  </Target>
 </Project>

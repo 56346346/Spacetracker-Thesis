@@ -377,7 +377,9 @@ namespace SpaceTracker
     new ElementCategoryFilter(BuiltInCategory.OST_Walls),
     new ElementCategoryFilter(BuiltInCategory.OST_Rooms),
     new ElementCategoryFilter(BuiltInCategory.OST_Levels),
-    new ElementCategoryFilter(BuiltInCategory.OST_Doors)
+    new ElementCategoryFilter(BuiltInCategory.OST_Doors),
+     new ElementCategoryFilter(BuiltInCategory.OST_Stairs)
+
 });
 
                 using (Transaction tx = new Transaction(doc, "Initialize Existing Elements"))

@@ -1,0 +1,8 @@
+bin/
+obj/
+.vs/
+# User-specific files
+*.user
+*.suo
+*.nupkg
+*.log

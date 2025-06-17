@@ -22,7 +22,20 @@ namespace SpaceTracker
         private static int _wallCounter = 0;
 
         private readonly Dictionary<(string baseLevel, string topLevel), int> _stairCounters
-    = new Dictionary<(string, string), int>();
+          = new Dictionary<(string baseLevel, string topLevel), int>();
+
+        private string GenerateStairName(string baseLevelName, string topLevelName)
+        {
+            var key = (baseLevelName, topLevelName);
+            if (!_stairCounters.TryGetValue(key, out var count))
+            {
+                count = 0;
+            }
+            count++;
+            _stairCounters[key] = count;
+            return $"Treppe {baseLevelName} {topLevelName} {count}";
+        }
+
 
 
         /// <summary>
@@ -179,62 +192,6 @@ namespace SpaceTracker
             }
         }
 
-
-        private void ProcessStairs(Document doc, Level level)
-        {
-            var provider = new ParameterValueProvider(
-    new ElementId((int)BuiltInParameter.STAIRS_BASE_LEVEL_PARAM));
-            var rule = new FilterElementIdRule(provider,
-                new FilterNumericEquals(), level.Id);
-            var stairFilter = new ElementParameterFilter(rule);
-
-            // 2. Collector mit Parameter-Filter
-            var collector = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_Stairs)
-                .WherePasses(stairFilter)
-                .WhereElementIsNotElementType();
-
-            foreach (Element elem in collector)
-            {
-                var bottomParam = elem.get_Parameter(BuiltInParameter.STAIRS_BASE_LEVEL_PARAM);
-                ElementId bottomId = bottomParam != null
-                    ? bottomParam.AsElementId()
-                    : ElementId.InvalidElementId;
-
-                var topParam = elem.get_Parameter(BuiltInParameter.STAIRS_TOP_LEVEL_PARAM);
-                ElementId topId = topParam != null
-                    ? topParam.AsElementId()
-                    : ElementId.InvalidElementId;
-
-                // Level-Instanzen laden (Fallback auf null, falls Parameter fehlt)
-                var bottomLevel = bottomId != ElementId.InvalidElementId
-                    ? doc.GetElement(bottomId) as Level
-                    : null;
-                var topLevel = topId != ElementId.InvalidElementId
-                    ? doc.GetElement(topId) as Level
-                    : null;
-
-                // 3. Name aus Level-Namen zusammensetzen
-                string bottomName = bottomLevel?.Name ?? "Unbekannt";
-                string topName = topLevel?.Name ?? "Unbekannt";
-                string stairName = $"Treppe {bottomName} {topName}";
-
-                // 4. Cypher-Statement erzeugen
-                string cy =
-    $"MERGE (s:Stair {{ElementId: {elem.Id.Value}}}) " +
-    $"SET s.Name = '{EscapeString(stairName)}' " +
-    // bringe bottom/top Level in den Scope
-    $"WITH s " +
-    $"MATCH (l1:Level {{ElementId: {bottomId.Value}}}), " +
-    $"      (l2:Level {{ElementId: {topId.Value}}}) " +
-    // erstelle die Beziehungen
-    $"MERGE (l1)-[:CONNECTS_TO]->(s) " +
-    $"MERGE (s)-[:CONNECTS_TO]->(l2)";
-
-                _cmdManager.cypherCommands.Enqueue(cy);
-                Debug.WriteLine("[Neo4j] Cypher erzeugt (Stair + Level-Rels): " + cy);
-            }
-        }
         private void ProcessRoom(Element room, Document doc)
         {
             if (room.LevelId == ElementId.InvalidElementId) return;
@@ -551,8 +508,7 @@ namespace SpaceTracker
                 return;  // ohne beide Ebenen keine Relationship
 
             // 3) Lesbarer Name für die Treppe
-            string stairName = $"Treppe {EscapeString(baseLevel.Name)}→{EscapeString(topLevel.Name)}";
-
+            string stairName = GenerateStairName(baseLevel.Name, topLevel.Name);
             // 4) Cypher-Statement: Node MERGE + Beziehungen
             string cy =
                 $"MERGE (s:Stair {{ElementId: {stairElem.Id.Value}}}) " +
@@ -877,7 +833,7 @@ namespace SpaceTracker
                         break;
                     case Element st when st.Category.Id.Value == (int)BuiltInCategory.OST_Stairs:
                         var lvl = doc.GetElement(st.LevelId) as Level;
-                        if (lvl != null) ProcessStairs(doc, lvl);
+                        if (lvl != null) ProcessStair(lvl, doc);
                         break;
                 }
             }
