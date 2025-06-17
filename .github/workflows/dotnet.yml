@@ -5,6 +5,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
+    branches: [ main ]
 
 jobs:
   build-windows:
@@ -14,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup MSBuild (Visual Studio 2022 Build Tools)
+       - name: Setup MSBuild (Visual Studio Build Tools)
         uses: microsoft/setup-msbuild@v1
 
       - name: Restore NuGet packages
@@ -23,6 +24,4 @@ jobs:
       - name: Build solution
         run: msbuild SpaceTracker.sln /p:Configuration=Release
 
-      - name: Test projects (falls vorhanden)
-        run: |
-          dotnet test Tests/YourTestProject.csproj --configuration Release
+      
