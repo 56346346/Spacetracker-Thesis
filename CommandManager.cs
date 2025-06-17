@@ -22,8 +22,6 @@ namespace SpaceTracker
         public SQLiteConnector SqlConnector => _sqlConnector;
 
         private readonly SemaphoreSlim _cypherLock = new(1, 1);
-
-
         private static CommandManager _instance;
 
         private static readonly object _lock = new object();
@@ -31,12 +29,6 @@ namespace SpaceTracker
         public string SessionId { get; private set; }
 
         public DateTime LastSyncTime { get; set; } = DateTime.MinValue;
-
-         private readonly CommandManager cmdManager;
-
-
-
-
 
         private CommandManager(Neo4jConnector neo4jConnector, SQLiteConnector sqlconnector)
         {

@@ -48,6 +48,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
+    <BaseOutputPath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Release</BaseOutputPath>
 </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|ARM64'">
     <OutputPath>bin\$(Platform)\$(Configuration)\</OutputPath>

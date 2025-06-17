@@ -4,6 +4,5 @@
     <Import Project="$(NuGetPackageRoot)entityframework\6.5.1\buildTransitive\EntityFramework.targets" Condition="Exists('$(NuGetPackageRoot)entityframework\6.5.1\buildTransitive\EntityFramework.targets')" />
     <Import Project="$(NuGetPackageRoot)stub.system.data.sqlite.core.netframework\1.0.119\buildTransitive\net46\Stub.System.Data.SQLite.Core.NetFramework.targets" Condition="Exists('$(NuGetPackageRoot)stub.system.data.sqlite.core.netframework\1.0.119\buildTransitive\net46\Stub.System.Data.SQLite.Core.NetFramework.targets')" />
     <Import Project="$(NuGetPackageRoot)sqlitepclraw.lib.e_sqlite3\2.1.11\buildTransitive\net461\SQLitePCLRaw.lib.e_sqlite3.targets" Condition="Exists('$(NuGetPackageRoot)sqlitepclraw.lib.e_sqlite3\2.1.11\buildTransitive\net461\SQLitePCLRaw.lib.e_sqlite3.targets')" />
-    <Import Project="$(NuGetPackageRoot)microsoft.netframework.referenceassemblies.net481\1.0.3\build\Microsoft.NETFramework.ReferenceAssemblies.net481.targets" Condition="Exists('$(NuGetPackageRoot)microsoft.netframework.referenceassemblies.net481\1.0.3\build\Microsoft.NETFramework.ReferenceAssemblies.net481.targets')" />
   </ImportGroup>
 </Project>
