@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "qLyTesdWRjo=",
+  "dgSpecHash": "u306XsQ5oAo=",
   "success": true,
   "projectFilePath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
   "expectedPackageFiles": [
@@ -22,6 +22,7 @@
     "C:\\Users\\Vitus\\.nuget\\packages\\system.data.sqlite.core\\1.0.119\\system.data.sqlite.core.1.0.119.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.data.sqlite.ef6\\1.0.119\\system.data.sqlite.ef6.1.0.119.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.data.sqlite.linq\\1.0.119\\system.data.sqlite.linq.1.0.119.nupkg.sha512",
+    "C:\\Users\\Vitus\\.nuget\\packages\\system.io.compression\\4.3.0\\system.io.compression.4.3.0.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.io.pipelines\\9.0.5\\system.io.pipelines.9.0.5.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.memory\\4.5.5\\system.memory.4.5.5.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.numerics.vectors\\4.6.1\\system.numerics.vectors.4.6.1.nupkg.sha512",

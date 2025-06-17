@@ -112,6 +112,10 @@
               "target": "Package",
               "version": "[1.0.119, )"
             },
+            "System.IO.Compression": {
+              "target": "Package",
+              "version": "[4.3.0, )"
+            },
             "System.IO.Pipelines": {
               "target": "Package",
               "version": "[9.0.5, )"
