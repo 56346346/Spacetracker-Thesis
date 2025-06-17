@@ -27,8 +27,6 @@ namespace SpaceTracker
 
         private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
 
-        private string _rulesetId;
-
 
         private ExternalEvent _externalEvent;
 
@@ -37,12 +35,14 @@ namespace SpaceTracker
         {
             var doc = app.ActiveUIDocument?.Document;
             if (doc == null) return;
+            List<ChangeData> processedChanges = new List<ChangeData>();
 
             try
             {
                 // 1. Prozessiere alle wartenden Changes
                 while (_changeQueue.TryDequeue(out var change))
                 {
+                    processedChanges.Add(change);
                     _extractor.UpdateGraph(doc,
                                            change.AddedElements,
                                            change.DeletedElementIds,
@@ -60,14 +60,14 @@ namespace SpaceTracker
             try
             {
                 // 1. Betroffene + Kontext-ElementIds sammeln
-                var deltaIds = _changeQueue
+                var deltaIds = processedChanges
                     .SelectMany(c => c.AddedElements.Select(e => e.Id)
                         .Concat(c.ModifiedElements.Select(e => e.Id)))
                     .Distinct()
                     .ToList();
 
                 // Beispiel: für Räume angrenzende Wände ergänzen
-                foreach (var change in _changeQueue)
+                foreach (var change in processedChanges)
                 {
                     foreach (var room in change.AddedElements.OfType<Room>()
                         .Concat(change.ModifiedElements.OfType<Room>()))
@@ -84,21 +84,20 @@ namespace SpaceTracker
                 string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
 
                 // 3. Solibri REST API-Aufrufe
-string modelId = SpaceTrackerClass.SolibriModelUUID;
+                string modelId = SpaceTrackerClass.SolibriModelUUID;
+                if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
+                    SpaceTrackerClass.SolibriRulesetId = _solibriClient
+                        .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
+                        .GetAwaiter().GetResult();
                 _solibriClient.PartialUpdateAsync(modelId, ifcPath).GetAwaiter().GetResult();
- string rulesetId = SpaceTrackerClass.SolibriRulesetId;
-                _solibriClient.CheckModelAsync(modelId, rulesetId).GetAwaiter().GetResult();
+                _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).GetAwaiter().GetResult();
+             
 
                 string bcfZip = _solibriClient.ExportBcfAsync(modelId, Path.GetTempPath()).GetAwaiter().GetResult();
 
-                if (string.IsNullOrEmpty(_rulesetId))
-                    _rulesetId = _solibriClient
-                        .ImportRulesetAsync(@"C:\Pfad\zu\IhrerRegelsatz.cset")
-                        .GetAwaiter().GetResult();
 
-                _solibriClient.CheckModelAsync(modelId, _rulesetId).GetAwaiter().GetResult();
 
-                
+
 
                 // 4. BCF parsen und Issues zurück nach Neo4j
                 ProcessBcfAndWriteToNeo4j(bcfZip);
