@@ -99,7 +99,7 @@ namespace SpaceTracker
             _neo4jConnector = new Neo4jConnector();
 
             CommandManager.Initialize(_neo4jConnector, _sqliteConnector);
-            StartSolibriRestApi();
+            
              var solibriClient = new SolibriApiClient(SolibriApiPort);
             SolibriRulesetId = solibriClient.ImportRulesetAsync(@"C:\Path\To\MeinDeltaRuleset.cset").GetAwaiter().GetResult();
 
