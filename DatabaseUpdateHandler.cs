@@ -19,9 +19,9 @@ namespace SpaceTracker
         private readonly SQLiteConnector _sqliteConnector; // Statt _sqlite
         private readonly SpaceExtractor _extractor;
 
-        //private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
+        private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
 
-        // private string _rulesetId;
+         private string _rulesetId;
 
 
         private ExternalEvent _externalEvent;
@@ -43,13 +43,6 @@ namespace SpaceTracker
                                            change.ModifiedElements);
                 }
 
-                // 2. Abarbeitung der Neo4j-Queue **einmalig** synchron
-                CommandManager.Instance
-                              .ProcessCypherQueueAsync()
-                              .GetAwaiter()
-                              .GetResult();
-
-                _ = CommandManager.Instance.ProcessCypherQueueAsync();
             }
             catch (Exception ex)
             {
@@ -58,7 +51,7 @@ namespace SpaceTracker
             }
 
 
-            /* try
+            try
              {
                  // 1. Betroffene + Kontext-ElementIds sammeln
                  var deltaIds = _changeQueue
@@ -105,7 +98,7 @@ namespace SpaceTracker
              catch (Exception ex)
              {
                  Logger.LogCrash("Solibri Delta-Prüfung", ex);
-             }*/
+             }
         }
 
 
@@ -119,7 +112,7 @@ namespace SpaceTracker
             RaiseEvent();
         }
 
-        /*private void ProcessBcfAndWriteToNeo4j(string bcfZipPath)
+        private void ProcessBcfAndWriteToNeo4j(string bcfZipPath)
         {
             using var archive = ZipFile.OpenRead(bcfZipPath);
             foreach (var entry in arc  hive.Entries.Where(e => e.Name.Equals("markup.bcf", StringComparison.OrdinalIgnoreCase)))
@@ -144,7 +137,7 @@ namespace SpaceTracker
                     CommandManager.Instance.cypherCommands.Enqueue(cy);
                 }
             }
-        }*/
+        }
 
 
         public void Initialize()

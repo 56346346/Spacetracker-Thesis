@@ -32,7 +32,7 @@ namespace SpaceTracker
 
         public DateTime LastSyncTime { get; set; } = DateTime.MinValue;
 
-        // private readonly CommandManager cmdManager;
+         private readonly CommandManager cmdManager;
 
 
 

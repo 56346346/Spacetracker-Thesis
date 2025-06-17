@@ -427,7 +427,7 @@ namespace SpaceTracker
 
         public async Task UpdateGraphAsync(
         Document doc,
-        List<ElementId> EnqueueedElementIds,
+        List<ElementId> EnqueuedElementIds,
         List<ElementId> deletedElementIds,
         List<ElementId> modifiedElementIds)
         {
@@ -444,7 +444,7 @@ namespace SpaceTracker
                 }
 
                 // Neue/modifizierte Elemente
-                ProcessElements(doc, EnqueueedElementIds.Concat(modifiedElementIds).ToList());
+                ProcessElements(doc, EnqueuedElementIds.Concat(modifiedElementIds).ToList());
             }
             catch (Exception ex)
             {
@@ -523,7 +523,7 @@ namespace SpaceTracker
         }
 
 
-        /*private string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
+        private string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
         {
             // 1. Temporäre 3D-Ansicht erstellen und Elemente isolieren
             View3D view = null;
@@ -562,14 +562,14 @@ namespace SpaceTracker
             }
 
             return tempIfcPath;
-        }*/
+        }
 
 
 
         // Deletes all previously existing data (convenient for debugging)
 
 
-        public void UpdateGraph(Document doc, List<Element> EnqueueedElements, List<ElementId> deletedElementIds, List<Element> modifiedElements)
+        public void UpdateGraph(Document doc, List<Element> EnqueuedElements, List<ElementId> deletedElementIds, List<Element> modifiedElements)
         {
             Debug.WriteLine(" Starting to update Graph...\n");
             string cy;
@@ -818,7 +818,7 @@ namespace SpaceTracker
                 }
             }
 
-            foreach (var e in EnqueueedElements)
+            foreach (var e in EnqueuedElements)
             {
                 switch (e)
                 {
@@ -839,8 +839,8 @@ namespace SpaceTracker
             }
 
             //Enqueue nodes
-            var EnqueueedElementIds = EnqueueedElements.Select(e => e.Id).ToList();
-            foreach (ElementId id in EnqueueedElementIds)
+            var EnqueuedElementIds = EnqueuedElements.Select(e => e.Id).ToList();
+            foreach (ElementId id in EnqueuedElementIds)
             {
                 Element e = doc.GetElement(id);
 
