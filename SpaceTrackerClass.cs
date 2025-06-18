@@ -31,7 +31,7 @@ using SpaceTracker.Utilities;
 
 namespace SpaceTracker
 {
-    public class SpaceTrackerClass : Autodesk.Revit.UI.IExternalApplication
+    public class SpaceTrackerClass : IExternalApplication
     {
         private RibbonPanel _ribbonPanel;
         private SQLiteConnector _sqliteConnector;
@@ -40,7 +40,7 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private ExternalEvent _databaseUpdateEvent;
 
-
+  
         private string _rulesetId;
         public const int SolibriApiPort = 10876;
 
@@ -49,10 +49,9 @@ namespace SpaceTracker
        new Dictionary<ElementId, ElementMetadata>();
         private SpaceExtractor _extractor;
         private CommandManager _cmdManager;
-
-
+  
+    
         public const string SolibriModelUUID = "441081f9-7562-4a10-8d2e-7dd3add07eee";
-        public const string SolibriRulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
         public static string SolibriRulesetId;
 
         public static PushButton StatusIndicatorButton;
@@ -100,18 +99,19 @@ namespace SpaceTracker
             _neo4jConnector = new Neo4jConnector();
 
             CommandManager.Initialize(_neo4jConnector, _sqliteConnector);
+            
+             var solibriClient = new SolibriApiClient(SolibriApiPort);
+            SolibriRulesetId = solibriClient.ImportRulesetAsync(@"C:\Path\To\MeinDeltaRuleset.cset").GetAwaiter().GetResult();
 
-            var solibriClient = new SolibriApiClient(SolibriApiPort);
-            SolibriRulesetId = solibriClient.ImportRulesetAsync(SolibriRulesetPath).GetAwaiter().GetResult();
             // Instanz abrufen
 
             _extractor = new SpaceExtractor(CommandManager.Instance);
             _databaseUpdateHandler = new DatabaseUpdateHandler(_sqliteConnector, _extractor);
-            _databaseUpdateHandler.Initialize();
-            _databaseUpdateEvent = ExternalEvent.Create(_databaseUpdateHandler);
+              _databaseUpdateHandler.Initialize();
+              _databaseUpdateEvent = ExternalEvent.Create(_databaseUpdateHandler);
             _cmdManager = CommandManager.Instance;
 
-
+          
 
 
 
@@ -224,7 +224,7 @@ namespace SpaceTracker
 
         private void RegisterGlobalExceptionHandlers()
         {
-            SolibriProcessManager.Port = SolibriApiPort;
+         SolibriProcessManager.Port = SolibriApiPort;
             SolibriProcessManager.EnsureStarted();
         }
 
@@ -438,7 +438,7 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentCreated -= documentCreated;
             _neo4jConnector?.Dispose();
             _sqliteConnector?.Dispose();
-            SolibriProcessManager.Stop();
+             SolibriProcessManager.Stop();
             return Result.Succeeded;
 
         }
@@ -491,7 +491,7 @@ namespace SpaceTracker
 
                 // 7. Änderungen zur Verarbeitung einreihen
                 _databaseUpdateHandler.EnqueueChange(changeData);
-
+                
             }
             catch (Exception ex)
             {

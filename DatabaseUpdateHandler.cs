@@ -87,10 +87,11 @@ namespace SpaceTracker
                 string modelId = SpaceTrackerClass.SolibriModelUUID;
                 if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
                     SpaceTrackerClass.SolibriRulesetId = _solibriClient
- .ImportRulesetAsync(SpaceTrackerClass.SolibriRulesetPath).GetAwaiter().GetResult();
+                        .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
+                        .GetAwaiter().GetResult();
                 _solibriClient.PartialUpdateAsync(modelId, ifcPath).GetAwaiter().GetResult();
                 _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).GetAwaiter().GetResult();
-
+             
 
                 string bcfZip = _solibriClient.ExportBcfAsync(modelId, Path.GetTempPath()).GetAwaiter().GetResult();
 
