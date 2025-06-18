@@ -21,6 +21,9 @@ using System.Net.Http;
 using System.Collections.Concurrent;
 using System.Threading;
 using SpaceTracker.Utilities;
+using Autodesk.Revit.ApplicationServices;
+using RevitApplication = Autodesk.Revit.ApplicationServices.Application;
+
 
 
 
@@ -93,19 +96,19 @@ namespace SpaceTracker
             try
             {
 
-            RegisterGlobalExceptionHandlers();
+                RegisterGlobalExceptionHandlers();
 
 
-            _neo4jConnector = new Neo4jConnector();
+                _neo4jConnector = new Neo4jConnector();
 
-            CommandManager.Initialize(_neo4jConnector);
+                CommandManager.Initialize(_neo4jConnector);
 
 
-            _extractor = new SpaceExtractor(CommandManager.Instance);
-            _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
+                _extractor = new SpaceExtractor(CommandManager.Instance);
+                _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
 
-            _cmdManager = CommandManager.Instance;
-             }
+                _cmdManager = CommandManager.Instance;
+            }
             catch (Exception ex)
             {
                 Logger.LogCrash("OnStartup init", ex);
@@ -189,12 +192,6 @@ namespace SpaceTracker
                 application.ControlledApplication.DocumentChanged += documentChanged;
                 Logger.LogToFile("Document-Events registriert");
 
-                var uiApp = new UIApplication(application.ControlledApplication);
-                Document activeDoc = uiApp.ActiveUIDocument?.Document;
-                if (activeDoc != null)
-                {
-                    InitializeExistingElements(activeDoc);
-                }
                 string innerappDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string spaceTrackerDir = Path.Combine(innerappDataPath, "SpaceTracker");
                 string syncFile = Path.Combine(spaceTrackerDir, $"last_sync_{CommandManager.Instance.SessionId}.txt"); if (File.Exists(syncFile))
@@ -270,7 +267,7 @@ namespace SpaceTracker
                     Assembly.GetExecutingAssembly().Location,
                     "SpaceTracker.ExportCommand"
                 );
-               
+
                 string iconPath = Path.Combine(assemblyDir, "Logo.png");
                 var exportIcon = new BitmapImage();
                 exportIcon.BeginInit();
@@ -335,7 +332,7 @@ namespace SpaceTracker
                  );
 
                 // Ampel-Icons laden (Grün, Gelb, Rot)
-              
+
                 string greenIconPath = Path.Combine(assemblyDir, "Green.png");
                 string yellowIconPath = Path.Combine(assemblyDir, "Yellow.png");
                 string redIconPath = Path.Combine(assemblyDir, "Red.png");

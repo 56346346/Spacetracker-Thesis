@@ -20,11 +20,20 @@ namespace SpaceTracker
     ref string message,
     ElementSet elements)
         {
+
+            UIApplication uiApp = commandData.Application;
+            // UIDocument und Document daraus:
+            UIDocument uiDoc = uiApp.ActiveUIDocument;
+            if (uiDoc == null)
+            {
+                message = "Kein aktives Revit-Dokument gefunden.";
+                return Result.Failed;
+            }
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
             string sessionId = cmdMgr.SessionId;
 
-            UIDocument uiDoc = commandData.Application.ActiveUIDocument;
+           
             Document doc = uiDoc.Document;
 
             // 1) Gesamtes Modell exportieren

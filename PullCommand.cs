@@ -25,8 +25,15 @@ namespace SpaceTracker
         private async Task<Result> ExecuteAsync(ExternalCommandData commandData, string message, ElementSet elements)
         {
 
-            UIDocument uiDoc = commandData.Application.ActiveUIDocument;
+             UIApplication uiApp = commandData.Application;
+            UIDocument uiDoc = uiApp.ActiveUIDocument;
+            if (uiDoc == null)
+            {
+                message = "Kein aktives Revit-Dokument gefunden.";
+                return Result.Failed;
+            }
             Document doc = uiDoc.Document;
+            
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
             // Abfrage: ChangeLog-Einträge seit dem letzten Sync dieses Nutzers (ausgenommen eigene)
