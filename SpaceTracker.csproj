@@ -116,11 +116,7 @@
   <ItemGroup>
     <Compile Remove="obj\ARM64\Debug\.NETFramework,Version=v4.8.AssemblyAttributes.cs" />
   </ItemGroup>
-   <ItemGroup>
-    <Compile Include="Utilities/SolibriApiClient.cs" />
-    <Compile Include="Utilities/SolibriProcessManager.cs" />
-     <Compile Include="CypherPushHandler.cs" />
-  </ItemGroup>
+  
   <ItemGroup>
     <None Remove="Logo.png" />
   </ItemGroup>

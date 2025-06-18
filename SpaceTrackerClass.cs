@@ -38,7 +38,6 @@ namespace SpaceTracker
         private Neo4jConnector _neo4jConnector;
         private DatabaseUpdateHandler _databaseUpdateHandler;
 
-        private string _rulesetId;
         public const int SolibriApiPort = 10876;
 
 
@@ -536,26 +535,22 @@ namespace SpaceTracker
                         // Befehle kopieren, damit die Queue sofort wieder benutzt werden kann
                         var cmds = CommandManager.Instance.cypherCommands.ToList();
 
-                        // Asynchron pushen, um die Revit-Oberfläche nicht zu blockieren
-                        Task.Run(async () =>
+                        // Asynchron pushen, da die Methode bereits async ist und await verwendet werden kann
+                        try
                         {
+                            await _neo4jConnector.PushChangesAsync(
+                                cmds,
+                                CommandManager.Instance.SessionId,
+                                Environment.UserName).ConfigureAwait(false);
 
-                            try
-                            {
-                                await _neo4jConnector.PushChangesAsync(
-                                    cmds,
-                                    CommandManager.Instance.SessionId,
-                                    Environment.UserName).ConfigureAwait(false);
-
-                                CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
-                                CommandManager.Instance.PersistSyncTime();
-                                await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
-                            }
-                            catch (Exception ex)
-                            {
-                                Logger.LogCrash("DocumentOpened", ex);
-                            }
-                        });
+                            CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
+                            CommandManager.Instance.PersistSyncTime();
+                            await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogCrash("DocumentOpened", ex);
+                        }
                     }
                     else
                     {

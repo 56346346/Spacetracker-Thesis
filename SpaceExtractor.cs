@@ -679,8 +679,9 @@ namespace SpaceTracker
                         ProcessDoor(fi, doc);
                         break;
                     case Element st when st.Category.Id.Value == (int)BuiltInCategory.OST_Stairs:
-                        var lvl = doc.GetElement(st.LevelId) as Level;
-                        if (lvl != null) ProcessStair(lvl, doc);
+                        // Directly process the stair element. Level information
+                        // will be resolved inside ProcessStair.
+                        ProcessStair(st, doc);
                         break;
                 }
             }

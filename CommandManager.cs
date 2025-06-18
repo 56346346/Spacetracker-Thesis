@@ -31,13 +31,6 @@ namespace SpaceTracker
         public string SessionId { get; private set; }
 
         public DateTime LastSyncTime { get; set; } = DateTime.MinValue;
-
-         private readonly CommandManager cmdManager;
-
-
-
-
-
         private CommandManager(Neo4jConnector neo4jConnector)
         {
             _neo4jConnector = neo4jConnector;

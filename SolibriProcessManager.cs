@@ -5,7 +5,7 @@ using System.Threading;
 using System.IO;
 
 
-namespace SpaceTracker
+namespace SpaceTracker.Utilities
 {
     public static class SolibriProcessManager
     {
