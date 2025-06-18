@@ -58,7 +58,7 @@ namespace SpaceTracker
             }
         }
 
-       
+
 
         private void ProcessWall(Element wall, Document doc)
         {
@@ -170,7 +170,7 @@ namespace SpaceTracker
             if (string.IsNullOrEmpty(input)) return "";
             return input
                 .Replace("\\", "")        // Backslash entfernen
-                .Replace("'", "''")       
+                .Replace("'", "''")
                 .Replace("\"", "'");      // für Cypher (doppelte Anführungszeichen → einfach)
         }
 
@@ -318,7 +318,7 @@ namespace SpaceTracker
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
 
-          
+
                 }
             }
 
@@ -459,7 +459,10 @@ namespace SpaceTracker
             };
 
             // 3. Exportieren
-            var tempIfcPath = Path.Combine(Path.GetTempPath(), $"change_{Guid.NewGuid()}.ifc");
+            // 3. Exportieren in ein sitzungsspezifisches Temp-Verzeichnis
+            var sessionDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
+            Directory.CreateDirectory(sessionDir);
+            var tempIfcPath = Path.Combine(sessionDir, $"change_{Guid.NewGuid()}.ifc");
             doc.Export(Path.GetDirectoryName(tempIfcPath), Path.GetFileName(tempIfcPath), ifcExportOptions);
 
             // 4. Isolation zurücksetzen
@@ -482,7 +485,7 @@ namespace SpaceTracker
         {
             Debug.WriteLine(" Starting to update Graph...\n");
             string cy;
-          
+
             // delete nodes
             foreach (ElementId id in deletedElementIds)
             {
@@ -492,7 +495,7 @@ namespace SpaceTracker
                 _cmdManager.cypherCommands.Enqueue(cyDel);
                 Debug.WriteLine("[Neo4j] Node deletion Cypher: " + cyDel);
 
-             
+
                 Element e = doc.GetElement(id);
                 if (e == null)
                 {
@@ -502,7 +505,7 @@ namespace SpaceTracker
 
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cyDel);
 
-            
+
             }
             // Diese Syntax ist perfekt
             foreach (Element e in modifiedElements)
@@ -551,7 +554,7 @@ namespace SpaceTracker
                 {
                     Debug.WriteLine($"Modifying Node with ID: {id} and Name: {e.Name}");
 
-   
+
 
                     Room room = e as Room;
                     // get all boundaries
@@ -591,8 +594,8 @@ namespace SpaceTracker
                                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
 
-                    
-        
+
+
                                 Debug.WriteLine($"Modified Room with ID: {id} and Name: {e.Name}");
 
 
@@ -604,7 +607,7 @@ namespace SpaceTracker
                 {
                     Debug.WriteLine($"Modifying Node with ID: {id} and Name: {e.Name}");
 
-              
+
                     // get the room
                     IList<Element> rooms = getRoomFromWall(doc, e as Wall);
 
@@ -620,7 +623,7 @@ namespace SpaceTracker
                         _cmdManager.cypherCommands.Enqueue(cy);
                         Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-      
+
                         Debug.WriteLine($"Modified Wall with ID: {id} and Name: {e.Name} ");
                     }
                 }
@@ -644,7 +647,7 @@ namespace SpaceTracker
                             _cmdManager.cypherCommands.Enqueue(cy);
                             Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                          
+
                         }
                         else if (typeof(Room).IsAssignableFrom(element.GetType()))
                         {
@@ -654,7 +657,7 @@ namespace SpaceTracker
                             _cmdManager.cypherCommands.Enqueue(cy);
                             Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                           
+
                         }
 
                         Debug.WriteLine($"Modified Level with ID: {id} and Name: {e.Name}");

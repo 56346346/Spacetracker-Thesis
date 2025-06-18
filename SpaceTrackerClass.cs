@@ -14,7 +14,6 @@ using System.Reflection;
 using Neo4j.Driver;
 using System.Windows.Forms;
 using System.IO;
-using SQLitePCL;
 using SpaceTracker;
 using System.Windows.Media;           // für ImageSource
 using System.Windows.Media.Imaging;
@@ -34,12 +33,10 @@ namespace SpaceTracker
     public class SpaceTrackerClass : IExternalApplication
     {
         private RibbonPanel _ribbonPanel;
-        private SQLiteConnector _sqliteConnector;
+
 
         private Neo4jConnector _neo4jConnector;
         private DatabaseUpdateHandler _databaseUpdateHandler;
-        private ExternalEvent _databaseUpdateEvent;
-
 
         private string _rulesetId;
         public const int SolibriApiPort = 10876;
@@ -92,23 +89,18 @@ namespace SpaceTracker
         /// <returns></returns>
         public Result OnStartup(UIControlledApplication application)
         {
-            //  SQLitePCL.Batteries.Init();
+
             RegisterGlobalExceptionHandlers();
 
-            _sqliteConnector = new SQLiteConnector();
+
             _neo4jConnector = new Neo4jConnector();
 
-            CommandManager.Initialize(_neo4jConnector, _sqliteConnector);
+            CommandManager.Initialize(_neo4jConnector);
 
-            var solibriClient = new SolibriApiClient(SolibriApiPort);
-            SolibriRulesetId = solibriClient.ImportRulesetAsync(@"C:\Users\Public\Solibri\SOLIBRI\Regelsaetze\RegelnThesis\DeltaRuleset.cset").GetAwaiter().GetResult();
-
-            // Instanz abrufen
 
             _extractor = new SpaceExtractor(CommandManager.Instance);
-            _databaseUpdateHandler = new DatabaseUpdateHandler(_sqliteConnector, _extractor);
-            _databaseUpdateHandler.Initialize();
-            _databaseUpdateEvent = ExternalEvent.Create(_databaseUpdateHandler);
+            _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
+
             _cmdManager = CommandManager.Instance;
 
 
@@ -163,7 +155,7 @@ namespace SpaceTracker
                 Logger.LogToFile("Initialisiere Datenbankverbindungen");
 
 
-                Logger.LogToFile("SQLite-Verbindung erfolgreich");
+
 
                 // 7. Event-Handler erstellen
 
@@ -364,28 +356,19 @@ namespace SpaceTracker
 
 });
 
-                using (Transaction tx = new Transaction(doc, "Initialize Existing Elements"))
+                // Reine Leseoperationen benötigen keine Transaktion
+                var elements = new FilteredElementCollector(doc)
+                    .WherePasses(filter)
+                    .WhereElementIsNotElementType()
+                    .ToList();
+
+                var changeData = new ChangeData
                 {
-                    if (tx.Start() == TransactionStatus.Started)
-                    {
-                        var elements = new FilteredElementCollector(doc)
-                            .WherePasses(filter)
-                            .WhereElementIsNotElementType()
-                            .ToList();
-
-                        var changeData = new ChangeData
-                        {
-                            AddedElements = elements,
-                            ModifiedElements = new List<Element>(),
-                            DeletedElementIds = new List<ElementId>()
-                        };
-
-                        _databaseUpdateHandler.EnqueueChange(changeData);
-
-
-                        tx.Commit();
-                    }
-                }
+                    AddedElements = elements,
+                    ModifiedElements = new List<Element>(),
+                    DeletedElementIds = new List<ElementId>()
+                };
+                _databaseUpdateHandler.EnqueueChange(changeData);
             }
             catch (Exception ex)
             {
@@ -446,7 +429,6 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentChanged -= documentChanged;
             application.ControlledApplication.DocumentCreated -= documentCreated;
             _neo4jConnector?.Dispose();
-            _sqliteConnector?.Dispose();
             SolibriProcessManager.Stop();
             return Result.Succeeded;
 
@@ -482,9 +464,12 @@ namespace SpaceTracker
                 var addedElements = GetAddedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
 
                 var modifiedElements = GetModifiedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
-                if (!addedElements.Any() && !deletedIds.Any() && !modifiedElements.Any()) return;
-
-                if (!addedIds.Any() && !deletedIds.Any() && !modifiedIds.Any()) return;
+                if (!addedElements.Any() &&
+                  !modifiedElements.Any() &&
+                  !deletedIds.Any() &&
+                  !addedIds.Any() &&
+                  !modifiedIds.Any())
+                    return;
 
 
                 // 5. Element-Cache aktualisieren

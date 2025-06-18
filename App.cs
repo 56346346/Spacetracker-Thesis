@@ -13,9 +13,9 @@ namespace SpaceTracker
 
         public Result OnStartup(UIControlledApplication application)
         {
-            var sqliteConnector = CommandManager.Instance.SqlConnector;
+         
             var extractor = new SpaceExtractor(CommandManager.Instance);
-            UpdateHandler = new DatabaseUpdateHandler(sqliteConnector, extractor);
+            UpdateHandler = new DatabaseUpdateHandler(extractor);
             UpdateEvent = ExternalEvent.Create(UpdateHandler);
             return Result.Succeeded;
         }
