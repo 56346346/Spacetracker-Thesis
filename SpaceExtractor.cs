@@ -87,12 +87,6 @@ namespace SpaceTracker
                 _cmdManager.cypherCommands.Enqueue(cy);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                // 2. SQLite-Query
-                /*        string sql = $@"
-                    INSERT OR REPLACE INTO Wall 
-                    (ElementId, Name, LevelId, Type) 
-                    VALUES ({wall.Id.Value}, '{EscapeString(wallName)}', {wall.LevelId.Value}, '{EscapeString(wallName)}')";
-                        _cmdManager.EnqueueSql(sql);*/
 
             }
             catch (Exception ex)
@@ -139,15 +133,6 @@ namespace SpaceTracker
                 }
 
 
-
-                // 2. SQLite-Query
-                /*  string sql = $@"
-                      INSERT OR REPLACE INTO Door 
-                      (ElementId, Name, WallId) 
-                      VALUES ({door.Id.Value}, '{EscapeString(doorName)}', {(hostWall?.Id.Value != null ? hostWall.Id.Value.ToString() : "NULL")})";
-
-                  if (!_cmdManager.sqlCommands.Contains(sql))
-                      _cmdManager.EnqueueSql(sql);*/
             }
             catch (Exception ex)
             {
@@ -171,14 +156,6 @@ namespace SpaceTracker
                 _cmdManager.cypherCommands.Enqueue(cy);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                // 2. SQLite-Query
-                /*    string sql = $@"
-                        INSERT OR REPLACE INTO Room
-                        (ElementId, Name, LevelId) 
-                        VALUES ({room.Id.Value}, '{EscapeString(roomName)}', {room.LevelId.Value})";
-
-                    if (!_cmdManager.sqlCommands.Contains(sql))
-                        _cmdManager.EnqueueSql(sql);*/
             }
             catch (Exception ex)
             {
@@ -193,7 +170,7 @@ namespace SpaceTracker
             if (string.IsNullOrEmpty(input)) return "";
             return input
                 .Replace("\\", "")        // Backslash entfernen
-                .Replace("'", "''")       // für SQL
+                .Replace("'", "''")       
                 .Replace("\"", "'");      // für Cypher (doppelte Anführungszeichen → einfach)
         }
 
@@ -234,9 +211,6 @@ namespace SpaceTracker
                 _cmdManager.cypherCommands.Enqueue(cy);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                /* string sql = "INSERT OR REPLACE INTO Level (ElementId, Name) VALUES (" + lvl.Id + ", '" + lvl.Name + "');";
-                 _cmdManager.EnqueueSql(sql);*/
-
                 string cyRel =
             $"MATCH (b:Building {{Name: \"{buildingNameEsc}\"}}), " +
             $"      (l:Level    {{ElementId: {lvl.Id}}}) " +
@@ -273,11 +247,6 @@ namespace SpaceTracker
                     _cmdManager.cypherCommands.Enqueue(cy);
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                    /*    sql = "INSERT OR REPLACE INTO Room (ElementId, Name) VALUES (" + room.Id + ", '" + escapedRoomName + "');";
-                        _cmdManager.EnqueueSql(sql);
-
-                        sql = "INSERT OR REPLACE INTO contains (LevelId, ElementId) VALUES (" + room.LevelId + ", " + room.Id + ");";
-                        _cmdManager.EnqueueSql(sql);*/
 
                     IList<IList<BoundarySegment>> boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
 
@@ -310,23 +279,6 @@ namespace SpaceTracker
                                 _cmdManager.cypherCommands.Enqueue(cy);
                                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                                /*     sql = $"REPLACE INTO Wall (ElementId, Name) VALUES ({wall.Id}, '{escapedWallName}');";
-                                     if (!_cmdManager.sqlCommands.Contains(sql))
-                                     {
-                                         _cmdManager.EnqueueSql(sql);
-                                     }
-
-                                     sql = $"REPLACE INTO bounds (WallId, RoomId) VALUES ({wall.Id}, {room.Id});";
-                                     if (!_cmdManager.sqlCommands.Contains(sql))
-                                     {
-                                         _cmdManager.EnqueueSql(sql);
-                                     }
-
-                                     sql = $"REPLACE INTO contains (LevelId, ElementId) VALUES ({neighbor.LevelId}, {wall.Id});";
-                                     if (!_cmdManager.sqlCommands.Contains(sql))
-                                     {
-                                         _cmdManager.EnqueueSql(sql);
-                                     }*/
                             }
                             else
                             {
@@ -366,11 +318,7 @@ namespace SpaceTracker
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
 
-                    /*      sql = " INSERT OR REPLACE INTO Door (ElementId, Name, WallId) VALUES (" + door.Id + ", '" + door.Name + "', " + wall.Id + ");";
-                          _cmdManager.EnqueueSql(sql);
-                          // insert level into table
-                          sql = " INSERT OR REPLACE INTO contains (LevelId, ElementId) VALUES (" + door.LevelId + ", " + door.Id + ");";
-                          _cmdManager.EnqueueSql(sql);*/
+          
                 }
             }
 
@@ -380,8 +328,6 @@ namespace SpaceTracker
             var cyPath = Path.Combine(baseDir, "neo4j_cypher.txt");
             File.WriteAllText(cyPath, string.Join("\n", _cmdManager.cypherCommands));
 
-            var sqlPath = Path.Combine(baseDir, "sql_commands.txt");
-            File.WriteAllText(sqlPath, string.Join("\n", _cmdManager.sqlCommands));
 
             // print out the elapsed time and stop the timer
             Debug.WriteLine($"#--------#\nTimer stopped: {timer.ElapsedMilliseconds}ms\n#--------#");
@@ -536,7 +482,7 @@ namespace SpaceTracker
         {
             Debug.WriteLine(" Starting to update Graph...\n");
             string cy;
-            // string sql;
+          
             // delete nodes
             foreach (ElementId id in deletedElementIds)
             {
@@ -546,7 +492,7 @@ namespace SpaceTracker
                 _cmdManager.cypherCommands.Enqueue(cyDel);
                 Debug.WriteLine("[Neo4j] Node deletion Cypher: " + cyDel);
 
-                // 2) erst danach versuchen, das Revit-Element zu holen (für SQL o.ä.)
+             
                 Element e = doc.GetElement(id);
                 if (e == null)
                 {
@@ -556,51 +502,7 @@ namespace SpaceTracker
 
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cyDel);
 
-                /*   if (typeof(Room).IsAssignableFrom(e.GetType()))
-                   {
-                       sql = " DELETE FROM Room WHERE ElementId = " + id;
-                       _cmdManager.EnqueueSql(sql);
-
-                       sql = " DELETE FROM bounds WHERE RoomId = " + id;
-                       _cmdManager.EnqueueSql(sql);
-
-                       sql = " DELETE FROM contains WHERE ElementId = " + id;
-                       _cmdManager.EnqueueSql(sql);
-                   }
-                   else if (typeof(Wall).IsAssignableFrom(e.GetType()))
-                   {
-                       sql = " DELETE FROM Wall WHERE ElementId = " + id;
-                       _cmdManager.EnqueueSql(sql);
-
-                       sql = " DELETE FROM bounds WHERE WallId = " + id;
-                       _cmdManager.EnqueueSql(sql);
-
-                       sql = " DELETE FROM contains WHERE ElementId = " + id;
-                       _cmdManager.EnqueueSql(sql);
-                   }
-                   else if (typeof(Level).IsAssignableFrom(e.GetType()))
-                   {
-                       sql = " DELETE FROM Level Where ElementId = " + id;
-                       _cmdManager.EnqueueSql(sql);
-
-                       sql = " DELETE FROM contains WHERE LevelId = " + id;
-                       _cmdManager.EnqueueSql(sql);
-                   }
-                   else if (e is FamilyInstance fi && fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors)
-                   {
-                       _cmdManager.EnqueueSql($"DELETE FROM Door WHERE ElementId = {id}");
-                       _cmdManager.EnqueueSql($"DELETE FROM contains WHERE ElementId = {id}");
-                   }
-                   else if (e.Category.Id.Value == (int)BuiltInCategory.OST_Stairs)
-                   {
-                       _cmdManager.EnqueueSql($"DELETE FROM Stair WHERE ElementId = {id}");
-                       // falls es eine eigene contains-/bounds-Tabelle gibt, ebenfalls löschen
-                   }
-
-
-
-               }
-   */
+            
             }
             // Diese Syntax ist perfekt
             foreach (Element e in modifiedElements)
@@ -649,8 +551,7 @@ namespace SpaceTracker
                 {
                     Debug.WriteLine($"Modifying Node with ID: {id} and Name: {e.Name}");
 
-                    /*       sql = " UPDATE Room SET Name = " + e.Name + " WHERE ElementId = " + id;
-                           _cmdManager.EnqueueSql(sql);*/
+   
 
                     Room room = e as Room;
                     // get all boundaries
@@ -690,15 +591,8 @@ namespace SpaceTracker
                                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
 
-                                /*        sql = " INSERT OR REPLACE INTO Wall (ElementId, Name) VALUES (" + neighbor.Id + ", '" + neighbor.Name + "');";
-                                        _cmdManager.EnqueueSql(sql);
-
-                                        sql = " INSERT OR REPLACE INTO bounds (WallId, RoomId) VALUES (" + neighbor.Id + ", " + room.Id + ");";
-                                        _cmdManager.EnqueueSql(sql);
-
-                                        sql = " INSERT OR REPLACE INTO contains (LevelId, ElementId) VALUES (" + neighbor.LevelId + ", " + neighbor.Id + ");";
-                                        _cmdManager.EnqueueSql(sql);
-        */
+                    
+        
                                 Debug.WriteLine($"Modified Room with ID: {id} and Name: {e.Name}");
 
 
@@ -710,9 +604,7 @@ namespace SpaceTracker
                 {
                     Debug.WriteLine($"Modifying Node with ID: {id} and Name: {e.Name}");
 
-                    /*          sql = $"UPDATE Wall SET Name = " + e.Name + " WHERE ElementId = " + id;
-                              _cmdManager.EnqueueSql(sql);*/
-
+              
                     // get the room
                     IList<Element> rooms = getRoomFromWall(doc, e as Wall);
 
@@ -728,8 +620,7 @@ namespace SpaceTracker
                         _cmdManager.cypherCommands.Enqueue(cy);
                         Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                        /*       sql = " INSERT OR REPLACE INTO Wall (ElementId, Name) VALUES (" + id + ", '" + e.Name + "');";
-                               _cmdManager.EnqueueSql(sql); */
+      
                         Debug.WriteLine($"Modified Wall with ID: {id} and Name: {e.Name} ");
                     }
                 }
@@ -738,8 +629,6 @@ namespace SpaceTracker
                 {
                     Debug.WriteLine($"Modifying Node with ID: {id} and Name: {e.Name}");
 
-                    //       sql = " UPDATE Level SET Name = " + e.Name + " WHERE ElementId = " + id;
-                    //     _cmdManager.EnqueueSql(sql);
 
                     ElementLevelFilter lvlFilter = new ElementLevelFilter(id);
                     FilteredElementCollector collector = new FilteredElementCollector(doc);
@@ -755,11 +644,7 @@ namespace SpaceTracker
                             _cmdManager.cypherCommands.Enqueue(cy);
                             Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                            //           sql = " INSERT OR REPLACE INTO Wall (ElementId, Name) VALUES (" + id + ", '" + e.Name + "');";
-                            //           _cmdManager.EnqueueSql(sql);
-
-                            //         sql = " INSERT OR REPLACE INTO contains (LevelId, ElementId) VALUES (" + id + ", " + element.Id + ");";
-                            //        _cmdManager.EnqueueSql(sql);
+                          
                         }
                         else if (typeof(Room).IsAssignableFrom(element.GetType()))
                         {
@@ -769,11 +654,7 @@ namespace SpaceTracker
                             _cmdManager.cypherCommands.Enqueue(cy);
                             Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
-                            //             sql = " INSERT OR REPLACE INTO Wall (ElementId, Name) VALUES (" + id + ", '" + e.Name + "');";
-                            //            _cmdManager.EnqueueSql(sql);
-
-                            //            sql = " INSERT OR REPLACE INTO contains (LevelId, ElementId) VALUES (" + id + ", '" + element.Id + "');";
-                            //             _cmdManager.EnqueueSql(sql);
+                           
                         }
 
                         Debug.WriteLine($"Modified Level with ID: {id} and Name: {e.Name}");

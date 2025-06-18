@@ -14,12 +14,12 @@ namespace SpaceTracker
     public class CommandManager
     {
         public ConcurrentQueue<string> cypherCommands = new ConcurrentQueue<string>();
-        public ConcurrentQueue<string> sqlCommands = new ConcurrentQueue<string>();
+    
         private Neo4jConnector _neo4jConnector;
         public Neo4jConnector Neo4jConnector => _neo4jConnector;
-        private SQLiteConnector _sqlConnector;
 
-        public SQLiteConnector SqlConnector => _sqlConnector;
+
+     
 
         private readonly SemaphoreSlim _cypherLock = new(1, 1);
 
@@ -38,53 +38,25 @@ namespace SpaceTracker
 
 
 
-        private CommandManager(Neo4jConnector neo4jConnector, SQLiteConnector sqlconnector)
+        private CommandManager(Neo4jConnector neo4jConnector)
         {
             _neo4jConnector = neo4jConnector;
-            _sqlConnector = sqlconnector;
+          
             SessionId = GenerateSessionId();
             LastSyncTime = LoadLastSyncTime();
 
             cypherCommands = new ConcurrentQueue<string>();
-            sqlCommands = new ConcurrentQueue<string>();
-
-
-        }
-
-        public void EnqueueSql(string sql)
-        {
-            // sqlCommands.Enqueue(sql);
-            //_ = SqlCommandUpdateAsync();
-            //
-            //
-            //
         }
 
 
-        private async Task SqlCommandUpdateAsync()
-        {
-            while (sqlCommands.TryDequeue(out var cmd))
-            {
-                try
-                {
-                    await _sqlConnector.RunSQLQueryAsync(cmd).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[SQLite Error] {ex}");
-                    Logger.LogCrash("SQLite Error", ex);
-                }
-            }
-        }
-
-        public static void Initialize(Neo4jConnector neo4jConnector, SQLiteConnector sqlConnector)
+        public static void Initialize(Neo4jConnector neo4jConnector)
         {
             lock (_lock)
             {
                 if (_instance != null)
                     throw new InvalidOperationException("CommandManager bereits initialisiert");
 
-                _instance = new CommandManager(neo4jConnector, sqlConnector);
+                _instance = new CommandManager(neo4jConnector);
 
             }
         }
@@ -102,26 +74,11 @@ namespace SpaceTracker
                 }
             }
         }
-        private async void SqlCommandUpdate(object sender, NotifyCollectionChangedEventArgs e)
-        {
-            while (sqlCommands.TryDequeue(out string sql))
-            {
-                try
-                {
-                    await Task.Run(() => _sqlConnector.RunSQLQueryAsync(sql));
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[SQLite Error] {ex.Message}");
-                }
-            }
-        }
-
+    
         // Öffentliche Instanz-Eigenschaft
         public void Dispose()
         {
             _neo4jConnector?.Dispose();
-            _sqlConnector?.Dispose();
         }
 
 

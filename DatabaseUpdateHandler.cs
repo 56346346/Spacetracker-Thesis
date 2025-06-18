@@ -22,7 +22,7 @@ namespace SpaceTracker
     public class DatabaseUpdateHandler : IExternalEventHandler
     {
         private readonly ConcurrentQueue<ChangeData> _changeQueue = new ConcurrentQueue<ChangeData>();
-        private readonly SQLiteConnector _sqliteConnector; // Statt _sqlite
+     
         private readonly SpaceExtractor _extractor;
 
         private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
@@ -153,9 +153,9 @@ namespace SpaceTracker
             _externalEvent = ExternalEvent.Create(this);
         }
 
-        public DatabaseUpdateHandler(SQLiteConnector sqliteConnector, SpaceExtractor extractor)
+        public DatabaseUpdateHandler(SpaceExtractor extractor)
         {
-            _sqliteConnector = sqliteConnector;
+            
             _extractor = extractor;
             _externalEvent = ExternalEvent.Create(this);
         }
