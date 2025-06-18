@@ -176,6 +176,9 @@ namespace SpaceTracker
             var session = _driver.AsyncSession();
             try
             {
+                // Alte Sessions bereinigen, damit die Mindestberechnung korrekt bleibt
+                await RemoveStaleSessionsAsync(TimeSpan.FromDays(1)).ConfigureAwait(false);
+
                 await session.ExecuteWriteAsync(async tx =>
                 {
                     // 1) ältesten Zeitstempel aller Sessions ermitteln
@@ -190,6 +193,27 @@ namespace SpaceTracker
                   WHERE cl.timestamp < $cutoff
                   DELETE cl",
                         new { cutoff = cutoff.ToString() }).ConfigureAwait(false);
+                });
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+        public async Task RemoveStaleSessionsAsync(TimeSpan maxAge)
+        {
+            var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    var cutoff = DateTime.UtcNow.Subtract(maxAge).ToString("o");
+                    await tx.RunAsync(
+                        @"MATCH (s:Session)
+                          WHERE s.lastSync < datetime($cutoff)
+                          DETACH DELETE s",
+                        new { cutoff }).ConfigureAwait(false);
                 });
             }
             finally

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB.Events;
 using Neo4j.Driver;
+using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
 using SpaceTracker;
@@ -14,12 +15,12 @@ namespace SpaceTracker
     public class CommandManager
     {
         public ConcurrentQueue<string> cypherCommands = new ConcurrentQueue<string>();
-    
+
         private Neo4jConnector _neo4jConnector;
         public Neo4jConnector Neo4jConnector => _neo4jConnector;
 
 
-     
+
 
         private readonly SemaphoreSlim _cypherLock = new(1, 1);
 
@@ -34,7 +35,7 @@ namespace SpaceTracker
         private CommandManager(Neo4jConnector neo4jConnector)
         {
             _neo4jConnector = neo4jConnector;
-          
+
             SessionId = GenerateSessionId();
             LastSyncTime = LoadLastSyncTime();
 
@@ -67,7 +68,7 @@ namespace SpaceTracker
                 }
             }
         }
-    
+
         // Öffentliche Instanz-Eigenschaft
         public void Dispose()
         {
@@ -80,16 +81,28 @@ namespace SpaceTracker
             await _cypherLock.WaitAsync();
             try
             {
+                if (cypherCommands.IsEmpty)
+                    return;
+
+                var cmds = new List<string>();
                 while (cypherCommands.TryDequeue(out string cyCommand))
-                {
-                    await _neo4jConnector.RunCypherQuery(cyCommand).ConfigureAwait(false);
-                }
+                    cmds.Add(cyCommand);
+
+                await _neo4jConnector.PushChangesAsync(cmds, SessionId, Environment.UserName).ConfigureAwait(false);
+
+                LastSyncTime = DateTime.UtcNow;
+                PersistSyncTime();
+                await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
+                await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Neo4j-Error] {ex.Message}");
             }
-            finally { _cypherLock.Release(); }
+            finally
+            {
+                _cypherLock.Release();
+            }
         }
 
         public void PersistSyncTime()
@@ -109,8 +122,8 @@ namespace SpaceTracker
                 Logger.LogCrash("PersistSyncTime", ex);
             }
         }
-        
-         private string GenerateSessionId()
+
+        private string GenerateSessionId()
         {
             string user = Environment.UserName;
             string processId = Process.GetCurrentProcess().Id.ToString();
