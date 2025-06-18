@@ -325,28 +325,57 @@ namespace SpaceTracker
             }
 
             // 5. Consistency-Check-Button (Ampelanzeige für Status)
-            var checkBtnData = new PushButtonData(
-                 "ConsistencyCheckButton", "Consistency Check",
-                 Assembly.GetExecutingAssembly().Location,
-                 "SpaceTracker.ConsistencyCheckCommand"
-             );
-            // Ampel-Icons laden (Grün, Gelb, Rot)
-            
-            string greenIconPath = Path.Combine(assemblyDir, "Green.png");
-            string yellowIconPath = Path.Combine(assemblyDir, "Yellow.png");
-            string redIconPath = Path.Combine(assemblyDir, "Red.png");
-            // BitmapImages erstellen
-            var greenIcon = new BitmapImage(); greenIcon.BeginInit(); greenIcon.UriSource = new Uri(greenIconPath, UriKind.Absolute); greenIcon.EndInit();
-            var yellowIcon = new BitmapImage(); yellowIcon.BeginInit(); yellowIcon.UriSource = new Uri(yellowIconPath, UriKind.Absolute); yellowIcon.EndInit();
-            var redIcon = new BitmapImage(); redIcon.BeginInit(); redIcon.UriSource = new Uri(redIconPath, UriKind.Absolute); redIcon.EndInit();
-            checkBtnData.LargeImage = greenIcon; // initial auf Grün (angenommen konsistent)
-            var checkBtn = _ribbonPanel.AddItem(checkBtnData) as PushButton;
-            checkBtn.ToolTip = "Prüft die Konsistenz zwischen lokalem Modell und Neo4j-Graph (Ampelanzeige)";
-            // Referenzen für dynamische Ampelanzeige speichern
-            SpaceTrackerClass.StatusIndicatorButton = checkBtn;
-            SpaceTrackerClass.GreenIcon = greenIcon;
-            SpaceTrackerClass.YellowIcon = yellowIcon;
-            SpaceTrackerClass.RedIcon = redIcon;
+            bool checkExists = _ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "ConsistencyCheckButton");
+            if (!checkExists)
+            {
+                var checkBtnData = new PushButtonData(
+                     "ConsistencyCheckButton", "Consistency Check",
+                     Assembly.GetExecutingAssembly().Location,
+                     "SpaceTracker.ConsistencyCheckCommand"
+                 );
+
+                // Ampel-Icons laden (Grün, Gelb, Rot)
+              
+                string greenIconPath = Path.Combine(assemblyDir, "Green.png");
+                string yellowIconPath = Path.Combine(assemblyDir, "Yellow.png");
+                string redIconPath = Path.Combine(assemblyDir, "Red.png");
+
+                BitmapImage greenIcon = null, yellowIcon = null, redIcon = null;
+
+                if (File.Exists(greenIconPath))
+                {
+                    greenIcon = new BitmapImage();
+                    greenIcon.BeginInit();
+                    greenIcon.UriSource = new Uri(greenIconPath, UriKind.Absolute);
+                    greenIcon.EndInit();
+                    checkBtnData.LargeImage = greenIcon; // initial auf Grün (angenommen konsistent)
+                }
+
+                if (File.Exists(yellowIconPath))
+                {
+                    yellowIcon = new BitmapImage();
+                    yellowIcon.BeginInit();
+                    yellowIcon.UriSource = new Uri(yellowIconPath, UriKind.Absolute);
+                    yellowIcon.EndInit();
+                }
+
+                if (File.Exists(redIconPath))
+                {
+                    redIcon = new BitmapImage();
+                    redIcon.BeginInit();
+                    redIcon.UriSource = new Uri(redIconPath, UriKind.Absolute);
+                    redIcon.EndInit();
+                }
+
+                var checkBtn = _ribbonPanel.AddItem(checkBtnData) as PushButton;
+                checkBtn.ToolTip = "Prüft die Konsistenz zwischen lokalem Modell und Neo4j-Graph (Ampelanzeige)";
+
+                // Referenzen für dynamische Ampelanzeige speichern
+                SpaceTrackerClass.StatusIndicatorButton = checkBtn;
+                SpaceTrackerClass.GreenIcon = greenIcon;
+                SpaceTrackerClass.YellowIcon = yellowIcon;
+                SpaceTrackerClass.RedIcon = redIcon;
+            }
         }
         private void RegisterDocumentEvents(UIControlledApplication app)
         {
