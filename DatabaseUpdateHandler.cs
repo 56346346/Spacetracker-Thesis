@@ -166,6 +166,19 @@ namespace SpaceTracker
             _pushEvent = ExternalEvent.Create(_pushHandler);
         }
 
+         /// <summary>
+        /// Exposes the push event so other classes can trigger an immediate
+        /// transfer of queued Cypher commands to Neo4j.
+        /// </summary>
+        public void TriggerPush()
+        {
+            if (_pushEvent != null && !_pushEvent.IsPending)
+            {
+                _pushEvent.Raise();
+            }
+        }
+
+
         public DatabaseUpdateHandler(SpaceExtractor extractor)
         {
 

@@ -529,6 +529,9 @@ namespace SpaceTracker
 
                 // 7. Änderungen zur Verarbeitung einreihen
                 _databaseUpdateHandler.EnqueueChange(changeData);
+                // Direkt nach dem Einreihen einen Push anstoßen, damit die
+                // Änderungen ohne manuelle Aktion nach Neo4j gelangen
+                _databaseUpdateHandler.TriggerPush();
 
             }
             catch (Exception ex)
@@ -545,6 +548,9 @@ namespace SpaceTracker
             try
             {
                 InitializeExistingElements(e.Document);
+                // Nach dem Initialisieren bereits vorhandener Elemente direkt
+                // die aktuellen Befehle an Neo4j senden
+                _databaseUpdateHandler.TriggerPush();
 
             }
             catch (Exception ex)

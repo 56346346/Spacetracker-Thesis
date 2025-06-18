@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using Neo4j.Driver;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace SpaceTracker
 {
@@ -120,6 +121,21 @@ namespace SpaceTracker
                     ? "\n(Hinweis: Es gibt ungesicherte lokale Änderungen, bitte Push ausführen.)"
                     : "";
                 TaskDialog.Show("Consistency Check", "Das lokale Modell ist konsistent mit dem Neo4j-Graph." + note);
+
+                if (localPendingIds.Count == 0)
+                {
+                    cmdMgr.LastSyncTime = DateTime.UtcNow;
+                    cmdMgr.PersistSyncTime();
+                    try
+                    {
+                        Task.Run(() => connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime)).Wait();
+                        Task.Run(() => connector.CleanupObsoleteChangeLogsAsync()).Wait();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[ConsistencyCheck] Cleanup failed: {ex.Message}");
+                    }
+                }
             }
             return Result.Succeeded;
         }
