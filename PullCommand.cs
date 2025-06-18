@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using Autodesk.Revit.DB.Architecture;
 using System.Linq;
-
+using System.Text.RegularExpressions;
 
 namespace SpaceTracker
 {
@@ -246,9 +246,11 @@ namespace SpaceTracker
                     {
                         // Entferne alle in Queue verbliebenen lokalen Befehle, die dieses Element betreffen (verhindert Inkonsistenzen beim nächsten Push)
                         var tempList = new List<string>();
+                        var pattern = $"ElementId\\s*[:=]\\s*{id}\b";
+                        var regex = new System.Text.RegularExpressions.Regex(pattern);
                         while (cmdMgr.cypherCommands.TryDequeue(out string queuedCmd))
                         {
-                            if (queuedCmd.Contains($"ElementId: {id}") || queuedCmd.Contains($"ElementId = {id}"))
+                            if (regex.IsMatch(queuedCmd))
                             {
                                 // verwerfen
                                 Debug.WriteLine($"[Pull] Entferne lokalen Patch für Element {id} aus Queue (überschrieben durch Pull).");

@@ -88,6 +88,10 @@ namespace SpaceTracker
         /// <returns></returns>
         public Result OnStartup(UIControlledApplication application)
         {
+            Logger.LogToFile("OnStartup begin", "assembly.log");
+
+            try
+            {
 
             RegisterGlobalExceptionHandlers();
 
@@ -101,6 +105,12 @@ namespace SpaceTracker
             _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
 
             _cmdManager = CommandManager.Instance;
+             }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("OnStartup init", ex);
+                return Result.Failed;
+            }
             _ = Task.Run(async () =>
             {
                 try
@@ -179,7 +189,12 @@ namespace SpaceTracker
                 application.ControlledApplication.DocumentChanged += documentChanged;
                 Logger.LogToFile("Document-Events registriert");
 
-                Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
+                var uiApp = new UIApplication(application.ControlledApplication);
+                Document activeDoc = uiApp.ActiveUIDocument?.Document;
+                if (activeDoc != null)
+                {
+                    InitializeExistingElements(activeDoc);
+                }
                 string innerappDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string spaceTrackerDir = Path.Combine(innerappDataPath, "SpaceTracker");
                 string syncFile = Path.Combine(spaceTrackerDir, $"last_sync_{CommandManager.Instance.SessionId}.txt"); if (File.Exists(syncFile))
@@ -244,7 +259,7 @@ namespace SpaceTracker
                            ?? application.CreateRibbonPanel("SpaceTracker");
 
             Logger.LogToFile("Erstelle Ribbon-UI");
-
+            string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             // 2. Verhindern, dass Buttons doppelt angelegt werden
             bool exportExists = _ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "ExportButton");
             if (!exportExists)
@@ -255,7 +270,7 @@ namespace SpaceTracker
                     Assembly.GetExecutingAssembly().Location,
                     "SpaceTracker.ExportCommand"
                 );
-                string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+               
                 string iconPath = Path.Combine(assemblyDir, "Logo.png");
                 var exportIcon = new BitmapImage();
                 exportIcon.BeginInit();
@@ -316,7 +331,7 @@ namespace SpaceTracker
                  "SpaceTracker.ConsistencyCheckCommand"
              );
             // Ampel-Icons laden (Grün, Gelb, Rot)
-            string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            
             string greenIconPath = Path.Combine(assemblyDir, "Green.png");
             string yellowIconPath = Path.Combine(assemblyDir, "Yellow.png");
             string redIconPath = Path.Combine(assemblyDir, "Red.png");
@@ -331,7 +346,7 @@ namespace SpaceTracker
             SpaceTrackerClass.StatusIndicatorButton = checkBtn;
             SpaceTrackerClass.GreenIcon = greenIcon;
             SpaceTrackerClass.YellowIcon = yellowIcon;
-             SpaceTrackerClass.RedIcon = redIcon;
+            SpaceTrackerClass.RedIcon = redIcon;
         }
         private void RegisterDocumentEvents(UIControlledApplication app)
         {

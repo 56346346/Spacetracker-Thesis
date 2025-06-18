@@ -109,17 +109,20 @@ namespace SpaceTracker
                     if (match.Success)
                         long.TryParse(match.Groups[1].Value, out elementId);
 
-                    // 4.4) Audit-Log-Eintrag erzeugen
-                    //     Hier kein zweites MERGE auf Session nötig, da oben bereits erfolgt
+                    // 4.4) Audit-Log-Eintrag erzeugen und mit der Session verknüpfen
+                    //     Die Session wurde oben bereits per MERGE angelegt
                     var logTime = DateTime.UtcNow.ToString("o");
                     await tx.RunAsync(
-                        @"CREATE (cl:ChangeLog {
-                    sessionId: $session,
-                     user: $user,
-                    timestamp: datetime($time),
-                    type:      $type,
-                    elementId: $eid
-                  })",
+                        @"MATCH (s:Session { id: $session })
+                          CREATE (cl:ChangeLog {
+                              sessionId: $session,
+                              user: $user,
+                              timestamp: datetime($time),
+                              type: $type,
+                              elementId: $eid
+                          })
+                          MERGE (s)-[:HAS_LOG]->(cl)",
+                
                         new
                         {
                             session = sessionId,

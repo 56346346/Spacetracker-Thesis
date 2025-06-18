@@ -87,29 +87,32 @@ namespace SpaceTracker
 
                 // 3. Solibri REST API-Aufrufe asynchron verarbeiten
                 _ = Task.Run(async () =>
-               {
-                   try
-                   {
-                       string modelId = SpaceTrackerClass.SolibriModelUUID;
-                       if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
-                       {
-                           SpaceTrackerClass.SolibriRulesetId = await _solibriClient
-                               .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
-                               .ConfigureAwait(false);
-                       }
-                       await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
-                       await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
-                       var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
-                       string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
-                       ProcessBcfAndWriteToNeo4j(bcfZip);
-                       if (_pushEvent != null && !_pushEvent.IsPending)
-                           _pushEvent.Raise();
-                   }
-                   catch (Exception ex)
-                   {
-                       Logger.LogCrash("Solibri Delta-Prüfung", ex);
-                   }
-               });
+              {
+                    try
+                    {
+                        string modelId = SpaceTrackerClass.SolibriModelUUID;
+                        if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
+                        {
+                            SpaceTrackerClass.SolibriRulesetId = await _solibriClient
+                                .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
+                                .ConfigureAwait(false);
+                        }
+                        await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
+                        await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
+                        var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
+                        string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
+                        ProcessBcfAndWriteToNeo4j(bcfZip);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogCrash("Solibri Delta-Prüfung", ex);
+                    }
+                    finally
+                    {
+                        if (_pushEvent != null && !_pushEvent.IsPending)
+                            _pushEvent.Raise();
+                    }
+                });
             }
 
             catch (Exception ex)
