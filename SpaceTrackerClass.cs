@@ -373,6 +373,20 @@ namespace SpaceTracker
                 SpaceTrackerClass.YellowIcon = yellowIcon;
                 SpaceTrackerClass.RedIcon = redIcon;
             }
+
+
+            // 6. Info-Button (zeigt Beschreibung der Funktionen)
+            if (!_ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "InfoButton"))
+            {
+                var infoBtnData = new PushButtonData(
+                    "InfoButton", "Info",
+                    Assembly.GetExecutingAssembly().Location,
+                    "SpaceTracker.InfoCommand"
+                );
+                var infoBtn = _ribbonPanel.AddItem(infoBtnData) as PushButton;
+                if (infoBtn != null)
+                    infoBtn.ToolTip = "Zeigt eine kurze Beschreibung der SpaceTracker-Buttons";
+            }
         }
         private void RegisterDocumentEvents(UIControlledApplication app)
         {
