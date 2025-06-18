@@ -24,8 +24,14 @@ namespace SpaceTracker
             var connector = cmdMgr.Neo4jConnector;
             string sessionId = cmdMgr.SessionId;
 
-            // 1) Hole alle Befehle und leere die Queue
-            var commands = cmdMgr.cypherCommands.ToList();
+            UIDocument uiDoc = commandData.Application.ActiveUIDocument;
+            Document doc = uiDoc.Document;
+
+            // 1) Gesamtes Modell exportieren
+            var extractor = new SpaceExtractor(cmdMgr);
+            cmdMgr.cypherCommands = new ConcurrentQueue<string>();
+            extractor.CreateInitialGraph(doc);
+            var commands = cmdMgr.cypherCommands.Distinct().ToList();
             cmdMgr.cypherCommands = new ConcurrentQueue<string>();
 
             if (commands.Count == 0)
@@ -48,25 +54,22 @@ namespace SpaceTracker
                 return Result.Failed;
             }
 
-            try
+             _ = Task.Run(async () =>
+             {
+             try
             {
-                // 3) Synchroner Push—kein Task.Run mehr
-                connector.PushChangesAsync(commands, sessionId, Environment.UserName)
-                         .GetAwaiter().GetResult();
-
-                // 4) Unmittelbar danach: ChangeLogs aufräumen
-                connector.CleanupObsoleteChangeLogsAsync()
-                         .GetAwaiter().GetResult();
-
+                await connector.PushChangesAsync(commands, sessionId, Environment.UserName)
+                     .ConfigureAwait(false);
+                await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
                 TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
-                return Result.Succeeded;
             }
             catch (Exception ex)
             {
                 TaskDialog.Show("Push-Fehler",
                     $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
-                return Result.Failed;
             }
+            });
+            return Result.Succeeded;
         }
     }
 }

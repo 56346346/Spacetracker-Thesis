@@ -119,6 +119,7 @@
    <ItemGroup>
     <Compile Include="Utilities/SolibriApiClient.cs" />
     <Compile Include="Utilities/SolibriProcessManager.cs" />
+     <Compile Include="CypherPushHandler.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Remove="Logo.png" />

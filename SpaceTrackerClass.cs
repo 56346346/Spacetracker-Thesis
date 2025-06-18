@@ -102,12 +102,19 @@ namespace SpaceTracker
             _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
 
             _cmdManager = CommandManager.Instance;
-
-
-
-
-
-
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var client = new SolibriApiClient(SolibriApiPort);
+                    string rulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
+                    SolibriRulesetId = await client.ImportRulesetAsync(rulesetPath).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("Ruleset-Import", ex);
+                }
+            });
             System.Windows.Forms.Application.ThreadException += (sender, args) =>
            {
                File.AppendAllText(
@@ -216,7 +223,7 @@ namespace SpaceTracker
         private void RegisterGlobalExceptionHandlers()
         {
             SolibriProcessManager.Port = SolibriApiPort;
-            Task.Run(() =>
+            _ = Task.Run(() =>
             {
                 try
                 {
@@ -509,15 +516,14 @@ namespace SpaceTracker
             }
         }
 
-        private void documentOpened(object sender, DocumentOpenedEventArgs e)
+        private async void documentOpened(object sender, DocumentOpenedEventArgs e)
         {
             Document doc = e.Document;
             try
             {
                 // Prüfen, ob der Neo4j-Graph bereits Daten enthält (z.B. Building-Knoten)
                 const string checkQuery = "MATCH (n) RETURN count(n) AS nodeCount";
-                var records = Task.Run(async () =>
-                    await _neo4jConnector.RunReadQueryAsync(checkQuery)).GetAwaiter().GetResult();
+                var records = await _neo4jConnector.RunReadQueryAsync(checkQuery);
                 long nodeCount = records.FirstOrDefault()?["nodeCount"].As<long>() ?? 0;
                 if (nodeCount == 0)
                 {

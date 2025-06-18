@@ -29,6 +29,8 @@ namespace SpaceTracker
 
 
         private ExternalEvent _externalEvent;
+        private readonly CypherPushHandler _pushHandler = new CypherPushHandler();
+        private ExternalEvent _pushEvent;
 
 
         public void Execute(UIApplication app)
@@ -84,28 +86,30 @@ namespace SpaceTracker
                 string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
 
                 // 3. Solibri REST API-Aufrufe asynchron verarbeiten
-                Task.Run(async () =>
-                {
-                    try
-                    {
-                        string modelId = SpaceTrackerClass.SolibriModelUUID;
-                        if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
-                        {
-                            SpaceTrackerClass.SolibriRulesetId = await _solibriClient
-                                .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
-                                .ConfigureAwait(false);
-                        }
-                        await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
-                        await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
-                        var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
-                        string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
-                        ProcessBcfAndWriteToNeo4j(bcfZip);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogCrash("Solibri Delta-Prüfung", ex);
-                    }
-                });
+                _ = Task.Run(async () =>
+               {
+                   try
+                   {
+                       string modelId = SpaceTrackerClass.SolibriModelUUID;
+                       if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
+                       {
+                           SpaceTrackerClass.SolibriRulesetId = await _solibriClient
+                               .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
+                               .ConfigureAwait(false);
+                       }
+                       await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
+                       await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
+                       var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
+                       string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
+                       ProcessBcfAndWriteToNeo4j(bcfZip);
+                       if (_pushEvent != null && !_pushEvent.IsPending)
+                           _pushEvent.Raise();
+                   }
+                   catch (Exception ex)
+                   {
+                       Logger.LogCrash("Solibri Delta-Prüfung", ex);
+                   }
+               });
             }
 
             catch (Exception ex)
@@ -156,6 +160,7 @@ namespace SpaceTracker
         public void Initialize()
         {
             _externalEvent = ExternalEvent.Create(this);
+            _pushEvent = ExternalEvent.Create(_pushHandler);
         }
 
         public DatabaseUpdateHandler(SpaceExtractor extractor)
@@ -163,6 +168,7 @@ namespace SpaceTracker
 
             _extractor = extractor;
             _externalEvent = ExternalEvent.Create(this);
+            _pushEvent = ExternalEvent.Create(_pushHandler);
         }
 
 

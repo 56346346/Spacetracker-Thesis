@@ -40,25 +40,24 @@ namespace SpaceTracker
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             File.WriteAllLines(path, commands);
 
+            _ = Task.Run(async () =>
+            {
+            
             try
-            {
-                // 3) Sync-Push (kein Task.Run mehr!)
-                 connector.PushChangesAsync(commands, sessionId, Environment.UserName)
-                         .GetAwaiter().GetResult();
-
-                // 4) Unmittelbar danach: Aufräumen alter ChangeLogs
-                connector.CleanupObsoleteChangeLogsAsync()
-                         .GetAwaiter().GetResult();
-
-                TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
-                return Result.Succeeded;
-            }
-            catch (Exception ex)
-            {
-                TaskDialog.Show("Push-Fehler",
-                    $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
-                return Result.Failed;
+                {
+                    await connector.PushChangesAsync(commands, sessionId, Environment.UserName)
+                         .ConfigureAwait(false);
+                    await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                    TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
+                }
+                catch (Exception ex)
+                {
+                    TaskDialog.Show("Push-Fehler",
+                        $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
+                }
+            });
+            return Result.Succeeded;
             }
         }
     }
-}
+

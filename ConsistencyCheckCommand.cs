@@ -25,8 +25,7 @@ namespace SpaceTracker
             List<IRecord> records;
             try
             {
-                records = Task.Run(async () => await connector.RunReadQueryAsync(query, parameters))
-                                .GetAwaiter().GetResult();
+                records = Task.Run(() => connector.RunReadQueryAsync(query, parameters)).Result;
             }
             catch (Exception ex)
             {
@@ -94,10 +93,10 @@ namespace SpaceTracker
             {
                 // Konfliktsituation (Rot)
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
-                string detailText = conflictDetails.Count > 0 
-                    ? string.Join("\n", conflictDetails) 
+                string detailText = conflictDetails.Count > 0
+                    ? string.Join("\n", conflictDetails)
                     : "Siehe Änderungsprotokoll für Details.";
-                TaskDialog.Show("Consistency Check", 
+                TaskDialog.Show("Consistency Check",
                     $"*** Konflikt erkannt! ***\n" +
                     $"Einige Elemente wurden sowohl lokal als auch von einem anderen Nutzer geändert.\n" +
                     $"{detailText}\n\nBitte Konflikte manuell lösen.");
@@ -117,8 +116,8 @@ namespace SpaceTracker
                 // Keine externen Änderungen -> konsistent (Grün)
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
                 // Hinweis, falls lokale Änderungen noch nicht gepusht
-                string note = localPendingIds.Count > 0 
-                    ? "\n(Hinweis: Es gibt ungesicherte lokale Änderungen, bitte Push ausführen.)" 
+                string note = localPendingIds.Count > 0
+                    ? "\n(Hinweis: Es gibt ungesicherte lokale Änderungen, bitte Push ausführen.)"
                     : "";
                 TaskDialog.Show("Consistency Check", "Das lokale Modell ist konsistent mit dem Neo4j-Graph." + note);
             }

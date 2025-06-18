@@ -19,6 +19,12 @@ namespace SpaceTracker
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            return ExecuteAsync(commandData, message, elements).GetAwaiter().GetResult();
+        }
+
+        private async Task<Result> ExecuteAsync(ExternalCommandData commandData, string message, ElementSet elements)
+        {
+
             UIDocument uiDoc = commandData.Application.ActiveUIDocument;
             Document doc = uiDoc.Document;
             var cmdMgr = CommandManager.Instance;
@@ -34,8 +40,7 @@ namespace SpaceTracker
             List<IRecord> changeRecords;
             try
             {
-                                changeRecords = connector.RunReadQueryAsync(cypher, queryParams)
-                                         .GetAwaiter().GetResult();
+                changeRecords = await connector.RunReadQueryAsync(cypher, queryParams).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -50,10 +55,8 @@ namespace SpaceTracker
                 cmdMgr.PersistSyncTime();
                 try
                 {
-                    connector.UpdateSessionLastSyncAsync(sessionId, cmdMgr.LastSyncTime)
-                             .GetAwaiter().GetResult();
-                    connector.CleanupObsoleteChangeLogsAsync()
-                             .GetAwaiter().GetResult();
+                    await connector.UpdateSessionLastSyncAsync(sessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
+                    await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -130,9 +133,9 @@ namespace SpaceTracker
                                     string newName = "";
                                     try
                                     {
-                                        var recs = connector.RunReadQueryAsync(                                            "MATCH (r:Room {ElementId: $id}) RETURN r.Name AS name",
-                                            new { id = elemId }).GetAwaiter().GetResult();
-                                        newName = recs.FirstOrDefault()?["name"].As<string>() ?? "";
+                                        var recs = await connector.RunReadQueryAsync(
+                                           "MATCH (r:Room {ElementId: $id}) RETURN r.Name AS name",
+                                            new { id = elemId }).ConfigureAwait(false);
                                     }
                                     catch { /* ignore errors reading name */ }
                                     if (!string.IsNullOrEmpty(newName))
@@ -154,10 +157,7 @@ namespace SpaceTracker
                                     string newName = "";
                                     try
                                     {
-                                        var recs = connector.RunReadQueryAsync(
-                                            "MATCH (l:Level {ElementId: $id}) RETURN l.Name AS name",
-                                            new { id = elemId }).GetAwaiter().GetResult();
-                                        newName = recs.FirstOrDefault()?["name"].As<string>() ?? "";
+                                        var recs = await connector.RunReadQueryAsync("MATCH (l:Level {ElementId: $id}) RETURN l.Name AS name", new { id = elemId }).ConfigureAwait(false);
                                     }
                                     catch { }
                                     if (!string.IsNullOrEmpty(newName) && newName != level.Name)
@@ -180,10 +180,7 @@ namespace SpaceTracker
                                     string newName = "";
                                     try
                                     {
-                                        var recs = connector.RunReadQueryAsync(
-                                            "MATCH (w:Wall {ElementId: $id}) RETURN coalesce(w.Name, w.Type) AS newName",
-                                            new { id = elemId }).GetAwaiter().GetResult();
-                                        newName = recs.FirstOrDefault()?["newName"].As<string>() ?? "";
+                                        var recs = await connector.RunReadQueryAsync("MATCH (w:Wall {ElementId: $id}) RETURN coalesce(w.Name, w.Type) AS newName", new { id = elemId }).ConfigureAwait(false);
                                     }
                                     catch { }
                                     if (!string.IsNullOrEmpty(newName))
@@ -210,10 +207,7 @@ namespace SpaceTracker
                                     string newMark = "";
                                     try
                                     {
-                                        var recs = connector.RunReadQueryAsync(
-                                            "MATCH (d:Door {ElementId: $id}) RETURN d.Name AS mark",
-                                            new { id = elemId }).GetAwaiter().GetResult();
-                                        newMark = recs.FirstOrDefault()?["mark"].As<string>() ?? "";
+                                        var recs = await connector.RunReadQueryAsync("MATCH (d:Door {ElementId: $id}) RETURN d.Name AS mark", new { id = elemId }).ConfigureAwait(false);
                                     }
                                     catch { }
                                     if (!string.IsNullOrEmpty(newMark))
@@ -292,10 +286,8 @@ namespace SpaceTracker
             cmdMgr.PersistSyncTime();
             try
             {
-                connector.UpdateSessionLastSyncAsync(sessionId, cmdMgr.LastSyncTime)
-                         .GetAwaiter().GetResult();
-                connector.CleanupObsoleteChangeLogsAsync()
-                         .GetAwaiter().GetResult();
+                await connector.UpdateSessionLastSyncAsync(sessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
+                await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
