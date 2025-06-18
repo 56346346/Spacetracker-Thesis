@@ -151,7 +151,7 @@ namespace SpaceTracker
                     "SpaceTracker");
                 System.IO.Directory.CreateDirectory(dir);
 
-                var file = System.IO.Path.Combine(dir, "last_sync.txt");
+                var file = System.IO.Path.Combine(dir, $"last_sync_{SessionId}.txt");
                 System.IO.File.WriteAllText(file, LastSyncTime.ToString("o"));
             }
             catch (Exception ex)
@@ -171,10 +171,13 @@ namespace SpaceTracker
         {
             try
             {
-                var path = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "SpaceTracker",
-                    "last_sync.txt");
+                var dir = System.IO.Path.Combine(
+                   "SpaceTracker");
+
+                var sessionFile = System.IO.Path.Combine(dir, $"last_sync_{SessionId}.txt");
+                var globalFile = System.IO.Path.Combine(dir, "last_sync.txt");
+
+                string path = System.IO.File.Exists(sessionFile) ? sessionFile : globalFile;
 
                 if (System.IO.File.Exists(path))
                 {

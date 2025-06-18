@@ -10,10 +10,13 @@ namespace SpaceTracker.Utilities
     public class SolibriApiClient
     {
         private readonly string _baseUrl;
+        private static readonly HttpClient Http = new HttpClient();
+
 
         public SolibriApiClient(int port)
         {
             _baseUrl = $"http://localhost:{port}";
+            Http.Timeout = TimeSpan.FromMinutes(5);
         }
 
         public async Task<string> ImportIfcAsync(string ifcFilePath)
@@ -23,12 +26,11 @@ namespace SpaceTracker.Utilities
 
             try
             {
-                using var client = new HttpClient();
+
                 using var fs = File.OpenRead(ifcFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                var response = await client.PostAsync($"{_baseUrl}/models", content);
-                response.EnsureSuccessStatusCode();
+                var response = await Http.PostAsync($"{_baseUrl}/models", content); response.EnsureSuccessStatusCode();
 
                 if (response.Headers.Location == null)
                     throw new Exception("Model-URI fehlt!");
@@ -58,11 +60,10 @@ namespace SpaceTracker.Utilities
 
             try
             {
-                using var client = new HttpClient();
                 using var fs = File.OpenRead(csetFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                var response = await client.PostAsync($"{_baseUrl}/rulesets", content);
+                var response = await Http.PostAsync($"{_baseUrl}/rulesets", content);
                 response.EnsureSuccessStatusCode();
 
                 if (response.Headers.Location == null)
@@ -95,11 +96,10 @@ namespace SpaceTracker.Utilities
 
             try
             {
-                using var client = new HttpClient();
-                var payloadObj = new { rulesetIds = new[] { rulesetId } };
+
                 var json = $"{{\"rulesetIds\":[\"{rulesetId}\"]}}";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                var response = await client.PostAsync($"{_baseUrl}/models/{modelId}/check", content);
+                var response = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", content);
                 response.EnsureSuccessStatusCode();
             }
             catch (HttpRequestException ex)
@@ -121,11 +121,10 @@ namespace SpaceTracker.Utilities
 
             try
             {
-                using var client = new HttpClient();
                 using var fs = File.OpenRead(ifcFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                var response = await client.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content);
+                var response = await Http.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content);
                 response.EnsureSuccessStatusCode();
             }
             catch (HttpRequestException ex)
@@ -150,8 +149,8 @@ namespace SpaceTracker.Utilities
                 if (!Directory.Exists(outDirectory))
                     Directory.CreateDirectory(outDirectory);
 
-                using var client = new HttpClient();
-                var response = await client.GetAsync($"{_baseUrl}/models/{modelId}/bcfxml/two_one?scope=all");
+                var response = await Http.GetAsync($"{_baseUrl}/models/{modelId}/bcfxml/two_one?scope=all");
+
                 response.EnsureSuccessStatusCode();
 
                 var filePath = Path.Combine(outDirectory, $"result_{modelId}.bcfzip");

@@ -2,6 +2,8 @@ using System;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Threading;
+using System.IO;
+
 
 namespace SpaceTracker.Utilities
 {
@@ -9,8 +11,9 @@ namespace SpaceTracker.Utilities
     {
         private static Process _process;
         public const int DefaultPort = 10876;
-        private const string SolibriExePath = @"C:\\Program Files\\Solibri\\SOLIBRI\\Solibri.exe";
-
+   private static readonly string SolibriExePath =
+            Environment.GetEnvironmentVariable("SOLIBRI_EXE_PATH") ??
+            @"C:\\Program Files\\Solibri\\SOLIBRI\\Solibri.exe";
         public static int Port { get; set; } = DefaultPort;
 
         public static void EnsureStarted()
@@ -19,6 +22,8 @@ namespace SpaceTracker.Utilities
             {
                 return;
             }
+             if (!System.IO.File.Exists(SolibriExePath))
+                throw new FileNotFoundException("Solibri.exe not found", SolibriExePath);
 
             var startInfo = new ProcessStartInfo(SolibriExePath, $"--rest-api-server-port={Port} --rest-api-server-http --rest-api-server-local-content")
             {
