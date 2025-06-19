@@ -118,6 +118,7 @@ namespace SpaceTracker
             {
                 try
                 {
+                    SolibriProcessManager.EnsureStarted();
                     var client = new SolibriApiClient(SolibriApiPort);
                     string rulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
                     SolibriRulesetId = await client.ImportRulesetAsync(rulesetPath).ConfigureAwait(false);
@@ -507,7 +508,8 @@ namespace SpaceTracker
     new ElementCategoryFilter(BuiltInCategory.OST_Walls),
     new ElementCategoryFilter(BuiltInCategory.OST_Rooms),
     new ElementCategoryFilter(BuiltInCategory.OST_Doors),
-    new ElementCategoryFilter(BuiltInCategory.OST_Levels)
+    new ElementCategoryFilter(BuiltInCategory.OST_Levels),
+    new ElementCategoryFilter(BuiltInCategory.OST_Stairs)
                 });
 
                 // 2. Änderungen identifizieren
