@@ -3,6 +3,8 @@ using System.IO;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
+using System.Collections.Generic;
+
 
 namespace SpaceTracker
 {
@@ -23,15 +25,50 @@ namespace SpaceTracker
                 elementId,
                 timestampUtc = DateTime.Now
             };
- string file = Path.Combine(CacheDir, $"change_{DateTime.Now:yyyyMMddHHmmssfff}_{elementId}.json");
+            string file = Path.Combine(CacheDir, $"change_{DateTime.Now:yyyyMMddHHmmssfff}_{elementId}.json");
             File.WriteAllText(file, JsonConvert.SerializeObject(payload));
             return file;
         }
+
+        public static IEnumerable<ChangePayload> ReadChanges()
+        {
+            if (!Directory.Exists(CacheDir))
+                yield break;
+            foreach (var file in Directory.GetFiles(CacheDir, "change_*.json"))
+            {
+                try
+                {
+                    var json = File.ReadAllText(file);
+                    var payload = JsonConvert.DeserializeObject<ChangePayload>(json);
+                    if (payload != null)
+                        yield return payload;
+                }
+                catch { }
+            }
+        }
+
+        public static void ClearCache()
+        {
+            if (!Directory.Exists(CacheDir))
+                return;
+            foreach (var file in Directory.GetFiles(CacheDir, "change_*.json"))
+            {
+                try { File.Delete(file); } catch { }
+            }
+        }
+
 
         private static long ExtractElementId(string cmd)
         {
             var match = Regex.Match(cmd, @"ElementId\D+(\d+)");
             return match.Success && long.TryParse(match.Groups[1].Value, out var id) ? id : -1;
+        }
+        
+         public class ChangePayload
+        {
+            public string cypher { get; set; }
+            public long elementId { get; set; }
+            public DateTime timestampUtc { get; set; }
         }
     }
 }

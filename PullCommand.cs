@@ -26,6 +26,37 @@ namespace SpaceTracker
         {
             return ExecuteAsync(commandData, message, elements).GetAwaiter().GetResult();
         }
+        
+          private async Task ApplyCachedInserts(Document doc)
+        {
+            int created = 0;
+            foreach (var change in ChangeCacheHelper.ReadChanges())
+            {
+                if (string.IsNullOrWhiteSpace(change.cypher))
+                    continue;
+                if (!change.cypher.Contains("MERGE", StringComparison.OrdinalIgnoreCase) ||
+                    change.cypher.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                long id = change.elementId;
+                if (doc.GetElement(new ElementId(id)) != null)
+                    continue;
+
+                string label = null;
+                var match = Regex.Match(change.cypher, @"MERGE\s*\(\w+:([A-Za-z0-9_]+)");
+                if (match.Success)
+                    label = match.Groups[1].Value;
+
+                var createdElem = await CreateElementFromNeo4j(id, label).ConfigureAwait(false);
+                if (createdElem != null)
+                    created++;
+            }
+
+            if (created > 0)
+            {
+                ChangeCacheHelper.ClearCache();
+            }
+        }
 
         private async Task<Result> ExecuteAsync(ExternalCommandData commandData, string message, ElementSet elements)
         {
@@ -43,6 +74,9 @@ namespace SpaceTracker
 
             _doc = doc;
             _connector = connector;
+
+            await ApplyCachedInserts(doc).ConfigureAwait(false);
+
             // Abfrage: ChangeLog-Einträge seit dem letzten Sync dieses Nutzers (ausgenommen eigene)
             string lastSyncStr = cmdMgr.LastSyncTime.ToString("o");
             string sessionId = cmdMgr.SessionId;
@@ -339,8 +373,7 @@ namespace SpaceTracker
 
 
 
-        private async Task<Element> CreateElementFromNeo4j(long elementId, string elementType)
-        {
+ internal async Task<Element> CreateElementFromNeo4j(long elementId, string elementType)        {
             if (_doc == null || _connector == null)
                 return null;
 
