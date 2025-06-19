@@ -60,6 +60,7 @@
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.5" />
   <PackageReference Include="Neo4j.Driver" Version="5.15.0" />
+  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
     <PackageReference Include="SQLitePCLRaw.core" Version="2.1.11" />
     <PackageReference Include="Stub.System.Data.SQLite.Core.NetFramework" Version="1.0.119.0" />

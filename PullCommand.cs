@@ -48,7 +48,7 @@ namespace SpaceTracker
             var queryParams = new { lastSync = lastSyncStr, session = sessionId };
             string cypher = "MATCH (c:ChangeLog) " +
                             "WHERE c.timestamp > $lastSync AND c.sessionId <> $session " +
-                            "RETURN c.elementId AS id, c.type AS type, c.user AS user, c.timestamp AS ts " +
+                            "RETURN c.elementId AS id, c.type AS type, c.user AS user, c.timestamp AS ts, c.cachePath AS cache " +
                             "ORDER BY c.timestamp";
             List<IRecord> changeRecords;
             try
@@ -81,13 +81,14 @@ namespace SpaceTracker
             }
 
             // Mapping der empfangenen Änderungen
-            var remoteChanges = new List<(long id, string type, string user)>();
+             var remoteChanges = new List<(long id, string type, string user, string cache)>();
             foreach (var rec in changeRecords)
             {
                 long id = rec["id"].As<long>();
                 string type = rec["type"].As<string>();
                 string user = rec["user"].As<string>();
-                remoteChanges.Add((id, type, user));
+                 string cachePath = rec["cache"]?.As<string>();
+                remoteChanges.Add((id, type, user, cachePath));
             }
 
             // Listen für Meldungen
@@ -103,11 +104,19 @@ namespace SpaceTracker
                 {
                     // 1. Für jeden entfernten Delta-Patch die lokale Daten aktualisieren
                     var affectedIds = new HashSet<long>();  // alle betroffenen IDs (für evtl. Local-Queue-Bereinigung)
-                    foreach (var (elemId, changeType, user) in remoteChanges)
+                   foreach (var (elemId, changeType, user, cache) in remoteChanges)
                     {
                         ElementId revitId = new ElementId(elemId);
                         Element localElem = doc.GetElement(revitId);
                         affectedIds.Add(elemId);
+                           if (!string.IsNullOrEmpty(cache) && File.Exists(cache))
+                        {
+                            try
+                            {
+                                var _ = File.ReadAllText(cache);
+                            }
+                            catch { }
+                        }
                         if (changeType == "Delete")
                         {
                             // Entfernte Löschung durchführen (Element im lokalen Modell löschen, falls vorhanden)

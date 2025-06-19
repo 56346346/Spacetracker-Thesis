@@ -101,7 +101,19 @@ namespace SpaceTracker
                         await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
                         var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
                         string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
-                        ProcessBcfAndWriteToNeo4j(bcfZip);
+                         var severity = ProcessBcfAndWriteToNeo4j(bcfZip);
+                        switch (severity)
+                        {
+                            case IssueSeverity.Error:
+                                SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
+                                break;
+                            case IssueSeverity.Warning:
+                                SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
+                                break;
+                            default:
+                                SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
+                                break;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -132,8 +144,11 @@ namespace SpaceTracker
             RaiseEvent();
         }
 
-        private void ProcessBcfAndWriteToNeo4j(string bcfZipPath)
+         private enum IssueSeverity { None, Warning, Error }
+
+        private IssueSeverity ProcessBcfAndWriteToNeo4j(string bcfZipPath)
         {
+            IssueSeverity worst = IssueSeverity.None;
             using var archive = ZipFile.OpenRead(bcfZipPath);
             foreach (var entry in archive.Entries.Where(e => e.Name.Equals("markup.bcf", StringComparison.OrdinalIgnoreCase)))
             {
@@ -147,6 +162,33 @@ namespace SpaceTracker
 
                 var title = xdoc.Descendants("Title").FirstOrDefault()?.Value ?? "Issue";
                 var desc = xdoc.Descendants("Description").FirstOrDefault()?.Value ?? "";
+                string sevText = xdoc.Descendants("Severity").FirstOrDefault()?.Value
+                              ?? xdoc.Descendants("Priority").FirstOrDefault()?.Value;
+
+                IssueSeverity sev = IssueSeverity.None;
+                if (!string.IsNullOrEmpty(sevText))
+                {
+                    if (int.TryParse(sevText, out int sevNum))
+                    {
+                        if (sevNum >= 80) sev = IssueSeverity.Error;
+                        else if (sevNum >= 40) sev = IssueSeverity.Warning;
+                    }
+                    else
+                    {
+                        if (sevText.Equals("high", StringComparison.OrdinalIgnoreCase) ||
+                            sevText.Equals("critical", StringComparison.OrdinalIgnoreCase) ||
+                            sevText.Equals("error", StringComparison.OrdinalIgnoreCase))
+                            sev = IssueSeverity.Error;
+                        else if (sevText.Equals("medium", StringComparison.OrdinalIgnoreCase) ||
+                                 sevText.Equals("warning", StringComparison.OrdinalIgnoreCase) ||
+                                 sevText.Equals("moderate", StringComparison.OrdinalIgnoreCase))
+                            sev = IssueSeverity.Warning;
+                    }
+                }
+
+                if (sev > worst)
+                    worst = sev;
+
 
                 foreach (var guid in components)
                 {
@@ -157,6 +199,7 @@ namespace SpaceTracker
                     CommandManager.Instance.cypherCommands.Enqueue(cy);
                 }
             }
+            return worst;
         }
 
 

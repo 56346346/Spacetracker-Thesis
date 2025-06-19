@@ -84,12 +84,14 @@ namespace SpaceTracker
                 if (cypherCommands.IsEmpty)
                     return;
 
-                var cmds = new List<string>();
+ var changes = new List<(string Command, string Path)>();
                 while (cypherCommands.TryDequeue(out string cyCommand))
-                    cmds.Add(cyCommand);
+                 {
+                    string cache = ChangeCacheHelper.WriteChange(cyCommand);
+                    changes.Add((cyCommand, cache));
+                }
 
-                await _neo4jConnector.PushChangesAsync(cmds, SessionId, Environment.UserName).ConfigureAwait(false);
-
+ await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName).ConfigureAwait(false);
                 LastSyncTime = DateTime.UtcNow;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);

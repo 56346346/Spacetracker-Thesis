@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using SpaceTracker;
 using System.Linq;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 namespace SpaceTracker
 {
@@ -25,6 +26,14 @@ namespace SpaceTracker
 
             var commands = cmdMgr.cypherCommands.ToList();
             cmdMgr.cypherCommands = new ConcurrentQueue<string>();
+
+            var changes = new List<(string Command, string Path)>();
+            foreach (var cmd in commands)
+            {
+                string cachePath = ChangeCacheHelper.WriteChange(cmd);
+                changes.Add((cmd, cachePath));
+            }
+
 
             if (commands.Count == 0)
             {
@@ -45,7 +54,7 @@ namespace SpaceTracker
             
             try
                 {
-                    await connector.PushChangesAsync(commands, sessionId, Environment.UserName)
+await connector.PushChangesAsync(changes, sessionId, Environment.UserName)
                          .ConfigureAwait(false);
                     await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
                     TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");

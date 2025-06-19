@@ -610,8 +610,14 @@ namespace SpaceTracker
                         // Asynchron pushen, da die Methode bereits async ist und await verwendet werden kann
                         try
                         {
+                             var changes = new List<(string Command, string Path)>();
+                            foreach (var c in cmds)
+                            {
+                                string cache = ChangeCacheHelper.WriteChange(c);
+                                changes.Add((c, cache));
+                            }
                             await _neo4jConnector.PushChangesAsync(
-                                cmds,
+                                changes,
                                 CommandManager.Instance.SessionId,
                                 Environment.UserName).ConfigureAwait(false);
 

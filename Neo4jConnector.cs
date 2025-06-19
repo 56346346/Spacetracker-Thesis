@@ -61,7 +61,7 @@ namespace SpaceTracker
         /// Überträgt eine Liste von Cypher-Befehlen als Atomar-Transaktion an Neo4j 
         /// und protokolliert jede Änderung im ChangeLog (mit Benutzer & Timestamp).
         /// </summary>
-        public async Task PushChangesAsync(IEnumerable<string> cypherCommands, string sessionId, string userName)
+        public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName)
         {
             // 1) Asynchrone Neo4j-Session öffnen
             var session = _driver.AsyncSession();
@@ -89,8 +89,11 @@ namespace SpaceTracker
                 var idRegex = new Regex(@"ElementId\D+(\d+)");
 
                 // 4) Alle Commands durchlaufen
-                foreach (string cmd in cypherCommands)
+                foreach (var change in changes)
                 {
+                    string cmd = change.Command;
+                    string cachePath = change.CachePath;
+
                     // 4.1) Änderungsbefehl ausführen – jetzt mit $session-Parameter
                     await tx.RunAsync(cmd, new { session = sessionId }).ConfigureAwait(false);
 
@@ -118,7 +121,7 @@ namespace SpaceTracker
                     {
                         logQuery = @"MATCH (s:Session { id: $session })
 MERGE (cl:ChangeLog { sessionId: $session, elementId: $eid, type: $type })
-ON CREATE SET cl.user = $user, cl.timestamp = datetime($time), cl.acknowledged = false
+ON CREATE SET cl.user = $user, cl.timestamp = datetime($time), cl.cachePath = $path, cl.acknowledged = false
 MERGE (s)-[:HAS_LOG]->(cl)";
                     }
                     else
@@ -130,6 +133,7 @@ CREATE (cl:ChangeLog {
     timestamp: datetime($time),
     type: $type,
     elementId: $eid,
+      cachePath: $path,
     acknowledged: false
 })
 MERGE (s)-[:HAS_LOG]->(cl)";
@@ -142,13 +146,22 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                             user = userName,
                             time = logTime,
                             type = changeType,
-                            eid = elementId
+                            eid = elementId,
+                            path = cachePath
                         }).ConfigureAwait(false);
+
+                    // lastModifiedUtc setzen
+                    if (elementId >= 0)
+                    {
+                        await tx.RunAsync(
+                            "MATCH (e { ElementId: $id }) SET e.lastModifiedUtc = datetime($time)",
+                            new { id = elementId, time = logTime }).ConfigureAwait(false);
+                    }
                 }
 
                 // 5) Transaction committen
                 await tx.CommitAsync().ConfigureAwait(false);
-                Debug.WriteLine($"[Neo4j] PushChanges: {cypherCommands.Count()} Änderungen übertragen und protokolliert.");
+                Debug.WriteLine($"[Neo4j] PushChanges: {changes.Count()} Änderungen übertragen und protokolliert.");
             }
             catch (Exception ex)
             {
@@ -168,7 +181,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             }
         }
 
-         public async Task<List<IRecord>> GetPendingChangeLogsAsync(string currentSession)
+        public async Task<List<IRecord>> GetPendingChangeLogsAsync(string currentSession)
         {
             string query = @"MATCH (c:ChangeLog)
 WHERE c.sessionId <> $session AND c.acknowledged = false
