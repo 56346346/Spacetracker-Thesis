@@ -109,20 +109,32 @@ namespace SpaceTracker
                     if (match.Success)
                         long.TryParse(match.Groups[1].Value, out elementId);
 
-                    // 4.4) Audit-Log-Eintrag erzeugen und mit der Session verknüpfen
-                    //     Die Session wurde oben bereits per MERGE angelegt
+                    // 4.4) Audit-Log-Einträge erzeugen. Bei "Insert" nur ein Log
+                    //      pro ElementId und Session erlauben
                     var logTime = DateTime.UtcNow.ToString("o");
-                    await tx.RunAsync(
-                        @"MATCH (s:Session { id: $session })
-                          CREATE (cl:ChangeLog {
-                              sessionId: $session,
-                              user: $user,
-                              timestamp: datetime($time),
-                              type: $type,
-                              elementId: $eid
-                          })
-                          MERGE (s)-[:HAS_LOG]->(cl)",
-                
+
+                    string logQuery;
+                    if (changeType == "Insert")
+                    {
+                        logQuery = @"MATCH (s:Session { id: $session })
+MERGE (cl:ChangeLog { sessionId: $session, elementId: $eid, type: $type })
+ON CREATE SET cl.user = $user, cl.timestamp = datetime($time)
+MERGE (s)-[:HAS_LOG]->(cl)";
+                    }
+                    else
+                    {
+                        logQuery = @"MATCH (s:Session { id: $session })
+CREATE (cl:ChangeLog {
+    sessionId: $session,
+    user: $user,
+    timestamp: datetime($time),
+    type: $type,
+    elementId: $eid
+})
+MERGE (s)-[:HAS_LOG]->(cl)";
+                    }
+
+                    await tx.RunAsync(logQuery,
                         new
                         {
                             session = sessionId,
@@ -130,8 +142,7 @@ namespace SpaceTracker
                             time = logTime,
                             type = changeType,
                             eid = elementId
-                        }
-                    ).ConfigureAwait(false);
+                        }).ConfigureAwait(false);
                 }
 
                 // 5) Transaction committen

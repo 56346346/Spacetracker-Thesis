@@ -410,12 +410,31 @@ namespace SpaceTracker
                 ? topParam.AsElementId()
                 : ElementId.InvalidElementId;
 
+                   // In einigen Revit-Versionen können die Basis- oder Oberebene leer
+            // sein. In diesem Fall versuchen wir, die LevelId des Elements als
+            // Fallback zu verwenden, damit die Treppe trotzdem im Graph landet.
+            if (baseLevelId == ElementId.InvalidElementId &&
+                stairElem.LevelId != ElementId.InvalidElementId)
+            {
+                baseLevelId = stairElem.LevelId;
+            }
+
+            if (topLevelId == ElementId.InvalidElementId)
+            {
+                var topLvlFallback = stairElem.get_Parameter(BuiltInParameter.STAIRS_TOP_LEVEL_PARAM);
+                if (topLvlFallback != null)
+                    topLevelId = topLvlFallback.AsElementId();
+            }
+
+
             // 2) Revit-Level-Instanzen
             var baseLevel = doc.GetElement(baseLevelId) as Level;
             var topLevel = doc.GetElement(topLevelId) as Level;
             if (baseLevel == null || topLevel == null)
+            {
+                Debug.WriteLine($"[Stair Processing] Levels not found for stair {stairElem.Id}; base={baseLevelId}, top={topLevelId}");
                 return;  // ohne beide Ebenen keine Relationship
-
+            }
             // 3) Lesbarer Name für die Treppe
             string stairName = GenerateStairName(baseLevel.Name, topLevel.Name);
             // 4) Cypher-Statement: Node MERGE + Beziehungen

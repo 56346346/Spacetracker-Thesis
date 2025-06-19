@@ -118,10 +118,34 @@
   </ItemGroup>
   
   <ItemGroup>
-    <None Remove="Logo.png" />
+   <None Remove="Logo.png" />
+    <None Remove="Push.png" />
+    <None Remove="Pull.png" />
+    <None Remove="Info.png" />
+    <None Remove="Green.png" />
+    <None Remove="Yellow.png" />
+    <None Remove="Red.png" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+     <Content Include="Push.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Pull.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Info.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Green.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Yellow.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Red.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

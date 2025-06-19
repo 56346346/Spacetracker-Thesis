@@ -67,14 +67,17 @@ namespace SpaceTracker
             {
                 case StatusColor.Green:
                     StatusIndicatorButton.LargeImage = GreenIcon;
+                    StatusIndicatorButton.Image = GreenIcon;
                     StatusIndicatorButton.ToolTip = "Status: Konsistent (Grün)";
                     break;
                 case StatusColor.Yellow:
                     StatusIndicatorButton.LargeImage = YellowIcon;
+                    StatusIndicatorButton.Image = YellowIcon;
                     StatusIndicatorButton.ToolTip = "Status: Externe Änderungen vorhanden (Gelb)";
                     break;
                 case StatusColor.Red:
                     StatusIndicatorButton.LargeImage = RedIcon;
+                    StatusIndicatorButton.Image = RedIcon;
                     StatusIndicatorButton.ToolTip = "Status: Inkonsistenzen erkannt (Rot)";
                     break;
             }
@@ -384,6 +387,15 @@ namespace SpaceTracker
                     Assembly.GetExecutingAssembly().Location,
                     "SpaceTracker.InfoCommand"
                 );
+                  string infoIconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Info.png");
+                if (File.Exists(infoIconPath))
+                {
+                    var infoIcon = new BitmapImage();
+                    infoIcon.BeginInit();
+                    infoIcon.UriSource = new Uri(infoIconPath, UriKind.Absolute);
+                    infoIcon.EndInit();
+                    infoBtnData.LargeImage = infoIcon;
+                }
                 var infoBtn = _ribbonPanel.AddItem(infoBtnData) as PushButton;
                 if (infoBtn != null)
                     infoBtn.ToolTip = "Zeigt eine kurze Beschreibung der SpaceTracker-Buttons";
