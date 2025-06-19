@@ -17,6 +17,8 @@ namespace SpaceTracker
     [Regeneration(RegenerationOption.Manual)]
     public class PullCommand : IExternalCommand
     {
+        private Document _doc;
+        private Neo4jConnector _connector;
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             return ExecuteAsync(commandData, message, elements).GetAwaiter().GetResult();
@@ -25,7 +27,7 @@ namespace SpaceTracker
         private async Task<Result> ExecuteAsync(ExternalCommandData commandData, string message, ElementSet elements)
         {
 
-             UIApplication uiApp = commandData.Application;
+            UIApplication uiApp = commandData.Application;
             UIDocument uiDoc = uiApp.ActiveUIDocument;
             if (uiDoc == null)
             {
@@ -33,9 +35,11 @@ namespace SpaceTracker
                 return Result.Failed;
             }
             Document doc = uiDoc.Document;
-            
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
+
+            _doc = doc;
+            _connector = connector;
             // Abfrage: ChangeLog-Einträge seit dem letzten Sync dieses Nutzers (ausgenommen eigene)
             string lastSyncStr = cmdMgr.LastSyncTime.ToString("o");
             string sessionId = cmdMgr.SessionId;
@@ -117,10 +121,16 @@ namespace SpaceTracker
                             // Neues Element wurde remote eingefügt
                             if (localElem == null)
                             {
-                                // Automatische Neuerstellung im lokalen Modell nicht implementiert
-                                notCreatedIds.Add(elemId);
-                                Debug.WriteLine($"[Pull] Element neu im Graph (ID {elemId}), muss manuell im Revit-Modell hinzugefügt werden.");
-                                // Hinweis: Hier könnte man versuchen, bestimmte Kategorien (Räume usw.) automatisch anzulegen.
+                                Element created = await CreateElementFromNeo4j(elemId, null);
+                                if (created != null)
+                                {
+                                    appliedCount++;
+                                }
+                                else
+                                {
+                                    notCreatedIds.Add(elemId);
+                                    Debug.WriteLine($"[Pull] Element neu im Graph (ID {elemId}), muss manuell im Revit-Modell hinzugefügt werden.");
+                                }
                             }
                             else
                             {
@@ -327,6 +337,73 @@ namespace SpaceTracker
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
             }
             return Result.Succeeded;
+        }
+
+
+
+        private async Task<Element> CreateElementFromNeo4j(long elementId, string elementType)
+        {
+            if (_doc == null || _connector == null)
+                return null;
+
+            try
+            {
+                // Elementtyp ermitteln, falls nicht übergeben
+                if (string.IsNullOrEmpty(elementType))
+                {
+                    var tRec = (await _connector.RunReadQueryAsync(
+                        "MATCH (e {ElementId: $id}) RETURN head(labels(e)) AS type",
+                        new { id = elementId }).ConfigureAwait(false)).FirstOrDefault();
+                    elementType = tRec?["type"]?.As<string>();
+                }
+
+                switch (elementType)
+                {
+                    case "Level":
+                        var lvlData = await _connector.RunReadQueryAsync(
+                            "MATCH (l:Level {ElementId: $id}) RETURN l.Name AS name, coalesce(l.Elevation, 0) AS elev",
+                            new { id = elementId }).ConfigureAwait(false);
+                        var lvlRec = lvlData.FirstOrDefault();
+                        if (lvlRec != null)
+                        {
+                            string lvlName = lvlRec["name"].As<string>();
+                            double elev = 0;
+                            try { elev = lvlRec["elev"].As<double>(); } catch { }
+                            Level newLevel = Level.Create(_doc, elev);
+                            newLevel.Name = lvlName;
+                            return newLevel;
+                        }
+                        break;
+                    case "Room":
+                        var roomData = await _connector.RunReadQueryAsync(
+                            "MATCH (l:Level)-[:CONTAINS]->(r:Room {ElementId: $id}) RETURN r.Name AS name, l.ElementId AS levelId",
+                            new { id = elementId }).ConfigureAwait(false);
+                        var roomRec = roomData.FirstOrDefault();
+                        if (roomRec != null)
+                        {
+                            string rName = roomRec["name"].As<string>();
+                            long levelId = roomRec["levelId"].As<long>();
+                            Level lvl = _doc.GetElement(new ElementId(levelId)) as Level;
+                            if (lvl != null)
+                            {
+                                UV loc = new UV(0, 0);
+                                Room newRoom = _doc.Create.NewRoom(lvl, loc);
+                                newRoom.Name = rName;
+                                return newRoom;
+                            }
+                        }
+                        break;
+                    default:
+                        Debug.WriteLine($"[Pull] CreateElementFromNeo4j: unbekannter Typ {elementType}");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Pull] Fehler beim Erstellen des Elements {elementId}: {ex.Message}");
+            }
+
+            return null;
         }
     }
 }
