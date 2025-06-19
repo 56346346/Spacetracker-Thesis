@@ -147,14 +147,11 @@ namespace SpaceTracker
                                 if (localElem is Room room)
                                 {
                                     // Neuen Namen aus Neo4j lesen
-                                    string newName = "";
-                                    try
-                                    {
-                                        var recs = await connector.RunReadQueryAsync(
-                                           "MATCH (r:Room {ElementId: $id}) RETURN r.Name AS name",
-                                            new { id = elemId }).ConfigureAwait(false);
-                                    }
-                                    catch { /* ignore errors reading name */ }
+                                    var recs = await connector.RunReadQueryAsync(
+                                          "MATCH (r:Room {ElementId: $id}) RETURN r.Name AS name",
+                                           new { id = elemId }).ConfigureAwait(false);
+                                    string newName = recs.FirstOrDefault()?["name"]?.As<string>() ?? "";
+
                                     if (!string.IsNullOrEmpty(newName))
                                     {
                                         try
@@ -171,12 +168,8 @@ namespace SpaceTracker
                                 }
                                 else if (localElem is Level level)
                                 {
-                                    string newName = "";
-                                    try
-                                    {
-                                        var recs = await connector.RunReadQueryAsync("MATCH (l:Level {ElementId: $id}) RETURN l.Name AS name", new { id = elemId }).ConfigureAwait(false);
-                                    }
-                                    catch { }
+                                    var recs = await connector.RunReadQueryAsync("MATCH (l:Level {ElementId: $id}) RETURN l.Name AS name", new { id = elemId }).ConfigureAwait(false);
+                                    string newName = recs.FirstOrDefault()?["name"]?.As<string>() ?? "";
                                     if (!string.IsNullOrEmpty(newName) && newName != level.Name)
                                     {
                                         try
@@ -194,12 +187,8 @@ namespace SpaceTracker
                                 else if (localElem is Wall wall)
                                 {
                                     // Wand: ggf. Typname geändert
-                                    string newName = "";
-                                    try
-                                    {
-                                        var recs = await connector.RunReadQueryAsync("MATCH (w:Wall {ElementId: $id}) RETURN coalesce(w.Name, w.Type) AS newName", new { id = elemId }).ConfigureAwait(false);
-                                    }
-                                    catch { }
+                                    var recs = await connector.RunReadQueryAsync("MATCH (w:Wall {ElementId: $id}) RETURN coalesce(w.Name, w.Type) AS newName", new { id = elemId }).ConfigureAwait(false);
+                                    string newName = recs.FirstOrDefault()?["newName"]?.As<string>() ?? "";
                                     if (!string.IsNullOrEmpty(newName))
                                     {
                                         WallType wType = wall.WallType;
@@ -221,12 +210,9 @@ namespace SpaceTracker
                                 else if (localElem is FamilyInstance fi && fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors)
                                 {
                                     // Tür: Türnummer (Mark) aktualisieren
-                                    string newMark = "";
-                                    try
-                                    {
-                                        var recs = await connector.RunReadQueryAsync("MATCH (d:Door {ElementId: $id}) RETURN d.Name AS mark", new { id = elemId }).ConfigureAwait(false);
-                                    }
-                                    catch { }
+                                    var recs = await connector.RunReadQueryAsync("MATCH (d:Door {ElementId: $id}) RETURN d.Name AS mark", new { id = elemId }).ConfigureAwait(false);
+                                    string newMark = recs.FirstOrDefault()?[
+                                        "mark"]?.As<string>() ?? "";
                                     if (!string.IsNullOrEmpty(newMark))
                                     {
                                         var markParam = fi.get_Parameter(BuiltInParameter.DOOR_NUMBER);
@@ -390,6 +376,79 @@ namespace SpaceTracker
                                 Room newRoom = _doc.Create.NewRoom(lvl, loc);
                                 newRoom.Name = rName;
                                 return newRoom;
+                            }
+                        }
+                        break;
+                    case "Wall":
+                        var wallData = await _connector.RunReadQueryAsync(
+                            "MATCH (w:Wall {ElementId:$id}) RETURN w.Type AS type, w.Level AS level",
+                            new { id = elementId }).ConfigureAwait(false);
+                        var wRec = wallData.FirstOrDefault();
+                        if (wRec != null)
+                        {
+                            var lvl = _doc.GetElement(new ElementId((long)wRec["level"].As<long>())) as Level;
+                            if (lvl != null)
+                            {
+                                WallType wType = new FilteredElementCollector(_doc)
+                                    .OfClass(typeof(WallType))
+                                    .Cast<WallType>()
+                                    .FirstOrDefault(t => t.Name == wRec["type"].As<string>());
+                                if (wType != null)
+                                {
+                                    return Wall.Create(_doc, Line.CreateBound(XYZ.Zero, XYZ.BasisX), wType.Id, lvl.Id, 3, 0, false, false);
+                                }
+                            }
+                        }
+                        break;
+                    case "Door":
+                        var doorData = await _connector.RunReadQueryAsync(
+                            "MATCH (d:Door {ElementId:$id}) RETURN d.Type AS type, d.Level AS level",
+                            new { id = elementId }).ConfigureAwait(false);
+                        var dRec = doorData.FirstOrDefault();
+                        if (dRec != null)
+                        {
+                            var lvl = _doc.GetElement(new ElementId((long)dRec["level"].As<long>())) as Level;
+                            if (lvl != null)
+                            {
+                                FamilySymbol doorType = new FilteredElementCollector(_doc)
+                                    .OfCategory(BuiltInCategory.OST_Doors)
+                                    .OfClass(typeof(FamilySymbol))
+                                    .Cast<FamilySymbol>()
+                                    .FirstOrDefault(t => t.Name == dRec["type"].As<string>());
+                                if (doorType != null && !doorType.IsActive) doorType.Activate();
+                                if (doorType != null)
+                                {
+                                    XYZ loc = XYZ.Zero;
+                                    return _doc.Create.NewFamilyInstance(Line.CreateBound(loc, loc + XYZ.BasisX), doorType, null, lvl, StructuralType.NonStructural);
+                                }
+                            }
+                        }
+                        break;
+                    case "Stair":
+                        var stairData = await _connector.RunReadQueryAsync(
+                            "MATCH (b:Level)-[:CONNECTS_TO]->(s:Stair {ElementId:$id})-[:CONNECTS_TO]->(t:Level) RETURN b.ElementId AS base, t.ElementId AS top",
+                            new { id = elementId }).ConfigureAwait(false);
+                        var sRec = stairData.FirstOrDefault();
+                        if (sRec != null)
+                        {
+                            var baseLvl = _doc.GetElement(new ElementId((long)sRec["base"].As<long>())) as Level;
+                            var topLvl = _doc.GetElement(new ElementId((long)sRec["top"].As<long>())) as Level;
+                            if (baseLvl != null && topLvl != null)
+                            {
+                                try
+                                {
+                                    StairsEditScope ses = new StairsEditScope(_doc, "Create Stair");
+                                    ses.Start(baseLvl.Id);
+                                    CurveLoop cl = new CurveLoop();
+                                    cl.Append(Line.CreateBound(XYZ.Zero, 5 * XYZ.BasisX));
+                                    SimpleStairs stair = SimpleStairs.CreateStraightRun(_doc, baseLvl.Id, topLvl.Id, cl);
+                                    ses.Commit();
+                                    return stair;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"[Pull] Fehler beim Erstellen der Treppe {elementId}: {ex.Message}");
+                                }
                             }
                         }
                         break;

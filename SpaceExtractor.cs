@@ -321,7 +321,16 @@ namespace SpaceTracker
 
                 }
             }
-
+            foreach (Element stair in new FilteredElementCollector(doc)
+        .WhereElementIsNotElementType()
+        .Where(e =>
+            e.Category != null &&
+            (e.Category.Id.Value == (int)BuiltInCategory.OST_Stairs ||
+             e.Category.Id.Value == (int)BuiltInCategory.OST_StairsLandings ||
+             e.Category.Id.Value == (int)BuiltInCategory.OST_StairsRuns)))
+{
+    ProcessStair(stair, doc);
+}
             string baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker");
             Directory.CreateDirectory(baseDir); // falls noch nicht vorhanden
 
@@ -399,33 +408,15 @@ namespace SpaceTracker
         /// </summary>
         private void ProcessStair(Element stairElem, Document doc)
         {
-            // 1) Basis- und Ober-Ebenen-Parameter auslesen
             var baseParam = stairElem.get_Parameter(BuiltInParameter.STAIRS_BASE_LEVEL_PARAM);
-            var topParam = stairElem.get_Parameter(BuiltInParameter.STAIRS_TOP_LEVEL_PARAM);
+  ElementId baseLevelId = (baseParam != null && baseParam.AsElementId() != ElementId.InvalidElementId)
+        ? baseParam.AsElementId()
+        : stairElem.LevelId;
 
-            ElementId baseLevelId = baseParam != null
-                ? baseParam.AsElementId()
-                : ElementId.InvalidElementId;
-            ElementId topLevelId = topParam != null
-                ? topParam.AsElementId()
-                : ElementId.InvalidElementId;
-
-                   // In einigen Revit-Versionen können die Basis- oder Oberebene leer
-            // sein. In diesem Fall versuchen wir, die LevelId des Elements als
-            // Fallback zu verwenden, damit die Treppe trotzdem im Graph landet.
-            if (baseLevelId == ElementId.InvalidElementId &&
-                stairElem.LevelId != ElementId.InvalidElementId)
-            {
-                baseLevelId = stairElem.LevelId;
-            }
-
-            if (topLevelId == ElementId.InvalidElementId)
-            {
-                var topLvlFallback = stairElem.get_Parameter(BuiltInParameter.STAIRS_TOP_LEVEL_PARAM);
-                if (topLvlFallback != null)
-                    topLevelId = topLvlFallback.AsElementId();
-            }
-
+    var topParam = stairElem.get_Parameter(BuiltInParameter.STAIRS_TOP_LEVEL_PARAM);
+    ElementId topLevelId = (topParam != null && topParam.AsElementId() != ElementId.InvalidElementId)
+        ? topParam.AsElementId()
+        : stairElem.LevelId;
 
             // 2) Revit-Level-Instanzen
             var baseLevel = doc.GetElement(baseLevelId) as Level;

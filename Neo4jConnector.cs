@@ -199,12 +199,12 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     var res = await tx.RunAsync(
                         "MATCH (s:Session) RETURN min(s.lastSync) AS cutoff").ConfigureAwait(false);
                     var record = await res.SingleAsync().ConfigureAwait(false);
-                    var cutoff = record["cutoff"].As<ZonedDateTime>();
+                    var cutoff = record["cutoff"].As<ZonedDateTime>().ToString();
 
                     // 2) ChangeLogs löschen, die älter sind
                     await tx.RunAsync(
                         @"MATCH (cl:ChangeLog)
-                  WHERE cl.timestamp < $cutoff
+                  WHERE WHERE cl.timestamp < datetime($cutoff)
                   DELETE cl",
                         new { cutoff = cutoff.ToString() }).ConfigureAwait(false);
                 });
