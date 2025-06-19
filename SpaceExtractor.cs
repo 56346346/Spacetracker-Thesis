@@ -484,6 +484,8 @@ namespace SpaceTracker
         public void UpdateGraph(Document doc, List<Element> EnqueuedElements, List<ElementId> deletedElementIds, List<Element> modifiedElements)
         {
             Debug.WriteLine(" Starting to update Graph...\n");
+            // Reset stair numbering for each update run
+            _stairCounters.Clear();
             string cy;
 
             // delete nodes
