@@ -431,7 +431,8 @@ namespace SpaceTracker
                                 if (doorType != null)
                                 {
                                     XYZ loc = XYZ.Zero;
-return _doc.Create.NewFamilyInstance(loc, doorType, lvl, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);                                }
+                                    return _doc.Create.NewFamilyInstance(loc, doorType, lvl, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+                                }
                             }
                         }
                         break;
@@ -448,12 +449,16 @@ return _doc.Create.NewFamilyInstance(loc, doorType, lvl, Autodesk.Revit.DB.Struc
                             {
                                 try
                                 {
-                                    StairsEditScope ses = new StairsEditScope(_doc, "Create Stair");
-                                    ses.Start(baseLvl.Id);
-                                    CurveLoop cl = new CurveLoop();
-                                    cl.Append(Line.CreateBound(XYZ.Zero, 5 * XYZ.BasisX));
-                                    Stairs stair = Stairs.Create(_doc, baseLvl.Id, topLvl.Id, cl); ses.Commit(null);
-                                    return stair;
+                                    // Select the first available stairs type for creation
+                                    var stairType = new FilteredElementCollector(_doc)
+                                        .OfClass(typeof(Autodesk.Revit.DB.Architecture.StairsType))
+                                        .Cast<Autodesk.Revit.DB.Architecture.StairsType>()
+                                        .FirstOrDefault();
+
+                                    if (stairType != null)
+                                    {
+
+                                    }
                                 }
                                 catch (Exception ex)
                                 {
