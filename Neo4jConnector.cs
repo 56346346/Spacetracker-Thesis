@@ -118,7 +118,7 @@ namespace SpaceTracker
                     {
                         logQuery = @"MATCH (s:Session { id: $session })
 MERGE (cl:ChangeLog { sessionId: $session, elementId: $eid, type: $type })
-ON CREATE SET cl.user = $user, cl.timestamp = datetime($time)
+ON CREATE SET cl.user = $user, cl.timestamp = datetime($time), cl.acknowledged = false
 MERGE (s)-[:HAS_LOG]->(cl)";
                     }
                     else
@@ -129,7 +129,8 @@ CREATE (cl:ChangeLog {
     user: $user,
     timestamp: datetime($time),
     type: $type,
-    elementId: $eid
+    elementId: $eid,
+    acknowledged: false
 })
 MERGE (s)-[:HAS_LOG]->(cl)";
                     }
@@ -166,6 +167,56 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+
+         public async Task<List<IRecord>> GetPendingChangeLogsAsync(string currentSession)
+        {
+            string query = @"MATCH (c:ChangeLog)
+WHERE c.sessionId <> $session AND c.acknowledged = false
+RETURN c.sessionId AS sessionId, c.elementId AS elementId, c.type AS type, c.timestamp AS ts
+ORDER BY c.timestamp";
+            return await RunReadQueryAsync(query, new { session = currentSession }).ConfigureAwait(false);
+        }
+
+        public async Task AcknowledgeAllAsync(string currentSession)
+        {
+            var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    await tx.RunAsync(@"MATCH (c:ChangeLog)
+WHERE c.sessionId <> $session AND c.acknowledged = false
+SET c.acknowledged = true", new { session = currentSession }).ConfigureAwait(false);
+                });
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+        public async Task AcknowledgeSelectedAsync(string currentSession, IEnumerable<long> elementIds)
+        {
+            var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    foreach (var id in elementIds)
+                    {
+                        await tx.RunAsync(@"MATCH (c:ChangeLog)
+WHERE c.sessionId <> $session AND c.elementId = $id
+SET c.acknowledged = true",
+                            new { session = currentSession, id }).ConfigureAwait(false);
+                    }
+                });
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
 
 
         public async Task RunCypherQuery(string query)

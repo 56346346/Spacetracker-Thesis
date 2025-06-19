@@ -8,6 +8,7 @@
     <Product>SpaceTracker</Product>
     <Copyright>Copyright © TU Munchen - CMS 2022</Copyright>
     <UseWinFormsOutOfProcDesigner>True</UseWinFormsOutOfProcDesigner>
+     <UseWPF>true</UseWPF>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>bin\Debug\</OutputPath>
     <Platforms>x64</Platforms>
@@ -149,5 +150,4 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
 </Project>

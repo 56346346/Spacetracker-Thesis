@@ -18,11 +18,10 @@ namespace SpaceTracker
         {
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
-            string lastSyncStr = cmdMgr.LastSyncTime.ToString("o");
-            var parameters = new { lastSync = lastSyncStr, user = Environment.UserName };
+            var parameters = new { session = cmdMgr.SessionId };
             string query = "MATCH (c:ChangeLog) " +
-                           "WHERE c.timestamp > $lastSync AND c.user <> $user " +
-                           "RETURN c.elementId AS id, c.type AS type, c.user AS user";
+                           "WHERE c.sessionId <> $session AND c.acknowledged = false " +
+                           "RETURN c.elementId AS id, c.type AS type, c.sessionId AS session";
             List<IRecord> records;
             try
             {
