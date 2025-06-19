@@ -84,14 +84,14 @@ namespace SpaceTracker
                 if (cypherCommands.IsEmpty)
                     return;
 
- var changes = new List<(string Command, string Path)>();
+                var changes = new List<(string Command, string Path)>();
                 while (cypherCommands.TryDequeue(out string cyCommand))
-                 {
+                {
                     string cache = ChangeCacheHelper.WriteChange(cyCommand);
                     changes.Add((cyCommand, cache));
                 }
 
- await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName).ConfigureAwait(false);
+                await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName).ConfigureAwait(false);
                 LastSyncTime = DateTime.UtcNow;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
@@ -137,7 +137,8 @@ namespace SpaceTracker
             try
             {
                 var dir = System.IO.Path.Combine(
-                   "SpaceTracker");
+                   Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "SpaceTracker");
 
                 var sessionFile = System.IO.Path.Combine(dir, $"last_sync_{SessionId}.txt");
                 var globalFile = System.IO.Path.Combine(dir, "last_sync.txt");

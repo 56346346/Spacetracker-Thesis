@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 using Autodesk.Revit.DB.Structure;
 
 
+
 namespace SpaceTracker
 {
     [Transaction(TransactionMode.Manual)]
@@ -81,13 +82,13 @@ namespace SpaceTracker
             }
 
             // Mapping der empfangenen Änderungen
-             var remoteChanges = new List<(long id, string type, string user, string cache)>();
+            var remoteChanges = new List<(long id, string type, string user, string cache)>();
             foreach (var rec in changeRecords)
             {
                 long id = rec["id"].As<long>();
                 string type = rec["type"].As<string>();
                 string user = rec["user"].As<string>();
-                 string cachePath = rec["cache"]?.As<string>();
+                string cachePath = rec["cache"]?.As<string>();
                 remoteChanges.Add((id, type, user, cachePath));
             }
 
@@ -104,12 +105,12 @@ namespace SpaceTracker
                 {
                     // 1. Für jeden entfernten Delta-Patch die lokale Daten aktualisieren
                     var affectedIds = new HashSet<long>();  // alle betroffenen IDs (für evtl. Local-Queue-Bereinigung)
-                   foreach (var (elemId, changeType, user, cache) in remoteChanges)
+                    foreach (var (elemId, changeType, user, cache) in remoteChanges)
                     {
                         ElementId revitId = new ElementId(elemId);
                         Element localElem = doc.GetElement(revitId);
                         affectedIds.Add(elemId);
-                           if (!string.IsNullOrEmpty(cache) && File.Exists(cache))
+                        if (!string.IsNullOrEmpty(cache) && File.Exists(cache))
                         {
                             try
                             {
@@ -430,8 +431,7 @@ namespace SpaceTracker
                                 if (doorType != null)
                                 {
                                     XYZ loc = XYZ.Zero;
-                                    return _doc.Create.NewFamilyInstance(Line.CreateBound(loc, loc + XYZ.BasisX), doorType, null, lvl, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
-                                }
+return _doc.Create.NewFamilyInstance(loc, doorType, lvl, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);                                }
                             }
                         }
                         break;
@@ -452,8 +452,7 @@ namespace SpaceTracker
                                     ses.Start(baseLvl.Id);
                                     CurveLoop cl = new CurveLoop();
                                     cl.Append(Line.CreateBound(XYZ.Zero, 5 * XYZ.BasisX));
-                                    Stairs stair = Stairs.CreateStraightRun(_doc, baseLvl.Id, topLvl.Id, cl);
-                                    ses.Commit(null);
+                                    Stairs stair = Stairs.Create(_doc, baseLvl.Id, topLvl.Id, cl); ses.Commit(null);
                                     return stair;
                                 }
                                 catch (Exception ex)
@@ -463,7 +462,7 @@ namespace SpaceTracker
                             }
                         }
                         break;
-                        
+
                     default:
                         Debug.WriteLine($"[Pull] CreateElementFromNeo4j: unbekannter Typ {elementType}");
                         break;

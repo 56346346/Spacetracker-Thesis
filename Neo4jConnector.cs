@@ -268,8 +268,8 @@ SET c.acknowledged = true",
                     // 2) ChangeLogs löschen, die älter sind
                     await tx.RunAsync(
                         @"MATCH (cl:ChangeLog)
-                  WHERE WHERE cl.timestamp < datetime($cutoff)
-                  DELETE cl",
+                     WHERE cl.timestamp < datetime($cutoff)
+                    DELETE cl",
                         new { cutoff = cutoff.ToString() }).ConfigureAwait(false);
                 });
             }
