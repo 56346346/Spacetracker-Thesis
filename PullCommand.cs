@@ -10,6 +10,8 @@ using System.Diagnostics;
 using Autodesk.Revit.DB.Architecture;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Autodesk.Revit.DB.Structure;
+
 
 namespace SpaceTracker
 {
@@ -419,7 +421,7 @@ namespace SpaceTracker
                                 if (doorType != null)
                                 {
                                     XYZ loc = XYZ.Zero;
-                                    return _doc.Create.NewFamilyInstance(Line.CreateBound(loc, loc + XYZ.BasisX), doorType, null, lvl, StructuralType.NonStructural);
+                                    return _doc.Create.NewFamilyInstance(Line.CreateBound(loc, loc + XYZ.BasisX), doorType, null, lvl, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
                                 }
                             }
                         }
@@ -442,7 +444,7 @@ namespace SpaceTracker
                                     CurveLoop cl = new CurveLoop();
                                     cl.Append(Line.CreateBound(XYZ.Zero, 5 * XYZ.BasisX));
                                     SimpleStairs stair = SimpleStairs.CreateStraightRun(_doc, baseLvl.Id, topLvl.Id, cl);
-                                    ses.Commit();
+                                    ses.Commit(null);
                                     return stair;
                                 }
                                 catch (Exception ex)
@@ -452,6 +454,7 @@ namespace SpaceTracker
                             }
                         }
                         break;
+                        
                     default:
                         Debug.WriteLine($"[Pull] CreateElementFromNeo4j: unbekannter Typ {elementType}");
                         break;
