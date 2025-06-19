@@ -34,8 +34,8 @@ namespace SpaceTracker
             {
                 if (string.IsNullOrWhiteSpace(change.cypher))
                     continue;
-                if (!change.cypher.Contains("MERGE", StringComparison.OrdinalIgnoreCase) ||
-                    change.cypher.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
+               if (change.cypher.IndexOf("MERGE", StringComparison.OrdinalIgnoreCase) < 0 ||
+                    change.cypher.IndexOf("DELETE", StringComparison.OrdinalIgnoreCase) >= 0)
                     continue;
 
                 long id = change.elementId;
@@ -367,6 +367,20 @@ namespace SpaceTracker
                 info += "\nBitte prüfen Sie diese Inkonsistenzen manuell.";
                 TaskDialog.Show("Pull - Inkonsistenzen", info);
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
+            }
+
+            
+            try
+            {
+                bool allOk = await connector.AreAllUsersConsistentAsync().ConfigureAwait(false);
+                if (allOk)
+                {
+                    await connector.DeleteAllSessionsAndLogsAsync().ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Pull] Konsistenzprüfung/Aufräumen fehlgeschlagen: {ex.Message}");
             }
             return Result.Succeeded;
         }

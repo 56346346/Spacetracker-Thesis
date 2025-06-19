@@ -36,14 +36,20 @@ namespace SpaceTracker
                 yield break;
             foreach (var file in Directory.GetFiles(CacheDir, "change_*.json"))
             {
+                                ChangePayload? payload = null;
+
                 try
                 {
                     var json = File.ReadAllText(file);
-                    var payload = JsonConvert.DeserializeObject<ChangePayload>(json);
-                    if (payload != null)
-                        yield return payload;
+                    payload = JsonConvert.DeserializeObject<ChangePayload>(json);
                 }
-                catch { }
+                catch
+                {
+                    // ignore malformed cache entries
+                }
+
+                if (payload != null)
+                    yield return payload;
             }
         }
 

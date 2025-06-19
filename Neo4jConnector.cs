@@ -181,6 +181,49 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             }
         }
 
+        public async Task<bool> AreAllUsersConsistentAsync()
+        {
+            var session = _driver.AsyncSession();
+            try
+            {
+                var minRes = await session.RunAsync("MATCH (s:Session) RETURN min(s.lastSync) AS minSync").ConfigureAwait(false);
+                var minRec = await minRes.SingleAsync().ConfigureAwait(false);
+                if (minRec["minSync"].IsNull)
+                    return true;
+                var minSync = minRec["minSync"].As<ZonedDateTime>().ToDateTimeUtc();
+
+                var maxRes = await session.RunAsync("MATCH (cl:ChangeLog) RETURN max(cl.timestamp) AS lastChange").ConfigureAwait(false);
+                var maxRec = await maxRes.SingleAsync().ConfigureAwait(false);
+                if (maxRec["lastChange"].IsNull)
+                    return true;
+                var lastChange = maxRec["lastChange"].As<ZonedDateTime>().ToDateTimeUtc();
+
+                return lastChange <= minSync;
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+        public async Task DeleteAllSessionsAndLogsAsync()
+        {
+            var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    await tx.RunAsync("MATCH (cl:ChangeLog) DELETE cl").ConfigureAwait(false);
+                    await tx.RunAsync("MATCH (s:Session) DETACH DELETE s").ConfigureAwait(false);
+                });
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+
         public async Task<List<IRecord>> GetPendingChangeLogsAsync(string currentSession)
         {
             string query = @"MATCH (c:ChangeLog)

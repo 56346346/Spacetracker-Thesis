@@ -191,9 +191,7 @@ namespace SpaceTracker
 
 
                 // 9. Events registrieren
-                application.ControlledApplication.DocumentCreated += documentCreated;
-                application.ControlledApplication.DocumentOpened += documentOpened;
-                application.ControlledApplication.DocumentChanged += documentChanged;
+                RegisterDocumentEvents(application);
                 Logger.LogToFile("Document-Events registriert");
 
                 string innerappDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
