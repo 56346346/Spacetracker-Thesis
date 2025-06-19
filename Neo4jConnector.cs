@@ -188,15 +188,15 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             {
                 var minRes = await session.RunAsync("MATCH (s:Session) RETURN min(s.lastSync) AS minSync").ConfigureAwait(false);
                 var minRec = await minRes.SingleAsync().ConfigureAwait(false);
-                if (minRec["minSync"].IsNull)
+                if (minRec["minSync"] is null)
                     return true;
-                var minSync = minRec["minSync"].As<ZonedDateTime>().ToDateTimeUtc();
+                var minSync = minRec["minSync"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
 
                 var maxRes = await session.RunAsync("MATCH (cl:ChangeLog) RETURN max(cl.timestamp) AS lastChange").ConfigureAwait(false);
                 var maxRec = await maxRes.SingleAsync().ConfigureAwait(false);
-                if (maxRec["lastChange"].IsNull)
+                if (maxRec["lastChange"] is null)
                     return true;
-                var lastChange = maxRec["lastChange"].As<ZonedDateTime>().ToDateTimeUtc();
+                var lastChange = maxRec["lastChange"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
 
                 return lastChange <= minSync;
             }

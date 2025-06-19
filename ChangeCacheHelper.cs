@@ -36,7 +36,7 @@ namespace SpaceTracker
                 yield break;
             foreach (var file in Directory.GetFiles(CacheDir, "change_*.json"))
             {
-                                ChangePayload? payload = null;
+                ChangePayload payload = null;
 
                 try
                 {
