@@ -169,5 +169,33 @@ namespace SpaceTracker.Utilities
                 throw;
             }
         }
+        
+        public async Task<bool> PingAsync()
+        {
+            try
+            {
+                var response = await Http.GetAsync($"{_baseUrl}/ping");
+                response.EnsureSuccessStatusCode();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<string> GetStatusAsync()
+        {
+            try
+            {
+                var response = await Http.GetAsync($"{_baseUrl}/status");
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Fehler beim Abrufen des Serverstatus: {ex.Message}", ex);
+            }
+        }
     }
 }
