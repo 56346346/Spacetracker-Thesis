@@ -17,6 +17,7 @@ C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTra
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\Microsoft.Bcl.AsyncInterfaces.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\Microsoft.Data.Sqlite.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\Neo4j.Driver.dll
+C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\Newtonsoft.Json.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\SQLitePCLRaw.batteries_v2.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\SQLitePCLRaw.core.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\SQLitePCLRaw.provider.dynamic_cdecl.dll
@@ -28,6 +29,8 @@ C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTra
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\System.Memory.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\System.Numerics.Vectors.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\System.Runtime.CompilerServices.Unsafe.dll
+C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\System.Text.Encodings.Web.dll
+C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\System.Text.Json.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\System.Threading.Tasks.Extensions.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\System.ValueTuple.dll
 C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\bin\Debug\PresentationCore.dll

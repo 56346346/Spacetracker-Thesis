@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "dgSpecHash": "nAnEpAN7Tcw=",
-  "success": false,
+  "dgSpecHash": "md8vbPTkIE4=",
+  "success": true,
   "projectFilePath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Vitus\\.nuget\\packages\\entityframework\\6.5.1\\entityframework.6.5.1.nupkg.sha512",
@@ -25,58 +25,11 @@
     "C:\\Users\\Vitus\\.nuget\\packages\\system.io.pipelines\\9.0.5\\system.io.pipelines.9.0.5.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.memory\\4.5.5\\system.memory.4.5.5.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.numerics.vectors\\4.6.1\\system.numerics.vectors.4.6.1.nupkg.sha512",
-    "C:\\Users\\Vitus\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\4.5.3\\system.runtime.compilerservices.unsafe.4.5.3.nupkg.sha512",
-    "C:\\Users\\Vitus\\.nuget\\packages\\system.text.encodings.web\\8.0.0\\system.text.encodings.web.8.0.0.nupkg.sha512",
-    "C:\\Users\\Vitus\\.nuget\\packages\\system.text.json\\8.0.3\\system.text.json.8.0.3.nupkg.sha512",
+    "C:\\Users\\Vitus\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.0.0\\system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512",
+    "C:\\Users\\Vitus\\.nuget\\packages\\system.text.encodings.web\\6.0.1\\system.text.encodings.web.6.0.1.nupkg.sha512",
+    "C:\\Users\\Vitus\\.nuget\\packages\\system.text.json\\6.0.11\\system.text.json.6.0.11.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.threading.tasks.extensions\\4.5.4\\system.threading.tasks.extensions.4.5.4.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.valuetuple\\4.5.0\\system.valuetuple.4.5.0.nupkg.sha512"
   ],
-  "logs": [
-    {
-      "code": "NU1903",
-      "level": "Warning",
-      "message": "Das Paket \"System.Text.Json\" 8.0.3 weist eine bekannte Hoch Schweregrad-Sicherheitsanfälligkeit auf, https://github.com/advisories/GHSA-8g4q-xg66-9fp4.",
-      "projectPath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
-      "warningLevel": 1,
-      "filePath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
-      "libraryId": "System.Text.Json",
-      "targetGraphs": [
-        ".NETFramework,Version=v4.8.1"
-      ]
-    },
-    {
-      "code": "NU1903",
-      "level": "Warning",
-      "message": "Das Paket \"System.Text.Json\" 8.0.3 weist eine bekannte Hoch Schweregrad-Sicherheitsanfälligkeit auf, https://github.com/advisories/GHSA-hh2w-p6rv-4g7w.",
-      "projectPath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
-      "warningLevel": 1,
-      "filePath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
-      "libraryId": "System.Text.Json",
-      "targetGraphs": [
-        ".NETFramework,Version=v4.8.1"
-      ]
-    },
-    {
-      "code": "NU1605",
-      "level": "Error",
-      "message": "Warnung als Fehler: Ein Downgrade des Pakets \"Microsoft.Bcl.AsyncInterfaces\" von 8.0.0 auf 7.0.0 wurde festgestellt. Verweisen Sie direkt aus dem Projekt auf das Paket, um eine andere Version auszuwählen. \r\n SpaceTracker -> System.Text.Json 8.0.3 -> Microsoft.Bcl.AsyncInterfaces (>= 8.0.0) \r\n SpaceTracker -> Microsoft.Bcl.AsyncInterfaces (>= 7.0.0)",
-      "projectPath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
-      "filePath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
-      "libraryId": "Microsoft.Bcl.AsyncInterfaces",
-      "targetGraphs": [
-        ".NETFramework,Version=v4.8.1"
-      ]
-    },
-    {
-      "code": "NU1605",
-      "level": "Error",
-      "message": "Warnung als Fehler: Ein Downgrade des Pakets \"System.Runtime.CompilerServices.Unsafe\" von 6.0.0 auf 4.5.3 wurde festgestellt. Verweisen Sie direkt aus dem Projekt auf das Paket, um eine andere Version auszuwählen. \r\n SpaceTracker -> System.Text.Json 8.0.3 -> System.Runtime.CompilerServices.Unsafe (>= 6.0.0) \r\n SpaceTracker -> System.Runtime.CompilerServices.Unsafe (>= 4.5.3)",
-      "projectPath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
-      "filePath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
-      "libraryId": "System.Runtime.CompilerServices.Unsafe",
-      "targetGraphs": [
-        ".NETFramework,Version=v4.8.1"
-      ]
-    }
-  ]
+  "logs": []
 }

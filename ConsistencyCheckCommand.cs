@@ -123,7 +123,7 @@ namespace SpaceTracker
 
                 if (localPendingIds.Count == 0)
                 {
-                    cmdMgr.LastSyncTime = DateTime.UtcNow;
+                    cmdMgr.LastSyncTime = DateTime.Now;
                     cmdMgr.PersistSyncTime();
                     try
                     {

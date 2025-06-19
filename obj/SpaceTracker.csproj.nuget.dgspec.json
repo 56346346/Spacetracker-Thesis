@@ -128,11 +128,11 @@
             },
             "System.Runtime.CompilerServices.Unsafe": {
               "target": "Package",
-              "version": "[4.5.3, )"
+              "version": "[6.0.0, )"
             },
             "System.Text.Json": {
               "target": "Package",
-              "version": "[8.0.3, )"
+              "version": "[6.0.11, )"
             },
             "System.Threading.Tasks.Extensions": {
               "target": "Package",

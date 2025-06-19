@@ -74,16 +74,16 @@ namespace SpaceTracker
                 // ─────────────────────────────────────────────────────────
                 // ► SESSION-KNOTEN ERSTELLEN / UPDATEN (MERGE ganz am Anfang)
                 // ─────────────────────────────────────────────────────────
-                var initTime = DateTime.UtcNow.ToString("o");
+                var initTime = DateTime.Now.ToString("o");
                 await tx.RunAsync(
-                    @"MERGE (s:Session { id: $session })
+                  @"MERGE (s:Session { id: $session })
               SET s.lastSync = datetime($time)",
-                    new
-                    {
-                        session = sessionId,
-                        time = initTime
-                    }
-                ).ConfigureAwait(false);
+                  new
+                  {
+                      session = sessionId,
+                      time = initTime
+                  }
+              ).ConfigureAwait(false);
 
                 // 3) Regex zum Extrahieren der ElementId aus dem Cypher-String
                 var idRegex = new Regex(@"ElementId\D+(\d+)");

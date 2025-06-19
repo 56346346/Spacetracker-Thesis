@@ -92,7 +92,7 @@ namespace SpaceTracker
                 }
 
                 await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName).ConfigureAwait(false);
-                LastSyncTime = DateTime.UtcNow;
+                LastSyncTime = DateTime.Now;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
                 await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
@@ -154,7 +154,7 @@ namespace SpaceTracker
             }
             catch { }
 
-            return DateTime.UtcNow;
+            return DateTime.Now;
         }
     }
 }

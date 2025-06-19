@@ -65,7 +65,7 @@ namespace SpaceTracker
             if (changeRecords.Count == 0)
             {
 
-                cmdMgr.LastSyncTime = DateTime.UtcNow;
+                cmdMgr.LastSyncTime = DateTime.Now;
                 cmdMgr.PersistSyncTime();
                 try
                 {
@@ -298,7 +298,7 @@ namespace SpaceTracker
             {
                 cmdMgr.LastSyncTime = DateTime.Parse(latestTs);
             }
-            catch { cmdMgr.LastSyncTime = DateTime.UtcNow; }
+            catch { cmdMgr.LastSyncTime = DateTime.Now; }
             // Synchronisationszeitpunkt persistieren
             cmdMgr.PersistSyncTime();
             try
