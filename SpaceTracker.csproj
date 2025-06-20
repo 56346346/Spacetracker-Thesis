@@ -89,17 +89,21 @@
   <HintPath>$(FrameworkPath)\v4.0.30319\System.Windows.Forms.dll</HintPath>
 </Reference>
 </ItemGroup>
-  <ItemGroup>
+<ItemGroup Condition="'$(RevitApiPath)' != ''">
     <Reference Include="RevitAPI">
-      <HintPath>..\..\..\..\..\..\..\Program Files\Autodesk\Revit 2026\RevitAPI.dll</HintPath>
+      <HintPath>$(RevitApiPath)\RevitAPI.dll</HintPath>
       <Private>False</Private>
-       <SpecificVersion>False</SpecificVersion>
     </Reference>
     <Reference Include="RevitAPIUI">
       <HintPath>..\..\..\..\..\..\..\Program Files\Autodesk\Revit 2026\RevitAPIUI.dll</HintPath>
       <Private>False</Private>
         <SpecificVersion>False</SpecificVersion>
     </Reference>
+      </ItemGroup>
+  <ItemGroup Condition="'$(RevitApiPath)' == ''">
+    <ProjectReference Include="src\RevitStubs\RevitStubs.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Net.Http" />
@@ -118,6 +122,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="obj\ARM64\Debug\.NETFramework,Version=v4.8.AssemblyAttributes.cs" />
+        <Compile Remove="src\RevitStubs\**\*.cs" />
+
   </ItemGroup>
   
   <ItemGroup>
