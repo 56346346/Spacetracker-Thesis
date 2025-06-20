@@ -322,15 +322,11 @@ namespace SpaceTracker
                 }
             }
             foreach (Element stair in new FilteredElementCollector(doc)
-        .WhereElementIsNotElementType()
-        .Where(e =>
-            e.Category != null &&
-            (e.Category.Id.Value == (int)BuiltInCategory.OST_Stairs ||
-             e.Category.Id.Value == (int)BuiltInCategory.OST_StairsLandings ||
-             e.Category.Id.Value == (int)BuiltInCategory.OST_StairsRuns)))
-{
-    ProcessStair(stair, doc);
-}
+           .OfCategory(BuiltInCategory.OST_Stairs)
+                .WhereElementIsNotElementType())
+            {
+                ProcessStair(stair, doc);
+            }
             string baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker");
             Directory.CreateDirectory(baseDir); // falls noch nicht vorhanden
 

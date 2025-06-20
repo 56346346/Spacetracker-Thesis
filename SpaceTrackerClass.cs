@@ -210,6 +210,15 @@ namespace SpaceTracker
                     CommandManager.Instance.LastSyncTime = DateTime.MinValue;
                 }
 
+                  // 10. Falls bereits ein Dokument geöffnet ist, initiale Treppen und andere Elemente übernehmen
+                UIApplication uiApp = new UIApplication(application.ControlledApplication);
+                if (uiApp.ActiveUIDocument != null)
+                {
+                    InitializeExistingElements(uiApp.ActiveUIDocument.Document);
+                    _databaseUpdateHandler.TriggerPush();
+                }
+
+
                 Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
                 return Result.Succeeded;
             }

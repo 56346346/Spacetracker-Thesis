@@ -17,7 +17,7 @@ namespace InstantSync.Core.Commands
     [Transaction(TransactionMode.Manual)]
     public class PullCommand : IExternalCommand
     {
-        private readonly IEnumerable<IElementConverter<ElementDto>> _converters;
+        private readonly IDictionary<string, IElementConverter<ElementDto>> _converterMap;
         private readonly ILogger<PullCommand> _logger;
 
         /// <summary>
@@ -27,7 +27,9 @@ namespace InstantSync.Core.Commands
         /// <param name="logger">Logger.</param>
         public PullCommand(IEnumerable<IElementConverter<ElementDto>> converters, ILogger<PullCommand> logger)
         {
-            _converters = converters;
+             _converterMap = converters.ToDictionary(
+                c => c.GetType().Name.Replace("Converter", string.Empty),
+                StringComparer.OrdinalIgnoreCase);
             _logger = logger;
         }
 
@@ -65,12 +67,10 @@ namespace InstantSync.Core.Commands
                 tx.Start();
                 foreach (var dto in pkg!.Elements)
                 {
-                    var converter = _converters.FirstOrDefault(c => c.CanConvert(uiDoc.Document.GetElement(new ElementId(-1))));
-                    if (converter == null)
+                    if (!_converterMap.TryGetValue(dto.Category, out var converter))
                     {
                         continue;
                     }
-
                     try
                     {
                         converter.FromDto(dto, uiDoc.Document, idMap);

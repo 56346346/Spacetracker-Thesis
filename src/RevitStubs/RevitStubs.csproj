@@ -2,5 +2,9 @@
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+<<<<<<< HEAD
+=======
+      <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+>>>>>>> c31c12a (Update)
   </PropertyGroup>
 </Project>

@@ -4,6 +4,11 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+=======
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -24,5 +29,8 @@
       <HintPath>$(RevitApiPath)\RevitAPIUI.dll</HintPath>
       <Private>false</Private>
     </Reference>
+
+      <ProjectReference Include="..\RevitStubs\RevitStubs.csproj" />
+
   </ItemGroup>
 </Project>

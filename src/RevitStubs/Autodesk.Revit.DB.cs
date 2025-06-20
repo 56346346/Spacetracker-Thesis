@@ -1,10 +1,27 @@
 namespace Autodesk.Revit.DB
 {
+<<<<<<< HEAD
     public class Element { public ElementId Id { get; } = new ElementId(1); }
     public class ElementId { public ElementId(int v) { } }
     public class Document
     {
         public Element GetElement(ElementId id) => null;
+=======
+    public class Element { public ElementId Id { get; } = new ElementId(1); public void SetEntity(Autodesk.Revit.DB.ExtensibleStorage.Entity e) { } public Autodesk.Revit.DB.ExtensibleStorage.Entity GetEntity(Autodesk.Revit.DB.ExtensibleStorage.Schema s) => null; public string Name { get; set; } = ""; }
+    public class ElementId { public ElementId(int v) { } public int IntegerValue => 0; }
+    public class Document
+     public CreationDocument Create { get; } = new CreationDocument();
+    {
+        public Element GetElement(ElementId id) => null;
+        
+         public class CreationDocument
+    {
+        public Autodesk.Revit.DB.Architecture.Room NewRoom(Level level, UV point) => new Autodesk.Revit.DB.Architecture.Room();
+        public FamilyInstance NewFamilyInstance(XYZ p, FamilySymbol s, Level l, StructuralType st) => new FamilyInstance();
+        public Wall NewWall(Line line, ElementId levelId, bool structural) => new Wall();
+    }
+    public class Wall : Element { public WallType WallType { get; } = new WallType(); public void ChangeTypeId(ElementId id) { } public static Wall Create(Document doc, Line line, ElementId levelId, bool structural) => new Wall(); }
+>>>>>>> c31c12a (Update)
     }
     public class Wall : Element { public string Name { get; set; } = ""; public WallType WallType { get; } = new WallType(); }
     public class WallType : Element { public string Name { get; set; } = ""; }
@@ -12,7 +29,11 @@ namespace Autodesk.Revit.DB
     public class Room : Element { public string Name { get; set; } = ""; public string Number { get; set; } = ""; }
     public class FamilyInstance : Element { public string Name { get; set; } = ""; public Category Category { get; } = new Category(); }
     public class Category { public ElementId Id { get; } = new ElementId(0); }
+<<<<<<< HEAD
     public class FamilySymbol : Element { public bool IsActive { get; set; } }
+=======
+     public class FamilySymbol : Element { public bool IsActive { get; set; } public void Activate() { } }
+>>>>>>> c31c12a (Update)
     public class Line { public static Line CreateBound(XYZ a, XYZ b) => new Line(); }
     public class XYZ { public static XYZ Zero => new XYZ(); public XYZ() { } public XYZ(double x,double y,double z) { } }
     public enum StructuralType { NonStructural }
@@ -32,17 +53,48 @@ namespace Autodesk.Revit.DB
     public static class WallCreation { }
     public static class DocumentExtensions
     { public static Wall Create(Document doc, Line line, ElementId levelId, bool structural) => new Wall();
+<<<<<<< HEAD
       public static Room NewRoom(Document doc, Level level, UV point) => new Room();
+=======
+       public static Autodesk.Revit.DB.Architecture.Room NewRoom(Document doc, Level level, UV point) => new Autodesk.Revit.DB.Architecture.Room();
+>>>>>>> c31c12a (Update)
       public static FamilyInstance NewFamilyInstance(Document doc, XYZ p, FamilySymbol s, Level l, StructuralType st) => new FamilyInstance(); }
     public class UV { public UV(double u,double v) { } }
     public class FailureMessageAccessor { public FailureSeverity GetSeverity()=>FailureSeverity.Warning; }
     public enum FailureSeverity { Warning, Error }
     public class FailuresAccessor { public System.Collections.Generic.IEnumerable<FailureMessageAccessor> GetFailureMessages() => new FailureMessageAccessor[0]; public void DeleteWarning(FailureMessageAccessor f){} }
     public enum FailureProcessingResult { Continue, ProceedWithRollBack }
+<<<<<<< HEAD
     public interface IFailuresPreprocessor { FailureProcessingResult PreprocessFailures(FailuresAccessor accessor); }
 }
 namespace Autodesk.Revit.UI
 {
+=======
+public interface IFailuresPreprocessor { FailureProcessingResult PreprocessFailures(FailuresAccessor accessor); }
+    
+    namespace Autodesk.Revit.DB.Architecture
+{
+    public class Room : Element { public string Name { get; set; } = ""; public string Number { get; set; } = ""; }
+}
+namespace Autodesk.Revit.DB.ExtensibleStorage
+{
+    public class Schema { public static Schema Lookup(System.Guid id)=>null; public Autodesk.Revit.DB.ExtensibleStorage.Field GetField(string name)=>null; }
+    public class Field { }
+    public class SchemaBuilder { public SchemaBuilder(System.Guid id) { } public void AddSimpleField(string n, System.Type t) { } public void SetSchemaName(string n) { } public Schema Finish() => null; }
+    public class Entity { public Entity(Schema s) { } public void Set(string f, string v) { } public string Get<T>(Field f) => default; public bool IsValid() => false; }
+}
+namespace Autodesk.Revit.Attributes
+{
+    public enum TransactionMode { Manual, Automatic, ReadOnly }
+    public class TransactionAttribute : System.Attribute { public TransactionAttribute(TransactionMode mode) { } }
+}
+}
+namespace Autodesk.Revit.UI
+   
+{
+
+     using Autodesk.Revit.DB;
+>>>>>>> c31c12a (Update)
     public interface IExternalApplication { Result OnStartup(UIControlledApplication a); Result OnShutdown(UIControlledApplication a); }
     public interface IExternalCommand { Result Execute(ExternalCommandData data, ref string message, ElementSet elements); }
     public class Result { public static Result Succeeded = new Result(); public static Result Failed = new Result(); public static Result Cancelled = new Result(); }
@@ -56,3 +108,7 @@ namespace Autodesk.Revit.UI
     public class ExternalCommandData { public UIApplication Application => null; }
     public class ElementSet { }
 }
+<<<<<<< HEAD
+=======
+namespace Autodesk.Revit.UI.Forms { public class OpenFileDialog { public bool Multiselect { get; set; } public string Filter { get; set; } public bool? ShowDialog() => true; public string[] GetFileNames() => new string[0]; } }
+>>>>>>> c31c12a (Update)

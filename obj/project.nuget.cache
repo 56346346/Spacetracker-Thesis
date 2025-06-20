@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "md8vbPTkIE4=",
+  "dgSpecHash": "l3QPDPzXmpw=",
   "success": true,
   "projectFilePath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\SpaceTracker.csproj",
   "expectedPackageFiles": [
@@ -15,6 +15,8 @@
     "C:\\Users\\Vitus\\.nuget\\packages\\sqlitepclraw.lib.e_sqlite3\\2.1.11\\sqlitepclraw.lib.e_sqlite3.2.1.11.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\sqlitepclraw.provider.dynamic_cdecl\\2.1.11\\sqlitepclraw.provider.dynamic_cdecl.2.1.11.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\stub.system.data.sqlite.core.netframework\\1.0.119\\stub.system.data.sqlite.core.netframework.1.0.119.nupkg.sha512",
+    "C:\\Users\\Vitus\\.nuget\\packages\\stylecop.analyzers\\1.2.0-beta.435\\stylecop.analyzers.1.2.0-beta.435.nupkg.sha512",
+    "C:\\Users\\Vitus\\.nuget\\packages\\stylecop.analyzers.unstable\\1.2.0.435\\stylecop.analyzers.unstable.1.2.0.435.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.buffers\\4.6.1\\system.buffers.4.6.1.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.data.datasetextensions\\4.5.0\\system.data.datasetextensions.4.5.0.nupkg.sha512",
     "C:\\Users\\Vitus\\.nuget\\packages\\system.data.sqlite\\1.0.119\\system.data.sqlite.1.0.119.nupkg.sha512",
