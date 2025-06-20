@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Architecture;
+using ArchitectureRoom = Autodesk.Revit.DB.Architecture.Room;
+
 using InstantSync.Core.Delta;
 using Newtonsoft.Json.Linq;
 
@@ -13,12 +14,12 @@ namespace InstantSync.Core.Converters
     public class RoomConverter : IElementConverter<ElementDto>
     {
         /// <inheritdoc />
-        public bool CanConvert(Element element) => element is Room;
+        public bool CanConvert(Element element) => element is ArchitectureRoom;
 
         /// <inheritdoc />
         public ElementDto ToDto(Element element, Document doc)
         {
-            Room room = (Room)element;
+            ArchitectureRoom room = (ArchitectureRoom)element;
             var obj = new JObject
             {
                 ["Name"] = room.Name,
@@ -30,10 +31,10 @@ namespace InstantSync.Core.Converters
         /// <inheritdoc />
         public Element? FromDto(ElementDto dto, Document doc, IDictionary<Guid, ElementId> idMap)
         {
-            Room? room = null;
+            ArchitectureRoom? room = null;
             if (idMap.TryGetValue(dto.Guid, out var existingId))
             {
-                room = doc.GetElement(existingId) as Room;
+                room = doc.GetElement(existingId) as ArchitectureRoom;
             }
 
             if (room == null)

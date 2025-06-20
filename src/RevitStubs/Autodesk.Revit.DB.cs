@@ -24,7 +24,6 @@ namespace Autodesk.Revit.DB
     public class Wall : Element { public WallType WallType { get; } = new WallType(); public static Wall Create(Document d, Line l, ElementId levelId, bool structural) => new Wall(); public void ChangeTypeId(ElementId id) { } }
     public class WallType : Element { }
     public class Level : Element { }
-    public class Room : Element { public string Number { get; set; } = ""; }
     public class FamilyInstance : Element { public Category Category { get; } = new Category(); }
     public class FamilySymbol : Element { public bool IsActive { get; set; } public void Activate() { } }
     public class Category { public ElementId Id { get; } = new ElementId(0); }

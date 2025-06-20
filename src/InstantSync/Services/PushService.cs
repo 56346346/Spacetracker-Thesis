@@ -80,7 +80,6 @@ namespace InstantSync.Core.Services
             string json = JsonSerializer.Serialize(pkg);
             Directory.CreateDirectory(_jsonPath);
             string file = Path.Combine(_jsonPath, $"{pkg.PackageId}.json");
-            await File.WriteAllTextAsync(file, json, ct).ConfigureAwait(false);
 
             File.WriteAllText(file, json);
 
