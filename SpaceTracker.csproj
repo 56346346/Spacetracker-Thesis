@@ -8,6 +8,7 @@
     <Product>SpaceTracker</Product>
     <Copyright>Copyright © TU Munchen - CMS 2022</Copyright>
     <UseWinFormsOutOfProcDesigner>True</UseWinFormsOutOfProcDesigner>
+      <UseWindowsForms>true</UseWindowsForms>
      <UseWPF>true</UseWPF>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>bin\Debug\</OutputPath>
@@ -17,7 +18,8 @@
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <ErrorReport>prompt</ErrorReport>
-    <LangVersion>8.0</LangVersion>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
  </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugType>full</DebugType>
