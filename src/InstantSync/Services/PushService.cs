@@ -80,12 +80,10 @@ namespace InstantSync.Core.Services
             string json = JsonSerializer.Serialize(pkg);
             Directory.CreateDirectory(_jsonPath);
             string file = Path.Combine(_jsonPath, $"{pkg.PackageId}.json");
-<<<<<<< HEAD
             await File.WriteAllTextAsync(file, json, ct).ConfigureAwait(false);
 
-=======
             File.WriteAllText(file, json);
->>>>>>> c31c12a (Update)
+
             using (_logger.BeginScope(pkg.PackageId))
             {
                 foreach (var repo in _repositories)

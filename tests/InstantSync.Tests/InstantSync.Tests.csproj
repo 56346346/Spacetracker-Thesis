@@ -1,13 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-<<<<<<< HEAD
     <TargetFramework>net6.0</TargetFramework>
     <IsPackable>false</IsPackable>
-=======
     <TargetFramework>net9.0</TargetFramework>
     <IsPackable>false</IsPackable>
      <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
->>>>>>> c31c12a (Update)
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit" Version="2.5.0" />
