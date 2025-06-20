@@ -27,6 +27,5 @@
       <HintPath>$(RevitApiPath)\RevitAPIUI.dll</HintPath>
       <Private>false</Private>
     </Reference>
-      <ProjectReference Include="..\RevitStubs\RevitStubs.csproj" />
   </ItemGroup>
 </Project>
