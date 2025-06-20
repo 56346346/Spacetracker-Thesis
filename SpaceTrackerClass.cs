@@ -176,20 +176,11 @@ namespace SpaceTracker
 
                 // 6. Datenbankverbindungen initialisieren
                 Logger.LogToFile("Initialisiere Datenbankverbindungen");
-
-
-
-
                 // 7. Event-Handler erstellen
-
-
                 Logger.LogToFile("Handler erfolgreich initialisiert");
 
                 // 8. Ribbon-UI erstellen
                 CreateRibbonUI(application);
-
-
-
                 // 9. Events registrieren
                 RegisterDocumentEvents(application);
                 Logger.LogToFile("Document-Events registriert");
@@ -217,8 +208,6 @@ namespace SpaceTracker
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
                     _databaseUpdateHandler.TriggerPush();
                 }
-
-
                 Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
                 return Result.Succeeded;
             }
@@ -257,8 +246,6 @@ namespace SpaceTracker
                 }
             });
         }
-
-
         private void CreateRibbonUI(UIControlledApplication application)
         {
             // 1. SpaceTracker RibbonPanel sicherstellen (ggf. erstellen)
@@ -384,8 +371,6 @@ namespace SpaceTracker
                 SpaceTrackerClass.YellowIcon = yellowIcon;
                 SpaceTrackerClass.RedIcon = redIcon;
             }
-
-
             // 6. Info-Button (zeigt Beschreibung der Funktionen)
             if (!_ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "InfoButton"))
             {
@@ -415,8 +400,6 @@ namespace SpaceTracker
             ctrl.DocumentOpened += documentOpened;
             ctrl.DocumentChanged += documentChanged;
         }
-
-
         private void InitializeExistingElements(Document doc)
         {
             try

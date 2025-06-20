@@ -1,10 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-      <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+     <TargetFramework>net481</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="xunit" Version="2.5.0" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.0" />
+     <PackageReference Include="xunit"                   Version="2.6.8" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.6.8" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk"  Version="17.10.0" />
     <PackageReference Include="NSubstitute" Version="5.0.0" />
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
   </ItemGroup>

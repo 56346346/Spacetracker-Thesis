@@ -512,7 +512,7 @@
       },
       "RevitStubs/1.0.0": {
         "type": "project",
-        "framework": ".NETFramework,Version=v4.8",
+        "framework": ".NETFramework,Version=v4.8.1",
         "compile": {
           "bin/placeholder/RevitStubs.dll": {}
         },

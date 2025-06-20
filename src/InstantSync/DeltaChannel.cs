@@ -1,6 +1,6 @@
 using System.Threading.Channels;
-
 namespace InstantSync.Core.Delta
+
 {
     /// <summary>
     /// Provides access to the delta channel.
