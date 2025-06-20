@@ -91,17 +91,16 @@
   <HintPath>$(FrameworkPath)\v4.0.30319\System.Windows.Forms.dll</HintPath>
 </Reference>
 </ItemGroup>
-<ItemGroup Condition="'$(RevitApiPath)' != ''">
-    <Reference Include="RevitAPI">
-      <HintPath>$(RevitApiPath)\RevitAPI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="RevitAPIUI">
-      <HintPath>..\..\..\..\..\..\..\Program Files\Autodesk\Revit 2026\RevitAPIUI.dll</HintPath>
-      <Private>False</Private>
-        <SpecificVersion>False</SpecificVersion>
-    </Reference>
-      </ItemGroup>
+<ItemGroup>
+  <Reference Include="RevitAPI">
+    <HintPath>$(RevitApiPath)\RevitAPI.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+  <Reference Include="RevitAPIUI">
+    <HintPath>$(RevitApiPath)\RevitAPIUI.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+</ItemGroup>
   <ItemGroup Condition="'$(RevitApiPath)' == ''">
     <ProjectReference Include="src\RevitStubs\RevitStubs.csproj" />
   </ItemGroup>

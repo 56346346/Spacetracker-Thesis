@@ -509,16 +509,6 @@
             "related": ".xml"
           }
         }
-      },
-      "RevitStubs/1.0.0": {
-        "type": "project",
-        "framework": ".NETFramework,Version=v4.8.1",
-        "compile": {
-          "bin/placeholder/RevitStubs.dll": {}
-        },
-        "runtime": {
-          "bin/placeholder/RevitStubs.dll": {}
-        }
       }
     }
   },
@@ -1373,11 +1363,6 @@
         "useSharedDesignerContext.txt",
         "version.txt"
       ]
-    },
-    "RevitStubs/1.0.0": {
-      "type": "project",
-      "path": "src/RevitStubs/RevitStubs.csproj",
-      "msbuildProject": "src/RevitStubs/RevitStubs.csproj"
     }
   },
   "projectFileDependencyGroups": {
@@ -1388,7 +1373,6 @@
       "Microsoft.Data.Sqlite.Core >= 9.0.5",
       "Neo4j.Driver >= 5.15.0",
       "Newtonsoft.Json >= 13.0.3",
-      "RevitStubs >= 1.0.0",
       "SQLitePCLRaw.bundle_e_sqlite3 >= 2.1.11",
       "SQLitePCLRaw.core >= 2.1.11",
       "Stub.System.Data.SQLite.Core.NetFramework >= 1.0.119",
@@ -1439,11 +1423,7 @@
       "frameworks": {
         "net481": {
           "targetAlias": "net481",
-          "projectReferences": {
-            "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\src\\RevitStubs\\RevitStubs.csproj": {
-              "projectPath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\src\\RevitStubs\\RevitStubs.csproj"
-            }
-          }
+          "projectReferences": {}
         }
       },
       "warningProperties": {

@@ -2,6 +2,9 @@
   "settings": {
     "orderingRules": {
       "usingDirectivesPlacement": "preserve"
+    },
+    "documentationRules": {
+      "companyName": "TU München - CMS"
     }
   }
 }

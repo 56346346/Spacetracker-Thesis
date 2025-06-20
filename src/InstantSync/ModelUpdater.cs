@@ -14,6 +14,7 @@ namespace InstantSync.Core
         private readonly AddInId _id;
         private readonly Guid _updaterId = new Guid("8E60D29D-7A74-4A8D-9905-7F3ECE3BF0CB");
         private readonly Func<Document, IElementConverter<ElementDto>> _converterFactory;
+        public string GetUpdaterName() => "InstantSync-ModelUpdater";
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ModelUpdater"/> class.

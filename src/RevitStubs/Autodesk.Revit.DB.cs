@@ -29,7 +29,25 @@ namespace Autodesk.Revit.DB
     public class Category { public ElementId Id { get; } = new ElementId(0); }
 
     public class Line { public static Line CreateBound(XYZ a, XYZ b) => new Line(); }
-    public class XYZ { public static XYZ Zero => new XYZ(); public XYZ() { } public XYZ(double x, double y, double z) { } }
+    public class XYZ
+    {
+        public static XYZ Zero => new XYZ();
+
+        public XYZ() { }
+
+        public XYZ(double x, double y, double z)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+        }
+
+        public double X { get; set; }
+
+        public double Y { get; set; }
+
+        public double Z { get; set; }
+    }
     public class UV { public UV(double u, double v) { } }
 
     public enum StructuralType { NonStructural }
@@ -42,7 +60,7 @@ namespace Autodesk.Revit.DB
         public FilteredElementCollector OfCategory(BuiltInCategory c) => this;
         public Element FirstOrDefault(Func<Element, bool> predicate = null) => null;
     }
-public class ElementSet : List<Element> { }
+    public class ElementSet : List<Element> { }
 
     #endregion ----------------------------------------------------------------
 

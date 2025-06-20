@@ -31,11 +31,7 @@
         "frameworks": {
           "net481": {
             "targetAlias": "net481",
-            "projectReferences": {
-              "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\src\\RevitStubs\\RevitStubs.csproj": {
-                "projectPath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\src\\RevitStubs\\RevitStubs.csproj"
-              }
-            }
+            "projectReferences": {}
           }
         },
         "warningProperties": {
@@ -147,62 +143,6 @@
             "System.Threading.Tasks.Extensions": {
               "target": "Package",
               "version": "[4.5.4, )"
-            }
-          },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301\\RuntimeIdentifierGraph.json"
-        }
-      }
-    },
-    "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\src\\RevitStubs\\RevitStubs.csproj": {
-      "version": "1.0.0",
-      "restore": {
-        "projectUniqueName": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\src\\RevitStubs\\RevitStubs.csproj",
-        "projectName": "RevitStubs",
-        "projectPath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\src\\RevitStubs\\RevitStubs.csproj",
-        "packagesPath": "C:\\Users\\Vitus\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Vitus\\Desktop\\Bachelorarbeit\\Programmieren Python\\SpaceTracker\\SpaceTracker\\src\\RevitStubs\\obj\\",
-        "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
-        "configFilePaths": [
-          "C:\\Users\\Vitus\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
-        ],
-        "originalTargetFrameworks": [
-          "net481"
-        ],
-        "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "https://api.nuget.org/v3/index.json": {}
-        },
-        "frameworks": {
-          "net481": {
-            "targetAlias": "net481",
-            "projectReferences": {}
-          }
-        },
-        "warningProperties": {
-          "warnAsError": [
-            "NU1605"
-          ]
-        },
-        "restoreAuditProperties": {
-          "enableAudit": "true",
-          "auditLevel": "low",
-          "auditMode": "direct"
-        },
-        "SdkAnalysisLevel": "9.0.300"
-      },
-      "frameworks": {
-        "net481": {
-          "targetAlias": "net481",
-          "dependencies": {
-            "StyleCop.Analyzers": {
-              "suppressParent": "All",
-              "target": "Package",
-              "version": "[1.2.0-beta.435, )"
             }
           },
           "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301\\RuntimeIdentifierGraph.json"
