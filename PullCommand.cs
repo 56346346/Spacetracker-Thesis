@@ -26,16 +26,16 @@ namespace SpaceTracker
         {
             return ExecuteAsync(commandData, message, elements).GetAwaiter().GetResult();
         }
-        
-          private async Task ApplyCachedInserts(Document doc)
+
+        private async Task ApplyCachedInserts(Document doc)
         {
             int created = 0;
             foreach (var change in ChangeCacheHelper.ReadChanges())
             {
                 if (string.IsNullOrWhiteSpace(change.cypher))
                     continue;
-               if (change.cypher.IndexOf("MERGE", StringComparison.OrdinalIgnoreCase) < 0 ||
-                    change.cypher.IndexOf("DELETE", StringComparison.OrdinalIgnoreCase) >= 0)
+                if (change.cypher.IndexOf("MERGE", StringComparison.OrdinalIgnoreCase) < 0 ||
+                     change.cypher.IndexOf("DELETE", StringComparison.OrdinalIgnoreCase) >= 0)
                     continue;
 
                 long id = change.elementId;
@@ -52,9 +52,19 @@ namespace SpaceTracker
                     created++;
             }
 
-            if (created > 0)
+                    if (created > 0)
+                    {
+                        ChangeCacheHelper.ClearCache();
+                    }
+                }
+        
+        // Simple IFailuresPreprocessor implementation that resolves all failures as 'Continue'
+        public class SimpleFailuresPreprocessor : IFailuresPreprocessor
+        {
+            public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
             {
-                ChangeCacheHelper.ClearCache();
+                // Optionally, handle or log failures here
+                return FailureProcessingResult.Continue;
             }
         }
 
@@ -369,7 +379,7 @@ namespace SpaceTracker
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
             }
 
-            
+
             try
             {
                 bool allOk = await connector.AreAllUsersConsistentAsync().ConfigureAwait(false);
@@ -387,7 +397,8 @@ namespace SpaceTracker
 
 
 
- internal async Task<Element> CreateElementFromNeo4j(long elementId, string elementType)        {
+        internal async Task<Element> CreateElementFromNeo4j(long elementId, string elementType)
+        {
             if (_doc == null || _connector == null)
                 return null;
 
@@ -495,18 +506,47 @@ namespace SpaceTracker
                             if (baseLvl != null && topLvl != null)
                             {
                                 try
-                                {
-                                    // Select the first available stairs type for creation
-                                    var stairType = new FilteredElementCollector(_doc)
-                                        .OfClass(typeof(Autodesk.Revit.DB.Architecture.StairsType))
-                                        .Cast<Autodesk.Revit.DB.Architecture.StairsType>()
-                                        .FirstOrDefault();
+    {
+        // 3) StairsType ermitteln
+        var stairType = new FilteredElementCollector(_doc)
+            .OfClass(typeof(StairsType))
+            .Cast<StairsType>()
+            .FirstOrDefault();
+        if (stairType == null) break;
 
-                                    if (stairType != null)
-                                    {
+        // 4) Stairs-Edit-Scope starten
+        using var scope = new StairsEditScope(_doc, "Pull Stairs");
+        ElementId stairsId = scope.Start(baseLvl.Id, topLvl.Id);
 
-                                    }
-                                }
+        // 5) Gerade Stufenlaufbahn definieren
+        double length = UnitUtils.ConvertToInternalUnits(3.0, UnitTypeId.Meters);
+        Line runLine = Line.CreateBound(
+            new XYZ(0, 0, baseLvl.Elevation),
+            new XYZ(length, 0, baseLvl.Elevation)
+        );
+
+        // 6) StraightRun anlegen
+        StairsRun run = StairsRun.CreateStraightRun(
+            _doc,
+            stairsId,
+            runLine,
+            StairsRunJustification.Center
+        );
+
+        // 7) Parameter setzen (Breite, Auftritt, Steigung)
+        
+        run.get_Parameter(BuiltInParameter.STAIRS_ATTR_MINIMUM_TREAD_DEPTH)
+            ?.Set(UnitUtils.ConvertToInternalUnits(0.28, UnitTypeId.Meters));
+        run.get_Parameter(BuiltInParameter.STAIRS_ATTR_MAX_RISER_HEIGHT)
+            ?.Set(UnitUtils.ConvertToInternalUnits(0.18, UnitTypeId.Meters));
+
+        // 8) Treppentyp zuweisen
+        var stairs = (Stairs)_doc.GetElement(stairsId);
+        stairs.ChangeTypeId(stairType.Id);
+
+
+        return stairs;
+    }
                                 catch (Exception ex)
                                 {
                                     Debug.WriteLine($"[Pull] Fehler beim Erstellen der Treppe {elementId}: {ex.Message}");

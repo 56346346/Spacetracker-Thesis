@@ -15,7 +15,9 @@ namespace SpaceTracker.Utilities
 
         public SolibriApiClient(int port)
         {
-            _baseUrl = $"http://localhost:{port}";
+             // Die REST-API von Solibri hängt unter dem Pfad "/solibri/v1".
+            // Ohne diesen Zusatz würden die Requests ein 404 zurückliefern.
+            _baseUrl = $"http://localhost:{port}/solibri/v1";
             Http.Timeout = TimeSpan.FromMinutes(5);
         }
 

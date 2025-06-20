@@ -473,7 +473,15 @@ namespace SpaceTracker
             var sessionDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
             Directory.CreateDirectory(sessionDir);
             var tempIfcPath = Path.Combine(sessionDir, $"change_{Guid.NewGuid()}.ifc");
-            doc.Export(Path.GetDirectoryName(tempIfcPath), Path.GetFileName(tempIfcPath), ifcExportOptions);
+            
+            // Der Export ändert das Dokument und muss daher in einer Transaction
+            // ausgeführt werden.
+            using (var txExport = new Transaction(doc, "Export IFC Subset"))
+            {
+                txExport.Start();
+                doc.Export(Path.GetDirectoryName(tempIfcPath), Path.GetFileName(tempIfcPath), ifcExportOptions);
+                txExport.Commit();
+            }
 
             // 4. Isolation zurücksetzen
             using (var tx = new Transaction(doc, "Unisolate IFC View"))
