@@ -1,5 +1,7 @@
-using System.Data.SQLite;
+
 using System.IO;
+using Microsoft.Data.Sqlite;
+
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,8 +31,8 @@ namespace InstantSync.Core.Repositories
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_dbPath)!);
 
-            using var conn = new SQLiteConnection($"Data Source={_dbPath}");
-            await conn.OpenAsync(ct).ConfigureAwait(false);
+  using var conn = new SqliteConnection($"Data Source={_dbPath}");
+              await conn.OpenAsync(ct).ConfigureAwait(false);
 
             const string sql = @"CREATE TABLE IF NOT EXISTS Packages (
 Id TEXT PRIMARY KEY,
