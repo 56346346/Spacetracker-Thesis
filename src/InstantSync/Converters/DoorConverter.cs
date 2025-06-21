@@ -13,7 +13,7 @@ namespace InstantSync.Core.Converters
     public class DoorConverter : IElementConverter<ElementDto>
     {
         /// <inheritdoc />
-        public bool CanConvert(Element element) => element is FamilyInstance fi && fi.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Doors;
+        public bool CanConvert(Element element) => element is FamilyInstance fi && fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors;
 
         /// <inheritdoc />
         public ElementDto ToDto(Element element, Document doc)

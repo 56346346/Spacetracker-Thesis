@@ -78,8 +78,7 @@
     <PackageReference Include="System.Memory" Version="4.5.5" />
     <PackageReference Include="System.Numerics.Vectors" Version="4.6.1" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
-    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" /
-    >
+    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
   </ItemGroup>
   <ItemGroup>
   <Reference Include="PresentationCore">
@@ -125,9 +124,7 @@
   <ItemGroup>
     <Compile Remove="obj\ARM64\Debug\.NETFramework,Version=v4.8.AssemblyAttributes.cs" />
         <Compile Remove="src\RevitStubs\**\*.cs" />
-
   </ItemGroup>
-  
   <ItemGroup>
    <None Remove="Logo.png" />
     <None Remove="Push.png" />

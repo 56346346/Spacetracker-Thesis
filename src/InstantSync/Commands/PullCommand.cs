@@ -8,6 +8,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using InstantSync.Core.Delta;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace InstantSync.Core.Commands
 {
