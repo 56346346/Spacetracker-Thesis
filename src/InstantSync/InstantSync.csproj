@@ -5,10 +5,11 @@
     <LangVersion>latest</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+       <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="7.0.8" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="3.0.21" />
     <PackageReference Include="Neo4j.Driver" Version="5.15.0" />
     <PackageReference Include="Revit.RevitApi.x64" Version="2023.0.0" />
     <PackageReference Include="Revit.RevitApiUI.x64" Version="2023.0.0" />
@@ -16,9 +17,13 @@
   <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.32" />
   <PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.32" />
   <PackageReference Include="Dapper" Version="2.0.123" />
+  <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="3.1.32" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="3.1.32" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="3.1.32" />
   </ItemGroup>
   <ItemGroup Condition="'$(RevitApiPath)' == ''">
-    <ProjectReference Include="..\RevitStubs\RevitStubs.csproj" />
+<ProjectReference Include="..\RevitStubs\RevitStubs.csproj" />
   </ItemGroup>
  <ItemGroup>
   <Reference Include="RevitAPI">
