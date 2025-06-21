@@ -97,9 +97,7 @@
     <Private>false</Private>
   </Reference>
 </ItemGroup>
-  <ItemGroup Condition="'$(RevitApiPath)' == ''">
-    <ProjectReference Include="src\RevitStubs\RevitStubs.csproj" />
-  </ItemGroup>
+
   <ItemGroup>
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="Microsoft.CSharp" />
@@ -119,7 +117,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="obj\ARM64\Debug\.NETFramework,Version=v4.8.AssemblyAttributes.cs" />
-        <Compile Remove="src\RevitStubs\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
    <None Remove="Logo.png" />

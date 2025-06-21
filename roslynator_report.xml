@@ -36,16 +36,19 @@
       <Diagnostic Id="CS0117" Title="" Count="2">
         <HelpLink>https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&amp;k=k(CS0117)</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CS0234" Title="" Count="12">
+      <Diagnostic Id="CS0234" Title="" Count="13">
         <HelpLink>https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&amp;k=k(CS0234)</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CS0246" Title="" Count="32">
+      <Diagnostic Id="CS0246" Title="" Count="34">
         <HelpLink>https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&amp;k=k(CS0246)</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CS1061" Title="" Count="33">
+      <Diagnostic Id="CS0535" Title="" Count="1">
+        <HelpLink>https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&amp;k=k(CS0535)</HelpLink>
+      </Diagnostic>
+      <Diagnostic Id="CS1061" Title="" Count="31">
         <HelpLink>https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&amp;k=k(CS1061)</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CS1503" Title="" Count="9">
+      <Diagnostic Id="CS1503" Title="" Count="10">
         <HelpLink>https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&amp;k=k(CS1503)</HelpLink>
       </Diagnostic>
       <Diagnostic Id="CS8600" Title="Das NULL-Literal oder ein möglicher NULL-Wert wird in einen Non-Nullable-Typ konvertiert." Count="15">
@@ -148,7 +151,7 @@
         <Description>Elements at the same level in the syntax tree should have the same indentation.</Description>
         <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1137.md</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="SA1200" Title="Using directives should be placed correctly" Count="234">
+      <Diagnostic Id="SA1200" Title="Using directives should be placed correctly" Count="236">
         <Description>A C# using directive is placed outside of a namespace element.</Description>
         <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1200.md</HelpLink>
       </Diagnostic>
@@ -164,7 +167,7 @@
         <Description>A static element is positioned beneath an instance element.</Description>
         <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1204.md</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="SA1208" Title="System using directives should be placed before other using directives" Count="51">
+      <Diagnostic Id="SA1208" Title="System using directives should be placed before other using directives" Count="52">
         <Description>A using directive which declares a member of the 'System' namespace appears after a using directive which declares a member of a different namespace, within a C# code file.</Description>
         <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1208.md</HelpLink>
       </Diagnostic>
@@ -276,10 +279,6 @@
         <Description>Adjacent C# elements are not separated by a blank line.</Description>
         <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1516.md</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="SA1517" Title="Code should not contain blank lines at start of file" Count="1">
-        <Description>The code file has blank lines at the start.</Description>
-        <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1517.md</HelpLink>
-      </Diagnostic>
       <Diagnostic Id="SA1518" Title="Use line endings correctly at end of file" Count="2">
         <Description>Code should not contain blank lines at the end of the file.</Description>
         <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1518.md</HelpLink>
@@ -328,7 +327,7 @@
         <Description>The XML documentation header for a C# constructor does not contain the appropriate summary text.</Description>
         <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1642.md</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="SA1648" Title="inheritdoc should be used with inheriting class" Count="1">
+      <Diagnostic Id="SA1648" Title="inheritdoc should be used with inheriting class" Count="2">
         <Description>&lt;inheritdoc&gt; has been used on an element that doesn't inherit from a base class or implement an interface.</Description>
         <HelpLink>https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1648.md</HelpLink>
       </Diagnostic>
@@ -7660,18 +7659,6 @@
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Commands\SimpleFailurePreprocessor.cs</FilePath>
             <Location Line="1" Character="1" />
           </Diagnostic>
-          <Diagnostic Id="CS1061">
-            <Severity>Error</Severity>
-            <Message></Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Converters\DoorConverter.cs</FilePath>
-            <Location Line="43" Character="22" />
-          </Diagnostic>
-          <Diagnostic Id="CS1061">
-            <Severity>Error</Severity>
-            <Message></Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Converters\DoorConverter.cs</FilePath>
-            <Location Line="44" Character="86" />
-          </Diagnostic>
           <Diagnostic Id="SA1028">
             <Severity>Error</Severity>
             <Message>Code should not contain trailing whitespace</Message>
@@ -7682,13 +7669,13 @@
             <Severity>Error</Severity>
             <Message>Elements should have the same indentation</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Converters\DoorConverter.cs</FilePath>
-            <Location Line="20" Character="1" />
+            <Location Line="21" Character="1" />
           </Diagnostic>
           <Diagnostic Id="SA1137">
             <Severity>Error</Severity>
             <Message>Elements should have the same indentation</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Converters\DoorConverter.cs</FilePath>
-            <Location Line="31" Character="1" />
+            <Location Line="32" Character="1" />
           </Diagnostic>
           <Diagnostic Id="SA1200">
             <Severity>Error</Severity>
@@ -7726,6 +7713,18 @@
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Converters\DoorConverter.cs</FilePath>
             <Location Line="6" Character="1" />
           </Diagnostic>
+          <Diagnostic Id="SA1200">
+            <Severity>Error</Severity>
+            <Message>Using directives should be placed correctly</Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Converters\DoorConverter.cs</FilePath>
+            <Location Line="7" Character="1" />
+          </Diagnostic>
+          <Diagnostic Id="SA1208">
+            <Severity>Error</Severity>
+            <Message>System using directives should be placed before other using directives</Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Converters\DoorConverter.cs</FilePath>
+            <Location Line="7" Character="1" />
+          </Diagnostic>
           <Diagnostic Id="SA1210">
             <Severity>Error</Severity>
             <Message>Using directives should be ordered alphabetically by namespace</Message>
@@ -7736,7 +7735,7 @@
             <Severity>Error</Severity>
             <Message>Element documentation header should be preceded by blank line</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Converters\DoorConverter.cs</FilePath>
-            <Location Line="19" Character="9" />
+            <Location Line="20" Character="9" />
           </Diagnostic>
           <Diagnostic Id="SA1633">
             <Severity>Error</Severity>
@@ -8416,53 +8415,89 @@
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\Neo4jRepository.cs</FilePath>
             <Location Line="1" Character="1" />
           </Diagnostic>
+          <Diagnostic Id="CS0234">
+            <Severity>Error</Severity>
+            <Message></Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
+            <Location Line="5" Character="24" />
+          </Diagnostic>
           <Diagnostic Id="CS0246">
             <Severity>Error</Severity>
             <Message></Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="9" Character="7" />
+            <Location Line="3" Character="7" />
+          </Diagnostic>
+          <Diagnostic Id="CS0246">
+            <Severity>Error</Severity>
+            <Message></Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
+            <Location Line="7" Character="7" />
+          </Diagnostic>
+          <Diagnostic Id="CS0246">
+            <Severity>Error</Severity>
+            <Message></Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
+            <Location Line="29" Character="55" />
+          </Diagnostic>
+          <Diagnostic Id="CS0535">
+            <Severity>Error</Severity>
+            <Message></Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
+            <Location Line="15" Character="37" />
           </Diagnostic>
           <Diagnostic Id="CS1061">
             <Severity>Error</Severity>
             <Message></Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="41" Character="24" />
+            <Location Line="39" Character="24" />
           </Diagnostic>
           <Diagnostic Id="CS1061">
             <Severity>Error</Severity>
             <Message></Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="44" Character="24" />
+            <Location Line="42" Character="24" />
           </Diagnostic>
           <Diagnostic Id="SA1101">
             <Severity>Error</Severity>
             <Message>Prefix local calls with this</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="27" Character="13" />
+            <Location Line="25" Character="13" />
           </Diagnostic>
           <Diagnostic Id="SA1101">
             <Severity>Error</Severity>
             <Message>Prefix local calls with this</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="33" Character="61" />
+            <Location Line="31" Character="61" />
           </Diagnostic>
           <Diagnostic Id="SA1101">
             <Severity>Error</Severity>
             <Message>Prefix local calls with this</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="35" Character="56" />
+            <Location Line="33" Character="56" />
           </Diagnostic>
           <Diagnostic Id="SA1137">
             <Severity>Error</Severity>
             <Message>Elements should have the same indentation</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="35" Character="1" />
+            <Location Line="33" Character="1" />
           </Diagnostic>
           <Diagnostic Id="SA1137">
             <Severity>Error</Severity>
             <Message>Elements should have the same indentation</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="36" Character="1" />
+            <Location Line="34" Character="1" />
+          </Diagnostic>
+          <Diagnostic Id="SA1200">
+            <Severity>Error</Severity>
+            <Message>Using directives should be placed correctly</Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
+            <Location Line="1" Character="1" />
+          </Diagnostic>
+          <Diagnostic Id="SA1200">
+            <Severity>Error</Severity>
+            <Message>Using directives should be placed correctly</Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
+            <Location Line="2" Character="1" />
           </Diagnostic>
           <Diagnostic Id="SA1200">
             <Severity>Error</Severity>
@@ -8480,6 +8515,12 @@
             <Severity>Error</Severity>
             <Message>Using directives should be placed correctly</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
+            <Location Line="5" Character="1" />
+          </Diagnostic>
+          <Diagnostic Id="SA1200">
+            <Severity>Error</Severity>
+            <Message>Using directives should be placed correctly</Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
             <Location Line="6" Character="1" />
           </Diagnostic>
           <Diagnostic Id="SA1200">
@@ -8494,59 +8535,47 @@
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
             <Location Line="8" Character="1" />
           </Diagnostic>
-          <Diagnostic Id="SA1200">
+          <Diagnostic Id="SA1208">
             <Severity>Error</Severity>
-            <Message>Using directives should be placed correctly</Message>
+            <Message>System using directives should be placed before other using directives</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="9" Character="1" />
+            <Location Line="4" Character="1" />
           </Diagnostic>
-          <Diagnostic Id="SA1200">
+          <Diagnostic Id="SA1208">
             <Severity>Error</Severity>
-            <Message>Using directives should be placed correctly</Message>
+            <Message>System using directives should be placed before other using directives</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="10" Character="1" />
+            <Location Line="5" Character="1" />
           </Diagnostic>
           <Diagnostic Id="SA1208">
             <Severity>Error</Severity>
             <Message>System using directives should be placed before other using directives</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
             <Location Line="6" Character="1" />
-          </Diagnostic>
-          <Diagnostic Id="SA1208">
-            <Severity>Error</Severity>
-            <Message>System using directives should be placed before other using directives</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="7" Character="1" />
-          </Diagnostic>
-          <Diagnostic Id="SA1208">
-            <Severity>Error</Severity>
-            <Message>System using directives should be placed before other using directives</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="8" Character="1" />
           </Diagnostic>
           <Diagnostic Id="SA1210">
             <Severity>Error</Severity>
             <Message>Using directives should be ordered alphabetically by namespace</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="4" Character="1" />
+            <Location Line="2" Character="1" />
           </Diagnostic>
           <Diagnostic Id="SA1309">
             <Severity>Error</Severity>
             <Message>Field names should not begin with underscore</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="19" Character="33" />
-          </Diagnostic>
-          <Diagnostic Id="SA1517">
-            <Severity>Error</Severity>
-            <Message>Code should not contain blank lines at start of file</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
-            <Location Line="1" Character="1" />
+            <Location Line="17" Character="33" />
           </Diagnostic>
           <Diagnostic Id="SA1633">
             <Severity>Error</Severity>
             <Message>File should have header</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
             <Location Line="1" Character="1" />
+          </Diagnostic>
+          <Diagnostic Id="SA1648">
+            <Severity>Error</Severity>
+            <Message>inheritdoc should be used with inheriting class</Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\src\InstantSync\Repositories\SqliteRepository.cs</FilePath>
+            <Location Line="28" Character="13" />
           </Diagnostic>
           <Diagnostic Id="CS0234">
             <Severity>Error</Severity>
@@ -9045,6 +9074,12 @@
             <Message></Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\tests\InstantSync.Tests\SqliteRepositoryTests.cs</FilePath>
             <Location Line="12" Character="10" />
+          </Diagnostic>
+          <Diagnostic Id="CS1503">
+            <Severity>Error</Severity>
+            <Message></Message>
+            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\tests\InstantSync.Tests\SqliteRepositoryTests.cs</FilePath>
+            <Location Line="19" Character="39" />
           </Diagnostic>
           <Diagnostic Id="SA1200">
             <Severity>Error</Severity>

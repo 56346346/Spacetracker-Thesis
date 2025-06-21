@@ -5,7 +5,7 @@ using InstantSync.Core.Delta;
 using InstantSync.Core.Repositories;
 using Xunit;
 
-namespace InstantSync.Tests
+namespace SpaceTracker.tests.InstantSync.Tests
 {
     public class SqliteRepositoryTests
     {
