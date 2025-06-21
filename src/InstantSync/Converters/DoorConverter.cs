@@ -4,6 +4,7 @@ using Autodesk.Revit.DB;
 using System.Linq;   
 using InstantSync.Core.Delta;
 using Newtonsoft.Json.Linq;
+using Autodesk.Revit.DB.Structure; // Add this namespace
 
 namespace InstantSync.Core.Converters
 {

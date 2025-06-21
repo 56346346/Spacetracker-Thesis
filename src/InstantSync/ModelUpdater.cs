@@ -51,7 +51,7 @@ namespace InstantSync.Core
         public string GetAdditionalInformation() => "Model delta updater";
 
         /// <inheritdoc/>
-        public ChangePriority GetChangePriority() => ChangePriority.Anything;
+        public ChangePriority GetChangePriority() => ChangePriority.FreeStandingComponents;
 
         /// <inheritdoc/>
         public UpdaterId GetUpdaterId() => new UpdaterId(_id, _updaterId);
