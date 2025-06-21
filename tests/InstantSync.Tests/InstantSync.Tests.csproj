@@ -7,20 +7,24 @@
    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
    </PackageReference>
-        <PackageReference Include="NSubstitute" Version="5.0.0" />
+        <PackageReference Include="NSubstitute" Version="4.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.10.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.11.0" />
     <PackageReference Include="NSubstitute" Version="4.2.2" />
     <PackageReference Include="coverlet.collector" Version="3.1.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InstantSync\InstantSync.csproj" />
+      <ProjectReference Include="..\..\src\RevitStubs\RevitStubs.csproj" />
   </ItemGroup>
+  <ItemGroup>
+  <Compile Remove="Properties\AssemblyInfo.cs" />
+</ItemGroup>
 </Project>
