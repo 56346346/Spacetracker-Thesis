@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Autodesk.Revit.DB;
-using System.Linq;   
+using Autodesk.Revit.DB; 
 using InstantSync.Core.Delta;
 using Newtonsoft.Json.Linq;
 using Autodesk.Revit.DB.Structure; // Add this namespace
@@ -14,8 +13,9 @@ namespace InstantSync.Core.Converters
     public class DoorConverter : IElementConverter<ElementDto>
     {
         /// <inheritdoc />
-        public bool CanConvert(Element element) => element is FamilyInstance fi && fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors;
-
+ public bool CanConvert(Element element) =>
+            element is FamilyInstance fi &&
+            fi.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Doors;
         /// <inheritdoc />
         public ElementDto ToDto(Element element, Document doc)
         {

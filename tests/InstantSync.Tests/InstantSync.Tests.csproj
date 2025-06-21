@@ -5,6 +5,8 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+      <PackageReference Include="Revit.RevitApi.x64" Version="2023.0.0" />
+      <PackageReference Include="Revit.RevitApiUI.x64" Version="2023.0.0" />
       <PackageReference Include="xunit" Version="2.7.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

@@ -1,8 +1,0 @@
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.csproj.AssemblyReference.cache
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.csproj.SuggestedBindingRedirects.cache
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.dll.config
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.Properties.Resources.resources
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.csproj.GenerateResource.cache
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.csproj.CoreCompileInputs.cache
-C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\obj\Debug\SpaceTracker.sourcelink.json

@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-  <RevitApiPath>C:\Program Files\Autodesk\Revit 2026</RevitApiPath>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+	  <RevitApiPath>C:\Program Files\Autodesk\Revit 2026</RevitApiPath>
+	  <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
   </PropertyGroup>
   <ItemGroup>

@@ -4,4 +4,8 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
       <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Revit.RevitApi.x64" Version="2023.0.0" />
+    <PackageReference Include="Revit.RevitApiUI.x64" Version="2023.0.0" />
+  </ItemGroup>
 </Project>
