@@ -322,6 +322,12 @@ namespace SpaceTracker
                 }
             }
             foreach (Element stair in new FilteredElementCollector(doc)
+
+           .OfCategory(BuiltInCategory.OST_Stairs)
+                .WhereElementIsNotElementType())
+            {
+                ProcessStair(stair, doc);
+            }
         .WhereElementIsNotElementType()
         .Where(e =>
             e.Category != null &&
@@ -331,6 +337,7 @@ namespace SpaceTracker
 {
     ProcessStair(stair, doc);
 }
+
             string baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker");
             Directory.CreateDirectory(baseDir); // falls noch nicht vorhanden
 
