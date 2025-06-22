@@ -27,12 +27,8 @@
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <ErrorReport>prompt</ErrorReport>
     <LangVersion>8.0</LangVersion>
-
-
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-
-    <LangVersion>8.0</LangVersion>
  </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugType>full</DebugType>

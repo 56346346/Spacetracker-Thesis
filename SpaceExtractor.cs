@@ -321,19 +321,9 @@ namespace SpaceTracker
 
                 }
             }
-            foreach (Element stair in new FilteredElementCollector(doc)
-
-           .OfCategory(BuiltInCategory.OST_Stairs)
-                .WhereElementIsNotElementType())
-            {
-                ProcessStair(stair, doc);
-            }
-        .WhereElementIsNotElementType()
-        .Where(e =>
-            e.Category != null &&
-            (e.Category.Id.Value == (int)BuiltInCategory.OST_Stairs ||
-             e.Category.Id.Value == (int)BuiltInCategory.OST_StairsLandings ||
-             e.Category.Id.Value == (int)BuiltInCategory.OST_StairsRuns)))
+foreach (Element stair in new FilteredElementCollector(doc)
+    .OfCategory(BuiltInCategory.OST_Stairs)
+    .WhereElementIsNotElementType())
 {
     ProcessStair(stair, doc);
 }
