@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Newtonsoft.Json;
 using System.Collections.Generic;
 
 
@@ -26,7 +25,7 @@ namespace SpaceTracker
                 timestampUtc = DateTime.Now
             };
             string file = Path.Combine(CacheDir, $"change_{DateTime.Now:yyyyMMddHHmmssfff}_{elementId}.json");
-            File.WriteAllText(file, JsonConvert.SerializeObject(payload));
+            File.WriteAllText(file, JsonSerializer.Serialize(payload));
             return file;
         }
 
@@ -41,7 +40,7 @@ namespace SpaceTracker
                 try
                 {
                     var json = File.ReadAllText(file);
-                    payload = JsonConvert.DeserializeObject<ChangePayload>(json);
+                    payload = JsonSerializer.Deserialize<ChangePayload>(json);
                 }
                 catch
                 {

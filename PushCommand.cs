@@ -37,7 +37,7 @@ namespace SpaceTracker
 
             if (commands.Count == 0)
             {
-                TaskDialog.Show("Push", "Keine Änderungen zum Übertragen vorhanden.");
+                Autodesk.Revit.UI.TaskDialog.Show("Push", "Keine Änderungen zum Übertragen vorhanden.");
                 return Result.Succeeded;
             }
 
@@ -57,11 +57,11 @@ namespace SpaceTracker
 await connector.PushChangesAsync(changes, sessionId, Environment.UserName)
                          .ConfigureAwait(false);
                     await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
-                    TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
+                    Autodesk.Revit.UI.TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
                 }
                 catch (Exception ex)
                 {
-                    TaskDialog.Show("Push-Fehler",
+                    Autodesk.Revit.UI.TaskDialog.Show("Push-Fehler",
                         $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
                 }
             });

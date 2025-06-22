@@ -29,7 +29,7 @@ namespace SpaceTracker
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Consistency Check", $"Fehler bei der Abfrage: {ex.Message}");
+                Autodesk.Revit.UI.TaskDialog.Show("Consistency Check", $"Fehler bei der Abfrage: {ex.Message}");
                 return Result.Failed;
             }
 
@@ -96,7 +96,7 @@ namespace SpaceTracker
                 string detailText = conflictDetails.Count > 0
                     ? string.Join("\n", conflictDetails)
                     : "Siehe Änderungsprotokoll für Details.";
-                TaskDialog.Show("Consistency Check",
+                Autodesk.Revit.UI.TaskDialog.Show("Consistency Check",
                     $"*** Konflikt erkannt! ***\n" +
                     $"Einige Elemente wurden sowohl lokal als auch von einem anderen Nutzer geändert.\n" +
                     $"{detailText}\n\nBitte Konflikte manuell lösen.");
@@ -106,7 +106,7 @@ namespace SpaceTracker
                 // Externe Änderungen vorhanden, aber kein direkter Konflikt (Gelb)
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
                 int count = records.Count;
-                TaskDialog.Show("Consistency Check",
+                Autodesk.Revit.UI.TaskDialog.Show("Consistency Check",
                     $"Es liegen {count} neue Änderungen von anderen Nutzern vor.\n" +
                     $"Keine direkten Konflikte mit lokalen Änderungen erkannt.\n" +
                     $"Sie können einen Pull durchführen, um diese zu übernehmen.");
@@ -119,7 +119,7 @@ namespace SpaceTracker
                 string note = localPendingIds.Count > 0
                     ? "\n(Hinweis: Es gibt ungesicherte lokale Änderungen, bitte Push ausführen.)"
                     : "";
-                TaskDialog.Show("Consistency Check", "Das lokale Modell ist konsistent mit dem Neo4j-Graph." + note);
+                Autodesk.Revit.UI.TaskDialog.Show("Consistency Check", "Das lokale Modell ist konsistent mit dem Neo4j-Graph." + note);
 
                 if (localPendingIds.Count == 0)
                 {

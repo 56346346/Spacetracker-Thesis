@@ -16,7 +16,7 @@ namespace SpaceTracker
                 "Pull Changes: Holt externe Änderungen in das Modell.\n" +
                 "Consistency Check: Prüft die Konsistenz zwischen Modell und Datenbank.";
 
-            TaskDialog.Show("SpaceTracker Info", infoText);
+            Autodesk.Revit.UI.TaskDialog.Show("SpaceTracker Info", infoText);
             return Result.Succeeded;
         }
     }

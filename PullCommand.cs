@@ -102,7 +102,7 @@ namespace SpaceTracker
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Pull-Fehler", $"Fehler beim Abrufen der Änderungen: {ex.Message}");
+                Autodesk.Revit.UI.TaskDialog.Show("Pull-Fehler", $"Fehler beim Abrufen der Änderungen: {ex.Message}");
                 return Result.Failed;
             }
 
@@ -120,7 +120,7 @@ namespace SpaceTracker
                 {
                     Debug.WriteLine($"[Pull] Fehler beim Session-Update: {ex.Message}");
                 }
-                TaskDialog.Show("Pull", "Der Neo4j-Graph ist bereits auf dem neuesten Stand (keine neuen Änderungen).");
+                Autodesk.Revit.UI.TaskDialog.Show("Pull", "Der Neo4j-Graph ist bereits auf dem neuesten Stand (keine neuen Änderungen).");
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
                 return Result.Succeeded;
             }
@@ -330,7 +330,7 @@ namespace SpaceTracker
                 catch (Exception ex)
                 {
                     if (tx.HasStarted()) tx.RollBack();
-                    TaskDialog.Show("Pull-Fehler", $"Fehler beim Anwenden der Änderungen:\n{ex.Message}");
+                    Autodesk.Revit.UI.TaskDialog.Show("Pull-Fehler", $"Fehler beim Anwenden der Änderungen:\n{ex.Message}");
                     return Result.Failed;
                 }
             }
@@ -359,7 +359,7 @@ namespace SpaceTracker
             if (notCreatedIds.Count == 0 && conflictIds.Count == 0)
             {
                 // Vollständig erfolgreich
-                TaskDialog.Show("Pull", $"Es wurden {appliedCount} Änderungen von anderen Nutzern erfolgreich ins Modell übernommen.");
+                Autodesk.Revit.UI.TaskDialog.Show("Pull", $"Es wurden {appliedCount} Änderungen von anderen Nutzern erfolgreich ins Modell übernommen.");
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
             }
             else
@@ -375,7 +375,7 @@ namespace SpaceTracker
                     info += $" - Konflikt: Remote-Änderungen an gelöschten Elementen (IDs {string.Join(", ", conflictIds)}) wurden nicht übernommen.\n";
                 }
                 info += "\nBitte prüfen Sie diese Inkonsistenzen manuell.";
-                TaskDialog.Show("Pull - Inkonsistenzen", info);
+                Autodesk.Revit.UI.TaskDialog.Show("Pull - Inkonsistenzen", info);
                 SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
             }
 
