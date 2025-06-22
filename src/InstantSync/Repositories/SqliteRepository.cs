@@ -2,9 +2,9 @@ using System.IO;
 using Microsoft.Data.Sqlite;
 using Dapper;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Dapper;
 using InstantSync.Core.Delta;
 
 namespace InstantSync.Core.Repositories
@@ -30,8 +30,8 @@ namespace InstantSync.Core.Repositories
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_dbPath)!);
 
-  using var conn = new SqliteConnection($"Data Source={_dbPath}");
-              await conn.OpenAsync(ct).ConfigureAwait(false);
+            using var conn = new SqliteConnection($"Data Source={_dbPath}");
+            await conn.OpenAsync(ct).ConfigureAwait(false);
 
             const string sql = @"CREATE TABLE IF NOT EXISTS Packages (
 Id TEXT PRIMARY KEY,
