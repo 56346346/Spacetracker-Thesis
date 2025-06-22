@@ -297,7 +297,7 @@ namespace SpaceTracker
                     Logger.LogCrash("Solibri Start", ex);
                 }
             });
-        }
+        }a
 
 
         private void CreateRibbonUI(UIControlledApplication application)
