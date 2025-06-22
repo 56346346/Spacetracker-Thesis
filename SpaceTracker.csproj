@@ -16,7 +16,7 @@
      <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <ErrorReport>prompt</ErrorReport>
+    <ErrorReport>prompt
    <LangVersion>latest</LangVersion>
  </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
