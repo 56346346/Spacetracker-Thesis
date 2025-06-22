@@ -15,14 +15,14 @@
     <PackageReference Include="Neo4j.Driver" Version="5.15.0" />
     <PackageReference Include="Revit.RevitApi.x64" Version="2023.0.0" />
     <PackageReference Include="Revit.RevitApiUI.x64" Version="2023.0.0" />
-    <PackageReference Include="System.Threading.Channels" Version="4.4.0" />
+    <PackageReference Include="System.Threading.Channels" Version="4.3.0" />
   <PackageReference Include="Microsoft.Extensions.Hosting" Version="2.2.0" />
   <PackageReference Include="Microsoft.Extensions.Logging" Version="2.2.0" />
   <PackageReference Include="Dapper" Version="2.0.123" />
   <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="2.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="3.1.21" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
   </ItemGroup>
  <ItemGroup>
   <Reference Include="RevitAPI">
