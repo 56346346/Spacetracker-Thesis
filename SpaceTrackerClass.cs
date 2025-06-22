@@ -25,11 +25,12 @@ using System.Threading;
 using SpaceTracker.Utilities;
 using Autodesk.Revit.ApplicationServices;
 using RevitApplication = Autodesk.Revit.ApplicationServices.Application;
+using System.Runtime.Versioning;
 
 
 
 
-
+[assembly: SupportedOSPlatform("windows")]
 
 
 

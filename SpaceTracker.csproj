@@ -14,7 +14,7 @@
     <Platforms>x64</Platforms>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
      <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <Nullable>disable</Nullable>
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <ErrorReport>prompt</ErrorReport>
    <LangVersion>latest</LangVersion>
