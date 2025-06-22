@@ -57,49 +57,21 @@
   <ItemGroup>
     <PackageReference Include="EntityFramework" Version="6.5.1" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="7.0.0" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.5" />
   <PackageReference Include="Neo4j.Driver" Version="5.15.0" />
   <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
-    <PackageReference Include="SQLitePCLRaw.core" Version="2.1.11" />
-    <PackageReference Include="Stub.System.Data.SQLite.Core.NetFramework" Version="1.0.119.0" />
     <PackageReference Include="System.Buffers" Version="4.6.1" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
-    <PackageReference Include="System.Data.SQLite" Version="1.0.119.0" />
-    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.119.0" />
-    <PackageReference Include="System.Data.SQLite.EF6" Version="1.0.119.0" />
-    <PackageReference Include="System.Data.SQLite.Linq" Version="1.0.119.0" />
-     <PackageReference Include="System.Text.Json" Version="6.0.11" />
     <PackageReference Include="System.IO.Compression" Version="4.3.0" />
     <PackageReference Include="System.IO.Pipelines" Version="9.0.5" />
     <PackageReference Include="System.Memory" Version="4.5.5" />
     <PackageReference Include="System.Numerics.Vectors" Version="4.6.1" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
     <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="5.0.0" />
-<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="7.0.0" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.5" />
-  <PackageReference Include="Neo4j.Driver" Version="5.15.0" />
-  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
-    <PackageReference Include="SQLitePCLRaw.core" Version="2.1.11" />
-    <PackageReference Include="Stub.System.Data.SQLite.Core.NetFramework" Version="1.0.119.0" />
-    <PackageReference Include="System.Buffers" Version="4.6.1" />
-    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
     <PackageReference Include="System.Data.SQLite" Version="1.0.119.0" />
-    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.119.0" />
-    <PackageReference Include="System.Data.SQLite.EF6" Version="1.0.119.0" />
-    <PackageReference Include="System.Data.SQLite.Linq" Version="1.0.119.0" />
      <PackageReference Include="System.Text.Json" Version="6.0.11" />
-    <PackageReference Include="System.IO.Compression" Version="4.3.0" />
-    <PackageReference Include="System.IO.Pipelines" Version="9.0.5" />
-    <PackageReference Include="System.Memory" Version="4.5.5" />
-    <PackageReference Include="System.Numerics.Vectors" Version="4.6.1" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
-    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
+    
+  
   </ItemGroup>
   <ItemGroup>
   <Reference Include="PresentationCore">
@@ -122,13 +94,8 @@
     <Private>false</Private>
   </Reference>
 </ItemGroup>
-       <ItemGroup>
-    <Reference Include="System.ComponentModel.DataAnnotations" />
-    <Reference Include="Microsoft.CSharp" />
-      </ItemGroup>
   <ItemGroup>
     <Reference Include="System.ComponentModel.DataAnnotations" />
-    <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Net.Http" />
     <Reference Include="WindowsBase">
       <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\WindowsBase.dll</HintPath>
@@ -145,16 +112,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="obj\ARM64\Debug\.NETFramework,Version=v4.8.AssemblyAttributes.cs" />
-  </ItemGroup>
-  
-  <ItemGroup>
-   <None Remove="Logo.png" />
-    <None Remove="Push.png" />
-    <None Remove="Pull.png" />
-    <None Remove="Info.png" />
-    <None Remove="Green.png" />
-    <None Remove="Yellow.png" />
-    <None Remove="Red.png" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Logo.png">

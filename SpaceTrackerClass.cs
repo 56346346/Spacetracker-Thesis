@@ -224,8 +224,8 @@ namespace SpaceTracker
                 }
 
     // 10. Falls bereits ein Dokument geöffnet ist, initiale Treppen und andere Elemente übernehmen
-                UIApplication uiApp = new UIApplication(application.ControlledApplication);
-                if (uiApp.ActiveUIDocument != null)
+                 UIApplication uiApp = TryGetUIApplication(application);
+                if (uiApp != null && uiApp.ActiveUIDocument != null)
                 {
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
                     _databaseUpdateHandler.TriggerPush();
@@ -252,6 +252,35 @@ namespace SpaceTracker
                 Debug.WriteLine("[SpaceTracker] KRITISCHER FEHLER: " + e.Message);
                 return Result.Failed;
             }
+        }
+
+         private UIApplication TryGetUIApplication(UIControlledApplication app)
+        {
+            try
+            {
+                return (UIApplication)Activator.CreateInstance(
+                    typeof(UIApplication),
+                    app.ControlledApplication);
+            }
+            catch
+            {
+                try
+                {
+                    var ctrl = app.ControlledApplication;
+                    var prop = ctrl.GetType().GetProperty("Application");
+                    var baseApp = prop?.GetValue(ctrl);
+                    if (baseApp != null)
+                    {
+                        return (UIApplication)Activator.CreateInstance(
+                            typeof(UIApplication),
+                            baseApp);
+                    }
+                }
+                catch
+                {
+                }
+            }
+            return null;
         }
 
         private void RegisterGlobalExceptionHandlers()
