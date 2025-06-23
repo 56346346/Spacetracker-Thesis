@@ -86,6 +86,25 @@ namespace SpaceTracker
             }
         }
 
+        // Updates the consistency checker after a ruleset validation. Executed
+        // on the UI thread to immediately reflect the validation result.
+        public static void UpdateConsistencyCheckerButton(Severity severity)
+        {
+            switch (severity)
+            {
+                case Severity.Error:
+                    SetStatusIndicator(StatusColor.Red);
+                    break;
+                case Severity.Warning:
+                    SetStatusIndicator(StatusColor.Yellow);
+                    break;
+                default:
+                    SetStatusIndicator(StatusColor.Green);
+                    break;
+            }
+        }
+
+
 
 
         #region register events
@@ -226,8 +245,8 @@ namespace SpaceTracker
                     CommandManager.Instance.LastSyncTime = DateTime.MinValue;
                 }
 
-    // 10. Falls bereits ein Dokument geöffnet ist, initiale Treppen und andere Elemente übernehmen
-                 UIApplication uiApp = TryGetUIApplication(application);
+                // 10. Falls bereits ein Dokument geöffnet ist, initiale Treppen und andere Elemente übernehmen
+                UIApplication uiApp = TryGetUIApplication(application);
                 if (uiApp != null && uiApp.ActiveUIDocument != null)
                 {
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
@@ -257,7 +276,7 @@ namespace SpaceTracker
             }
         }
 
-         private UIApplication TryGetUIApplication(UIControlledApplication app)
+        private UIApplication TryGetUIApplication(UIControlledApplication app)
         {
             try
             {
@@ -437,7 +456,7 @@ namespace SpaceTracker
                     Assembly.GetExecutingAssembly().Location,
                     "SpaceTracker.InfoCommand"
                 );
-                  string infoIconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Info.png");
+                string infoIconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Info.png");
                 if (File.Exists(infoIconPath))
                 {
                     var infoIcon = new BitmapImage();
@@ -658,7 +677,7 @@ namespace SpaceTracker
                         // Asynchron pushen, da die Methode bereits async ist und await verwendet werden kann
                         try
                         {
-                             var changes = new List<(string Command, string Path)>();
+                            var changes = new List<(string Command, string Path)>();
                             foreach (var c in cmds)
                             {
                                 string cache = ChangeCacheHelper.WriteChange(c);
@@ -667,11 +686,15 @@ namespace SpaceTracker
                             await _neo4jConnector.PushChangesAsync(
                                 changes,
                                 CommandManager.Instance.SessionId,
-                                Environment.UserName).ConfigureAwait(false);
-
+  Environment.UserName, doc).ConfigureAwait(false);
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
                             await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                     
+                            // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
+                            var errs = SolibriRulesetValidator.Validate(doc);
+                            var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
+                            SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
                         }
                         catch (Exception ex)
                         {

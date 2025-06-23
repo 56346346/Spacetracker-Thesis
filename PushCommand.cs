@@ -23,6 +23,8 @@ namespace SpaceTracker
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
             string sessionId = cmdMgr.SessionId;
+              UIApplication uiApp = commandData.Application;
+            Document doc = uiApp.ActiveUIDocument?.Document;
 
             var commands = cmdMgr.cypherCommands.ToList();
             cmdMgr.cypherCommands = new ConcurrentQueue<string>();
@@ -54,9 +56,18 @@ namespace SpaceTracker
             
             try
                 {
-await connector.PushChangesAsync(changes, sessionId, Environment.UserName)
-                         .ConfigureAwait(false);
+ await connector.PushChangesAsync(changes, sessionId, Environment.UserName, doc).ConfigureAwait(false);                         .ConfigureAwait(false);
+                 
                     await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                 
+                    // Nach dem erfolgreichen Push Validierung starten und Ampel setzen
+                    if (doc != null)
+                    {
+                        var errs = SolibriRulesetValidator.Validate(doc);
+                        var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
+                        SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
+                    }
+
                     Autodesk.Revit.UI.TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
                 }
                 catch (Exception ex)

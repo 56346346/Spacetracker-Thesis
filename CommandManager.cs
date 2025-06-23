@@ -32,6 +32,9 @@ namespace SpaceTracker
         public string SessionId { get; private set; }
 
         public DateTime LastSyncTime { get; set; } = DateTime.MinValue;
+         public List<LogChange> LogChanges { get; } = new();
+        public List<LogChangeAcknowledged> LogChangesAcknowledged { get; } = new();
+        public int ExpectedSessionCount { get; set; } = 1;
         private CommandManager(Neo4jConnector neo4jConnector)
         {
             _neo4jConnector = neo4jConnector;
@@ -91,8 +94,7 @@ namespace SpaceTracker
                     changes.Add((cyCommand, cache));
                 }
 
-                await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName).ConfigureAwait(false);
-                LastSyncTime = DateTime.Now;
+ await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName, null).ConfigureAwait(false);                LastSyncTime = DateTime.Now;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
                 await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);

@@ -11,6 +11,8 @@ using Autodesk.Revit.DB.Architecture;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Autodesk.Revit.DB.Structure;
+using SpaceTracker;
+
 
 
 
@@ -52,12 +54,12 @@ namespace SpaceTracker
                     created++;
             }
 
-                    if (created > 0)
-                    {
-                        ChangeCacheHelper.ClearCache();
-                    }
-                }
-        
+            if (created > 0)
+            {
+                ChangeCacheHelper.ClearCache();
+            }
+        }
+
         // Simple IFailuresPreprocessor implementation that resolves all failures as 'Continue'
         public class SimpleFailuresPreprocessor : IFailuresPreprocessor
         {
@@ -127,6 +129,8 @@ namespace SpaceTracker
 
             // Mapping der empfangenen Änderungen
             var remoteChanges = new List<(long id, string type, string user, string cache)>();
+            var logChanges = new List<LogChange>();
+
             foreach (var rec in changeRecords)
             {
                 long id = rec["id"].As<long>();
@@ -134,7 +138,20 @@ namespace SpaceTracker
                 string user = rec["user"].As<string>();
                 string cachePath = rec["cache"]?.As<string>();
                 remoteChanges.Add((id, type, user, cachePath));
+                // LogChange-Objekt ablegen
+                DateTime ts = DateTime.Parse(rec["ts"].As<string>());
+                logChanges.Add(new LogChange
+                {
+                    ElementId = id,
+                    Type = type,
+                    User = user,
+                    Timestamp = ts,
+                    CachePath = cachePath,
+                    Label = type
+                });
             }
+            // Änderungen im CommandManager festhalten
+            cmdMgr.LogChanges.AddRange(logChanges);
 
             // Listen für Meldungen
             var notCreatedIds = new List<long>();    // Remote eingefügte Elemente, die lokal nicht erstellt werden konnten
@@ -354,6 +371,26 @@ namespace SpaceTracker
             {
                 Debug.WriteLine($"[Pull] Fehler beim Session-Update: {ex.Message}");
             }
+            // Automatisches Acknowledge, wenn alle Sessions gepullt haben
+            var sessions = await connector.GetSessionStatusesAsync().ConfigureAwait(false);
+            if (sessions.Count == cmdMgr.ExpectedSessionCount && sessions.All(s => s.HasPulledAll))
+            {
+                // Für jeden LogChange ein zugehöriges LogChangeAcknowledged erzeugen
+                foreach (var log in cmdMgr.LogChanges)
+                {
+                    var ack = new LogChangeAcknowledged
+                    {
+                        ElementId = log.ElementId,
+                        Type = log.Type,
+                        User = log.User,
+                        Timestamp = log.Timestamp,
+                        CachePath = log.CachePath,
+                        Label = "Acknowledged"
+                    };
+                    cmdMgr.LogChangesAcknowledged.Add(ack);
+                }
+            }
+
 
             // Ergebnis auswerten und Benutzer informieren
             if (notCreatedIds.Count == 0 && conflictIds.Count == 0)
@@ -506,47 +543,47 @@ namespace SpaceTracker
                             if (baseLvl != null && topLvl != null)
                             {
                                 try
-    {
-        // 3) StairsType ermitteln
-        var stairType = new FilteredElementCollector(_doc)
-            .OfClass(typeof(StairsType))
-            .Cast<StairsType>()
-            .FirstOrDefault();
-        if (stairType == null) break;
+                                {
+                                    // 3) StairsType ermitteln
+                                    var stairType = new FilteredElementCollector(_doc)
+                                        .OfClass(typeof(StairsType))
+                                        .Cast<StairsType>()
+                                        .FirstOrDefault();
+                                    if (stairType == null) break;
 
-        // 4) Stairs-Edit-Scope starten
-        using var scope = new StairsEditScope(_doc, "Pull Stairs");
-        ElementId stairsId = scope.Start(baseLvl.Id, topLvl.Id);
+                                    // 4) Stairs-Edit-Scope starten
+                                    using var scope = new StairsEditScope(_doc, "Pull Stairs");
+                                    ElementId stairsId = scope.Start(baseLvl.Id, topLvl.Id);
 
-        // 5) Gerade Stufenlaufbahn definieren
-        double length = UnitUtils.ConvertToInternalUnits(3.0, UnitTypeId.Meters);
-        Line runLine = Line.CreateBound(
-            new XYZ(0, 0, baseLvl.Elevation),
-            new XYZ(length, 0, baseLvl.Elevation)
-        );
+                                    // 5) Gerade Stufenlaufbahn definieren
+                                    double length = UnitUtils.ConvertToInternalUnits(3.0, UnitTypeId.Meters);
+                                    Line runLine = Line.CreateBound(
+                                        new XYZ(0, 0, baseLvl.Elevation),
+                                        new XYZ(length, 0, baseLvl.Elevation)
+                                    );
 
-        // 6) StraightRun anlegen
-        StairsRun run = StairsRun.CreateStraightRun(
-            _doc,
-            stairsId,
-            runLine,
-            StairsRunJustification.Center
-        );
+                                    // 6) StraightRun anlegen
+                                    StairsRun run = StairsRun.CreateStraightRun(
+                                        _doc,
+                                        stairsId,
+                                        runLine,
+                                        StairsRunJustification.Center
+                                    );
 
-        // 7) Parameter setzen (Breite, Auftritt, Steigung)
-        
-        run.get_Parameter(BuiltInParameter.STAIRS_ATTR_MINIMUM_TREAD_DEPTH)
-            ?.Set(UnitUtils.ConvertToInternalUnits(0.28, UnitTypeId.Meters));
-        run.get_Parameter(BuiltInParameter.STAIRS_ATTR_MAX_RISER_HEIGHT)
-            ?.Set(UnitUtils.ConvertToInternalUnits(0.18, UnitTypeId.Meters));
+                                    // 7) Parameter setzen (Breite, Auftritt, Steigung)
 
-        // 8) Treppentyp zuweisen
-        var stairs = (Stairs)_doc.GetElement(stairsId);
-        stairs.ChangeTypeId(stairType.Id);
+                                    run.get_Parameter(BuiltInParameter.STAIRS_ATTR_MINIMUM_TREAD_DEPTH)
+                                        ?.Set(UnitUtils.ConvertToInternalUnits(0.28, UnitTypeId.Meters));
+                                    run.get_Parameter(BuiltInParameter.STAIRS_ATTR_MAX_RISER_HEIGHT)
+                                        ?.Set(UnitUtils.ConvertToInternalUnits(0.18, UnitTypeId.Meters));
+
+                                    // 8) Treppentyp zuweisen
+                                    var stairs = (Stairs)_doc.GetElement(stairsId);
+                                    stairs.ChangeTypeId(stairType.Id);
 
 
-        return stairs;
-    }
+                                    return stairs;
+                                }
                                 catch (Exception ex)
                                 {
                                     Debug.WriteLine($"[Pull] Fehler beim Erstellen der Treppe {elementId}: {ex.Message}");

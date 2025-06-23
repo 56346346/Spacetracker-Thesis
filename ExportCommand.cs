@@ -71,19 +71,26 @@ namespace SpaceTracker
                 return Result.Failed;
             }
 
-             _ = Task.Run(async () =>
-             {
-             try
+               _ = Task.Run(async () =>
             {
-                     await connector.PushChangesAsync(changes, sessionId, Environment.UserName);
-                await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
-                Autodesk.Revit.UI.TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
-            }
-            catch (Exception ex)
-            {
-                Autodesk.Revit.UI.TaskDialog.Show("Push-Fehler",
-                    $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
-            }
+                 try
+                {
+                    await connector.PushChangesAsync(changes, sessionId, Environment.UserName, doc);
+                    await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+
+                    // Nach dem Push sofort Solibri-Validierung durchführen
+                    var errs = SolibriRulesetValidator.Validate(doc);
+                    var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
+                    SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
+
+                    Autodesk.Revit.UI.TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
+                }
+                catch (Exception ex)
+                {
+                    Autodesk.Revit.UI.TaskDialog.Show("Push-Fehler",
+                        $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
+                }
+                 
             });
             return Result.Succeeded;
         }

@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using Neo4j.Driver;
 using System.Diagnostics;
 using System.Linq;
+using Autodesk.Revit.DB;
+
 using Autodesk.Revit.DB.Events;
 using System.IO;
 using SpaceTracker;
@@ -61,8 +63,7 @@ namespace SpaceTracker
         /// Überträgt eine Liste von Cypher-Befehlen als Atomar-Transaktion an Neo4j 
         /// und protokolliert jede Änderung im ChangeLog (mit Benutzer & Timestamp).
         /// </summary>
-        public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName)
-        {
+    public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName, Autodesk.Revit.DB.Document currentDocument = null)        {
             // 1) Asynchrone Neo4j-Session öffnen
             var session = _driver.AsyncSession();
 
@@ -162,7 +163,15 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                 // 5) Transaction committen
                 await tx.CommitAsync().ConfigureAwait(false);
                 Debug.WriteLine($"[Neo4j] PushChanges: {changes.Count()} Änderungen übertragen und protokolliert.");
-            }
+           
+
+                // Nach Abschluss der Transaktion den aktuellen Revit-Status validieren
+                if (currentDocument != null)
+                {
+                    var errs = SolibriRulesetValidator.Validate(currentDocument);
+                    var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
+                    SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
+                }            }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Neo4j Push Fehler] {ex.Message}");
@@ -204,6 +213,36 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             {
                 await session.CloseAsync().ConfigureAwait(false);
             }
+        }
+
+        // Liefert den Sync-Status aller Sessions zur Prüfung, ob alle gepullt haben
+        public async Task<List<SessionStatus>> GetSessionStatusesAsync()
+        {
+            var result = new List<SessionStatus>();
+            var session = _driver.AsyncSession();
+            try
+            {
+                var lastChangeRes = await session.RunAsync("MATCH (cl:ChangeLog) RETURN max(cl.timestamp) AS lastChange").ConfigureAwait(false);
+                var lastChangeRec = await lastChangeRes.SingleAsync().ConfigureAwait(false);
+                DateTime lastChange = DateTime.MinValue;
+                if (lastChangeRec["lastChange"] != null)
+                    lastChange = lastChangeRec["lastChange"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
+
+                var res = await session.RunAsync("MATCH (s:Session) RETURN s.id AS id, s.lastSync AS lastSync").ConfigureAwait(false);
+                await res.ForEachAsync(r =>
+                {
+                    DateTime sync = DateTime.MinValue;
+                    if (r["lastSync"] != null)
+                        sync = r["lastSync"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
+                    bool pulled = lastChange <= sync;
+                    result.Add(new SessionStatus { Id = r["id"].As<string>(), HasPulledAll = pulled });
+                }).ConfigureAwait(false);
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+            return result;
         }
 
         public async Task DeleteAllSessionsAndLogsAsync()
