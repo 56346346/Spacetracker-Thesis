@@ -375,6 +375,7 @@ namespace SpaceTracker
             var sessions = await connector.GetSessionStatusesAsync().ConfigureAwait(false);
             if (sessions.Count == cmdMgr.ExpectedSessionCount && sessions.All(s => s.HasPulledAll))
             {
+
                 // Für jeden LogChange ein zugehöriges LogChangeAcknowledged erzeugen
                 foreach (var log in cmdMgr.LogChanges)
                 {
@@ -388,6 +389,15 @@ namespace SpaceTracker
                         Label = "Acknowledged"
                     };
                     cmdMgr.LogChangesAcknowledged.Add(ack);
+                }
+                 // Änderungen auch im Graph als acknowledged markieren
+                try
+                {
+                    await connector.AcknowledgeAllAsync(sessionId).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Pull] Fehler beim Acknowledge: {ex.Message}");
                 }
             }
 
