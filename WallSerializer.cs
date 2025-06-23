@@ -19,8 +19,8 @@ public static class WallSerializer
         return new Dictionary<string, object>
         {
             ["uid"] = wall.UniqueId,
-            ["typeId"] = wall.GetTypeId().IntegerValue,
-            ["levelId"] = wall.LevelId.IntegerValue,
+            ["typeId"] = wall.GetTypeId().Value,
+            ["levelId"] = wall.LevelId.Value,
             ["x1"] = UnitConversion.ToMm(s.X),
             ["y1"] = UnitConversion.ToMm(s.Y),
             ["z1"] = UnitConversion.ToMm(s.Z),
@@ -29,7 +29,7 @@ public static class WallSerializer
             ["z2"] = UnitConversion.ToMm(e.Z),
             ["h"] = UnitConversion.ToMm(height),
             ["t"] = UnitConversion.ToMm(thickness),
-            ["struct"] = wall.Structural,
+            ["struct"] = wall.Structural(),
             ["user"] = Environment.UserName,
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow
