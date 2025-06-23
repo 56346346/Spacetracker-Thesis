@@ -104,6 +104,131 @@ namespace SpaceTracker
             }
         }
 
+        // Runs a consistency check against Neo4j and updates the status
+        // indicator. Dialog messages can be suppressed with the showDialogs
+        // flag.
+        public static void PerformConsistencyCheck(bool showDialogs)
+        {
+            var cmdMgr = CommandManager.Instance;
+            var connector = cmdMgr.Neo4jConnector;
+            var parameters = new { session = cmdMgr.SessionId };
+            string query = "MATCH (c:ChangeLog) " +
+                           "WHERE c.sessionId <> $session AND c.acknowledged = false " +
+                           "RETURN c.elementId AS id, c.type AS type, c.sessionId AS session";
+
+            List<IRecord> records;
+            try
+            {
+                records = Task.Run(() => connector.RunReadQueryAsync(query, parameters)).Result;
+            }
+            catch (Exception ex)
+            {
+                if (showDialogs)
+                    Autodesk.Revit.UI.TaskDialog.Show("Consistency Check", $"Fehler bei der Abfrage: {ex.Message}");
+                return;
+            }
+
+            var localPendingIds = new HashSet<long>();
+            var localChangeType = new Dictionary<long, string>();
+            foreach (var cmd in cmdMgr.cypherCommands.ToArray())
+            {
+                long id = -1;
+                int idx = cmd.IndexOf("ElementId");
+                if (idx >= 0)
+                {
+                    string sub = cmd.Substring(idx);
+                    sub = new string(sub.SkipWhile(ch => !char.IsDigit(ch) && ch != '-').ToArray());
+                    string num = new string(sub.TakeWhile(ch => char.IsDigit(ch) || ch == '-').ToArray());
+                    long.TryParse(num, out id);
+                }
+                if (id < 0) continue;
+                localPendingIds.Add(id);
+                string lType;
+                if (cmd.IndexOf("DELETE", StringComparison.OrdinalIgnoreCase) >= 0)
+                    lType = "Delete";
+                else if (cmd.IndexOf("MERGE", StringComparison.OrdinalIgnoreCase) >= 0 && cmd.IndexOf("MATCH", StringComparison.OrdinalIgnoreCase) == -1)
+                    lType = "Insert";
+                else
+                    lType = "Modify";
+                localChangeType[id] = lType;
+            }
+
+            bool conflict = false;
+            bool remoteChanges = records.Count > 0;
+            var conflictDetails = new List<string>();
+
+            foreach (var rec in records)
+            {
+                long id = rec["id"].As<long>();
+                string rType = rec["type"].As<string>();
+                if (localPendingIds.Contains(id))
+                {
+                    string lType = localChangeType.ContainsKey(id) ? localChangeType[id] : "Modify";
+                    if (!(rType == "Delete" && lType == "Delete"))
+                    {
+                        conflict = true;
+                        string rDesc = (rType == "Delete") ? "gelöscht" : (rType == "Insert" ? "eingefügt" : "geändert");
+                        string lDesc = (lType == "Delete") ? "gelöscht" : (lType == "Insert" ? "eingefügt" : "geändert");
+                        conflictDetails.Add($"Element {id}: extern {rDesc}, lokal {lDesc}");
+                    }
+                }
+            }
+
+            if (conflict)
+            {
+                SetStatusIndicator(StatusColor.Red);
+                if (showDialogs)
+                {
+                    string detailText = conflictDetails.Count > 0
+                        ? string.Join("\n", conflictDetails)
+                        : "Siehe Änderungsprotokoll für Details.";
+                    Autodesk.Revit.UI.TaskDialog.Show("Consistency Check",
+                        $"*** Konflikt erkannt! ***\n" +
+                        $"Einige Elemente wurden sowohl lokal als auch von einem anderen Nutzer geändert.\n" +
+                        $"{detailText}\n\nBitte Konflikte manuell lösen.");
+                }
+            }
+            else if (remoteChanges)
+            {
+                SetStatusIndicator(StatusColor.Yellow);
+                if (showDialogs)
+                {
+                    int count = records.Count;
+                    Autodesk.Revit.UI.TaskDialog.Show("Consistency Check",
+                        $"Es liegen {count} neue Änderungen von anderen Nutzern vor.\n" +
+                        $"Keine direkten Konflikte mit lokalen Änderungen erkannt.\n" +
+                        $"Sie können einen Pull durchführen, um diese zu übernehmen.");
+                }
+            }
+            else
+            {
+                SetStatusIndicator(StatusColor.Green);
+                if (showDialogs)
+                {
+                    string note = localPendingIds.Count > 0
+                        ? "\n(Hinweis: Es gibt ungesicherte lokale Änderungen, bitte Push ausführen.)"
+                        : string.Empty;
+                    Autodesk.Revit.UI.TaskDialog.Show("Consistency Check", "Das lokale Modell ist konsistent mit dem Neo4j-Graph." + note);
+                }
+
+                if (localPendingIds.Count == 0)
+                {
+                    cmdMgr.LastSyncTime = DateTime.Now;
+                    cmdMgr.PersistSyncTime();
+                    try
+                    {
+                        Task.Run(() => connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime)).Wait();
+                        Task.Run(() => connector.CleanupObsoleteChangeLogsAsync()).Wait();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[ConsistencyCheck] Cleanup failed: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+
 
 
 
@@ -690,7 +815,7 @@ namespace SpaceTracker
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
                             await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
-                     
+
                             // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
                             var errs = SolibriRulesetValidator.Validate(doc);
                             var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
