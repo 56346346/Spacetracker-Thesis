@@ -9,75 +9,52 @@ using System.Linq;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
-namespace SpaceTracker
+using System.Runtime.Versioning;
+
+namespace SpaceTracker;
+
+[Transaction(TransactionMode.Manual)]
+[Regeneration(RegenerationOption.Manual)]
+[SupportedOSPlatform("windows")]
+public class PushCommand : IExternalCommand
+
 {
-    [Transaction(TransactionMode.Manual)]
-    [Regeneration(RegenerationOption.Manual)]
-    public class PushCommand : IExternalCommand
+    public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+
     {
-        public Result Execute(
-            ExternalCommandData commandData,
-            ref string message,
-            ElementSet elements)
+        var uiDoc = commandData.Application.ActiveUIDocument;
+        if (uiDoc?.Document is null)
+            return Result.Failed;
+        Document doc = uiDoc.Document;
+        var connector = CommandManager.Instance.Neo4jConnector;
+
+        IList<Element> walls = new FilteredElementCollector(doc)
+            .OfClass(typeof(Wall))
+            .ToElements();
+        _ = Task.Run(async () =>
+    {
+        foreach (Wall w in walls)
+
+
+
+
         {
-            var cmdMgr = CommandManager.Instance;
-            var connector = cmdMgr.Neo4jConnector;
-            string sessionId = cmdMgr.SessionId;
-              UIApplication uiApp = commandData.Application;
-            Document doc = uiApp.ActiveUIDocument?.Document;
 
-            var commands = cmdMgr.cypherCommands.ToList();
-            cmdMgr.cypherCommands = new ConcurrentQueue<string>();
-
-            var changes = new List<(string Command, string Path)>();
-            foreach (var cmd in commands)
-            {
-                string cachePath = ChangeCacheHelper.WriteChange(cmd);
-                changes.Add((cmd, cachePath));
-            }
-
-
-            if (commands.Count == 0)
-            {
-                Autodesk.Revit.UI.TaskDialog.Show("Push", "Keine Änderungen zum Übertragen vorhanden.");
-                return Result.Succeeded;
-            }
-
-
-            string path = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "SpaceTracker",
-                    "neo4j_cypher.txt");
-            Directory.CreateDirectory(Path.GetDirectoryName(path));
-            File.WriteAllLines(path, commands);
-
-            _ = Task.Run(async () =>
-            {
-            
+            var data = WallSerializer.ToNode(w);
+            data["modified"] = System.DateTime.UtcNow;
             try
-                {
- await connector.PushChangesAsync(changes, sessionId, Environment.UserName, doc).ConfigureAwait(false);                      
-                 
-                    await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
-                 
-                    // Nach dem erfolgreichen Push Validierung starten und Ampel setzen
-                    if (doc != null)
-                    {
-                        var errs = SolibriRulesetValidator.Validate(doc);
-                        var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
-                        SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
-                    }
+            {
+                await connector.UpsertWallAsync(data).ConfigureAwait(false);
 
-                    Autodesk.Revit.UI.TaskDialog.Show("Push", "Änderungen erfolgreich an Neo4j übertragen.");
-                }
-                catch (Exception ex)
-                {
-                    Autodesk.Revit.UI.TaskDialog.Show("Push-Fehler",
-                        $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
-                }
-            });
-            return Result.Succeeded;
             }
-        }
-    }
+            catch (Neo4j.Driver.Neo4jException ex)
+            {
+                Autodesk.Revit.UI.TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
+                return;
+            }
 
+        }
+    });
+        return Result.Succeeded;
+    }
+}

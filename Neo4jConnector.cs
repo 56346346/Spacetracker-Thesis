@@ -5,13 +5,13 @@ using Neo4j.Driver;
 using System.Diagnostics;
 using System.Linq;
 using Autodesk.Revit.DB;
-
 using Autodesk.Revit.DB.Events;
 using System.IO;
 using SpaceTracker;
 using System.Text.RegularExpressions;
-
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 
 namespace SpaceTracker
@@ -19,6 +19,8 @@ namespace SpaceTracker
     public class Neo4jConnector : IDisposable
     {
         private readonly IDriver _driver;
+                private readonly Microsoft.Extensions.Logging.ILogger<Neo4jConnector> _logger;
+
         private ConcurrentQueue<string> cypherCommands = new ConcurrentQueue<string>();
 
 
@@ -30,10 +32,11 @@ namespace SpaceTracker
         /// <summary>
         /// public constructor
         /// </summary>
-        public Neo4jConnector(string uri = "bolt://localhost:7687",
-                        string user = "neo4j",
+ public Neo4jConnector(Microsoft.Extensions.Logging.ILogger<Neo4jConnector> logger, string uri = "bolt://localhost:7687",
+                         string user = "neo4j",
                         string password = "password")
         {
+            _logger = logger;
             _driver = GraphDatabase.Driver(
                             uri,
                             AuthTokens.Basic(user, password),
@@ -442,11 +445,73 @@ SET c.acknowledged = true",
                 throw;
             }
         }
+         // ------------------------------------------------------------------
+        // Neue API für Node-basierten Datenaustausch
 
+        public async Task<List<T>> RunQueryAsync<T>(string cypher, object parameters, Func<IRecord, T> map)
+        {
+            await using var session = _driver.AsyncSession();
+            _logger.LogDebug("RunQueryAsync: {Cypher}", cypher);
+            var cursor = await session.RunAsync(cypher, parameters).ConfigureAwait(false);
+            var list = new List<T>();
+            await cursor.ForEachAsync(r => list.Add(map(r))).ConfigureAwait(false);
+            return list;
+        }
 
+        public async Task UpsertWallAsync(Dictionary<string, object> args)
+        {
+            const string cypher = @"MERGE (w:Wall {uid:$uid})
+SET   w.typeId          = $typeId,
+      w.levelId         = $levelId,
+      w.x1              = $x1,
+      w.y1              = $y1,
+      w.z1              = $z1,
+      w.x2              = $x2,
+      w.y2              = $y2,
+      w.z2              = $z2,
+      w.height_mm       = $h,
+      w.thickness_mm    = $t,
+      w.structural      = $struct,
+      w.createdBy       = coalesce(w.createdBy,$user),
+      w.createdAt       = coalesce(w.createdAt,$created),
+      w.lastModifiedUtc = datetime($modified)
+RETURN w";
 
+            await using var session = _driver.AsyncSession();
+            await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
+            _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
+        }
 
-
+        public async Task<List<WallNode>> GetUpdatedWallsAsync(DateTime sinceUtc)
+        {
+            const string cypher = @"MATCH (w:Wall)
+WHERE  w.lastModifiedUtc > datetime($since)
+RETURN w";
+            _logger.LogDebug("GetUpdatedWalls since {Time}", sinceUtc);
+            var list = await RunQueryAsync(cypher, new { since = sinceUtc.ToString("o") }, r =>
+            {
+                var node = r["w"].As<INode>();
+                return new WallNode
+                (
+                    node.Properties["uid"].As<string>(),
+                    (long)node.Properties["typeId"].As<long>(),
+                    (long)node.Properties["levelId"].As<long>(),
+                    node.Properties["x1"].As<double>(),
+                    node.Properties["y1"].As<double>(),
+                    node.Properties["z1"].As<double>(),
+                    node.Properties["x2"].As<double>(),
+                    node.Properties["y2"].As<double>(),
+                    node.Properties["z2"].As<double>(),
+                    node.Properties["height_mm"].As<double>(),
+                    node.Properties["thickness_mm"].As<double>(),
+                    node.Properties["structural"].As<bool>()
+                );
+            }).ConfigureAwait(false);
+            _logger.LogInformation("Pulled {Count} walls", list.Count);
+            return list;
+        }
         public void Dispose()
         {
             _driver?.Dispose();

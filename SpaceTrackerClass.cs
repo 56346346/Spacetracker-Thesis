@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Analysis;
+using Microsoft.Extensions.Logging;
 using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.Exceptions;
 using Autodesk.Revit.UI;
@@ -249,7 +250,8 @@ namespace SpaceTracker
                 RegisterGlobalExceptionHandlers();
 
 
-                _neo4jConnector = new Neo4jConnector();
+                 using var loggerFactory = LoggerFactory.Create(b => b.AddDebug());
+                _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
 
                 CommandManager.Initialize(_neo4jConnector);
 
