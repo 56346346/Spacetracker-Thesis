@@ -56,7 +56,7 @@ namespace SpaceTracker
             
             try
                 {
- await connector.PushChangesAsync(changes, sessionId, Environment.UserName, doc).ConfigureAwait(false);                         .ConfigureAwait(false);
+ await connector.PushChangesAsync(changes, sessionId, Environment.UserName, doc).ConfigureAwait(false);                      
                  
                     await connector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
                  
