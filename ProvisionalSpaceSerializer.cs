@@ -21,10 +21,12 @@ public static class ProvisionalSpaceSerializer
 
         var level = inst.Document.GetElement(inst.LevelId) as Level;
         string levelName = level?.Name ?? "";
+                string name = inst.Name ?? inst.Symbol?.FamilyName ?? string.Empty;
+
         return new Dictionary<string, object>
         {
             ["guid"] = inst.UniqueId,
-            ["name"] = inst.Name,
+            ["name"] = name,
             ["width"] = width,
             ["height"] = height,
             ["thickness"] = thickness,
