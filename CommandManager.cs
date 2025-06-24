@@ -34,7 +34,7 @@ namespace SpaceTracker
         public string SessionId { get; private set; }
 
         public DateTime LastSyncTime { get; set; } = DateTime.MinValue;
-         public List<LogChange> LogChanges { get; } = new();
+        public List<LogChange> LogChanges { get; } = new();
         public List<LogChangeAcknowledged> LogChangesAcknowledged { get; } = new();
         public int ExpectedSessionCount { get; set; } = 1;
         private CommandManager(Neo4jConnector neo4jConnector)
@@ -106,7 +106,7 @@ namespace SpaceTracker
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
                 await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
-                                if (currentDoc != null)
+                if (currentDoc != null)
                 {
                     foreach (var id in ids)
                         _ = Task.Run(() => SolibriChecker.CheckElementAsync(new ElementId((int)id), currentDoc));
@@ -140,8 +140,8 @@ namespace SpaceTracker
             }
         }
 
- private static string GenerateSessionId()
-         {
+        private static string GenerateSessionId()
+        {
             string user = Environment.UserName;
             string processId = Environment.ProcessId.ToString();
             return $"{user}_{processId}_{Guid.NewGuid().ToString().Substring(0, 8)}";
@@ -171,5 +171,6 @@ namespace SpaceTracker
 
             return DateTime.Now;
         }
+        
     }
 }

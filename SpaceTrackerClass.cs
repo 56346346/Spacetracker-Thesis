@@ -802,6 +802,8 @@ namespace SpaceTracker
                         Debug.WriteLine("[SpaceTracker] Vorhandene Graph-Daten erkannt - bitte Pull/Check durchführen.");
                         SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
                     }
+                    // After loading the model trigger a pull to ensure latest changes
+                    _graphPuller?.RequestPull(doc, Environment.UserName);
                 }
             }
             catch (Exception ex)

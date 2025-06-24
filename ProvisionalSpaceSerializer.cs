@@ -45,7 +45,7 @@ public static class ProvisionalSpaceSerializer
             ["rotation"] = loc?.Rotation ?? 0,
             ["hostId"] = inst.Host?.Id.Value ?? -1,
             ["revitId"] = inst.Id.Value,
-            ["ifcType"] = "IfcOpeningElement",
+            ["ifcType"] = GetIfcEntity(inst),
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
             ["user"] = Environment.UserName

@@ -7,6 +7,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Neo4j.Driver;
 
+
 namespace SpaceTracker;
 
 [SupportedOSPlatform("windows")]
@@ -66,6 +67,8 @@ RETURN lc, e ORDER BY lc.timestamp";
             {
                 tx.Start();
                 RevitElementBuilder.BuildFromNodes(doc, node);
+                 var dict = node.Properties.ToDictionary(k => k.Key, k => (object)k.Value);
+                RevitElementBuilder.BuildFromNode(doc, dict);
                 tx.Commit();
             }
             long logId = long.TryParse(log.ElementId, out var id) ? id : log.Id;

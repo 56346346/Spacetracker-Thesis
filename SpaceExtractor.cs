@@ -105,6 +105,9 @@ namespace SpaceTracker
                 FamilyInstance doorInstance = door as FamilyInstance;
                 Element hostWall = doorInstance?.Host;
                 var sym = doc.GetElement(door.GetTypeId()) as FamilySymbol;
+                if(doorInstance!=null)
+                    _ = DoorSerializer.ToNode(doorInstance);
+
 
                 string doorType = sym?.Name ?? (door as FamilyInstance)?.Symbol?.Name ?? "Unbekannter Typ";
 
@@ -146,8 +149,9 @@ namespace SpaceTracker
             try
             {
                 var ifc = GetIfcExportClass(inst);
-                if (ifc != "IfcOpeningElement")
-                    return;
+            if (!(ifc.Equals("IfcBuildingElementProxy", StringComparison.OrdinalIgnoreCase)
+                  && inst.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase)))
+                return;
                 var host = inst.Host as Wall;
                 var data = ProvisionalSpaceSerializer.ToNode(inst);
                 var inv = CultureInfo.InvariantCulture;
@@ -203,8 +207,8 @@ namespace SpaceTracker
                 foreach (FamilyInstance ps in psCollector.Cast<FamilyInstance>())
                 {
                     var ifcPs = GetIfcExportClass(ps);
-                    if (ifcPs != "IfcOpeningElement")
-                        continue;
+   if (!(ifcPs.Equals("IfcBuildingElementProxy", StringComparison.OrdinalIgnoreCase)
+                          && ps.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase)))                        continue;
                     var psLevel = doc.GetElement(ps.LevelId) as Level;
                     if (psLevel != null && Math.Abs(psLevel.Elevation - bbPipe.Min.Z) > tol)
                         continue;
@@ -268,15 +272,7 @@ namespace SpaceTracker
 
         private static string GetIfcExportClass(Element elem)
         {
-            var p = elem.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT);
-            var ifcClass = p?.AsString() ?? string.Empty;
-            if (string.IsNullOrEmpty(ifcClass))
-            {
-                var type = elem.Document.GetElement(elem.GetTypeId());
-                var pt = type?.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT_TYPE);
-                ifcClass = pt?.AsString() ?? string.Empty;
-            }
-            return ifcClass;
+            return ParameterUtils.GetIfcEntity(elem);
         }
 
 

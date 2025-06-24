@@ -19,7 +19,7 @@ namespace SpaceTracker
     public class Neo4jConnector : IDisposable
     {
         private readonly IDriver _driver;
-                private readonly Microsoft.Extensions.Logging.ILogger<Neo4jConnector> _logger;
+        private readonly Microsoft.Extensions.Logging.ILogger<Neo4jConnector> _logger;
 
         private ConcurrentQueue<string> cypherCommands = new ConcurrentQueue<string>();
 
@@ -32,9 +32,9 @@ namespace SpaceTracker
         /// <summary>
         /// public constructor
         /// </summary>
- public Neo4jConnector(Microsoft.Extensions.Logging.ILogger<Neo4jConnector> logger, string uri = "bolt://localhost:7687",
-                         string user = "neo4j",
-                        string password = "password")
+        public Neo4jConnector(Microsoft.Extensions.Logging.ILogger<Neo4jConnector> logger, string uri = "bolt://localhost:7687",
+                                string user = "neo4j",
+                               string password = "password")
         {
             _logger = logger;
             _driver = GraphDatabase.Driver(
@@ -66,7 +66,8 @@ namespace SpaceTracker
         /// Überträgt eine Liste von Cypher-Befehlen als Atomar-Transaktion an Neo4j 
         /// und protokolliert jede Änderung im ChangeLog (mit Benutzer & Timestamp).
         /// </summary>
-    public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName, Autodesk.Revit.DB.Document currentDocument = null)        {
+        public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName, Autodesk.Revit.DB.Document currentDocument = null)
+        {
             // 1) Asynchrone Neo4j-Session öffnen
             var session = _driver.AsyncSession();
 
@@ -113,7 +114,7 @@ namespace SpaceTracker
                     // 4.3) ElementId extrahieren (oder -1, wenn nicht gefunden)
                     long elementId = -1;
                     var match = idRegex.Match(cmd);
-                      if (match.Success && long.TryParse(match.Groups[1].Value, out var parsedId))
+                    if (match.Success && long.TryParse(match.Groups[1].Value, out var parsedId))
                         elementId = parsedId;
 
                     // 4.4) Audit-Log-Einträge erzeugen. Bei "Insert" nur ein Log
@@ -166,7 +167,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                 // 5) Transaction committen
                 await tx.CommitAsync().ConfigureAwait(false);
                 Debug.WriteLine($"[Neo4j] PushChanges: {changes.Count()} Änderungen übertragen und protokolliert.");
-           
+
 
                 // Nach Abschluss der Transaktion den aktuellen Revit-Status validieren
                 if (currentDocument != null)
@@ -174,7 +175,8 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     var errs = SolibriRulesetValidator.Validate(currentDocument);
                     var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                     SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
-                }            }
+                }
+            }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Neo4j Push Fehler] {ex.Message}");
@@ -445,7 +447,7 @@ SET c.acknowledged = true",
                 throw;
             }
         }
-         // ------------------------------------------------------------------
+        // ------------------------------------------------------------------
         // Neue API für Node-basierten Datenaustausch
 
         public async Task<List<T>> RunQueryAsync<T>(string cypher, object parameters, Func<IRecord, T> map)
@@ -460,42 +462,58 @@ SET c.acknowledged = true",
 
         public async Task UpsertWallAsync(Dictionary<string, object> args)
         {
-            const string cypher = @"MERGE (w:Wall {uid:$uid})
-SET   w += $props,
-      w.createdBy       = coalesce(w.createdBy,$user),
-      w.createdAt       = coalesce(w.createdAt,$created),
-      w.lastModifiedUtc = datetime($modified)
-RETURN w";
-
+            var setParts = new List<string>();
+            foreach (var kvp in args)
+            {
+                if (kvp.Key is "uid" or "user" or "created" or "modified")
+                    continue;
+                setParts.Add($"w.{kvp.Key} = ${kvp.Key}");
+            }
+            setParts.Add("w.createdBy = coalesce(w.createdBy,$user)");
+            setParts.Add("w.createdAt = coalesce(w.createdAt,$created)");
+            setParts.Add("w.lastModifiedUtc = datetime($modified)");
+            string cypher = $"MERGE (w:Wall {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN w";
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
- await tx.RunAsync(cypher, new { uid = args["uid"], props = args, user = args["user"], created = args["created"], modified = args["modified"] }).ConfigureAwait(false);            await tx.CommitAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
         }
 
-    public async Task UpsertPipeAsync(Dictionary<string, object> args)
+        public async Task UpsertPipeAsync(Dictionary<string, object> args)
         {
-            const string cypher = @"MERGE (p:Pipe {uid:$uid})
-SET   p += $props,
-      p.createdBy       = coalesce(p.createdBy,$user),
-      p.createdAt       = coalesce(p.createdAt,$created),
-      p.lastModifiedUtc = datetime($modified)
-RETURN p";
+            var setParts = new List<string>();
+            foreach (var kvp in args)
+            {
+                if (kvp.Key is "uid" or "user" or "created" or "modified")
+                    continue;
+                setParts.Add($"p.{kvp.Key} = ${kvp.Key}");
+            }
+            setParts.Add("p.createdBy = coalesce(p.createdBy,$user)");
+            setParts.Add("p.createdAt = coalesce(p.createdAt,$created)");
+            setParts.Add("p.lastModifiedUtc = datetime($modified)");
+            string cypher = $"MERGE (p:Pipe {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN p";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
- await tx.RunAsync(cypher, new { uid = args["uid"], props = args, user = args["user"], created = args["created"], modified = args["modified"] }).ConfigureAwait(false);            await tx.CommitAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("Pipe {Uid} upserted", args["uid"]);
         }
 
-        public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)        {
-            const string cypher = @"MERGE (p:ProvisionalSpace {guid:$guid})
-SET p += $props";
+        public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)
+        {
+              var setParts = props.Keys
+                .Where(k => k != "guid")
+                .Select(k => $"p.{k} = ${k}")
+                .ToList();
+            string cypher = $"MERGE (p:ProvisionalSpace {{guid:$guid}}) SET {string.Join(", ", setParts)}";
+            props["guid"] = guid;
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
-            await tx.RunAsync(cypher, new { guid, props }).ConfigureAwait(false);
-            await tx.CommitAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, props).ConfigureAwait(false);
+           await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("ProvisionalSpace {Guid} upserted", guid);
         }
 
@@ -549,7 +567,7 @@ RETURN w";
             return list;
         }
 
-         public async Task<int> AcknowledgeLogChangesAsync(CancellationToken cancellationToken = default)
+        public async Task<int> AcknowledgeLogChangesAsync(CancellationToken cancellationToken = default)
         {
             const string cypher = @"MATCH (lc:LogChanges)
 WITH lc,

@@ -85,4 +85,17 @@ public static class ParameterUtils
             // ignore errors
         }
     }
+    
+    public static string GetIfcEntity(Element elem)
+    {
+        try
+        {
+            var p = elem.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT);
+            return p?.AsString() ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
 }
