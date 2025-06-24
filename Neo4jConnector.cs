@@ -461,20 +461,7 @@ SET c.acknowledged = true",
         public async Task UpsertWallAsync(Dictionary<string, object> args)
         {
             const string cypher = @"MERGE (w:Wall {uid:$uid})
-SET   w.typeId          = $typeId,
-      w.levelId         = $levelId,
-      w.x1              = $x1,
-      w.y1              = $y1,
-      w.z1              = $z1,
-      w.x2              = $x2,
-      w.y2              = $y2,
-      w.z2              = $z2,
-      w.height_mm       = $h,
-      w.thickness_mm    = $t,
-      w.structural      = $struct,
-        w.flipped         = $flip,
-      w.base_offset_mm  = $bo,
-      w.location_line   = $locLine,
+SET   w += $props,
       w.createdBy       = coalesce(w.createdBy,$user),
       w.createdAt       = coalesce(w.createdAt,$created),
       w.lastModifiedUtc = datetime($modified)
@@ -482,23 +469,14 @@ RETURN w";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
-            await tx.RunAsync(cypher, args).ConfigureAwait(false);
-            await tx.CommitAsync().ConfigureAwait(false);
+ await tx.RunAsync(cypher, new { uid = args["uid"], props = args, user = args["user"], created = args["created"], modified = args["modified"] }).ConfigureAwait(false);            await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
         }
 
     public async Task UpsertPipeAsync(Dictionary<string, object> args)
         {
             const string cypher = @"MERGE (p:Pipe {uid:$uid})
-SET   p.elementId       = $elementId,
-      p.levelId         = $levelId,
-      p.x1              = $x1,
-      p.y1              = $y1,
-      p.z1              = $z1,
-      p.x2              = $x2,
-      p.y2              = $y2,
-      p.z2              = $z2,
-      p.diameter_mm     = $diameter,
+SET   p += $props,
       p.createdBy       = coalesce(p.createdBy,$user),
       p.createdAt       = coalesce(p.createdAt,$created),
       p.lastModifiedUtc = datetime($modified)
@@ -506,8 +484,7 @@ RETURN p";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
-            await tx.RunAsync(cypher, args).ConfigureAwait(false);
-            await tx.CommitAsync().ConfigureAwait(false);
+ await tx.RunAsync(cypher, new { uid = args["uid"], props = args, user = args["user"], created = args["created"], modified = args["modified"] }).ConfigureAwait(false);            await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("Pipe {Uid} upserted", args["uid"]);
         }
 
@@ -613,6 +590,17 @@ RETURN count(*) AS updated";
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+
+        public async Task SetLogChangeStatusAsync(long elementId, string sessionId, string status, string code)
+        {
+            const string cypher = @"MATCH (cl:ChangeLog { elementId: $id, sessionId: $session }) SET cl.status = $status, cl.errorCode = $code";
+            await using var session = _driver.AsyncSession();
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                await tx.RunAsync(cypher, new { id = elementId, session = sessionId, status, code }).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+        }
+
 
         public void Dispose()
         {

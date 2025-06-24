@@ -12,8 +12,8 @@ namespace SpaceTracker
         {
             try
             {
-                await CommandManager.Instance.ProcessCypherQueueAsync().ConfigureAwait(false);
-                
+                   await CommandManager.Instance.ProcessCypherQueueAsync(doc).ConfigureAwait(false);
+
                 // Nach dem Push sofort die Solibri-Regeln validieren und die Ampel anpassen
                 var doc = app.ActiveUIDocument?.Document;
                 if (doc != null)

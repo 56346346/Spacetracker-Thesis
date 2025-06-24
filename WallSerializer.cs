@@ -3,6 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
 
+using static SpaceTracker.ParameterUtils;
+
+
 namespace SpaceTracker;
 
 [SupportedOSPlatform("windows")]
@@ -18,10 +21,14 @@ public static class WallSerializer
         double thickness = wall.WallType.Width;
         double baseOffset = wall.get_Parameter(BuiltInParameter.WALL_BASE_OFFSET)?.AsDouble() ?? 0;
         int locationLine = wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.AsInteger() ?? (int)WallLocationLine.WallCenterline;
-        return new Dictionary<string, object>
+        var dict = new Dictionary<string, object>
         {
+            ["rvtClass"] = "Wall",
             ["uid"] = wall.UniqueId,
+            ["elementId"] = wall.Id.Value,
             ["typeId"] = wall.GetTypeId().Value,
+            ["typeName"] = wall.WallType.Name,
+            ["familyName"] = wall.WallType.FamilyName,
             ["levelId"] = wall.LevelId.Value,
             ["x1"] = UnitConversion.ToMm(s.X),
             ["y1"] = UnitConversion.ToMm(s.Y),
@@ -39,5 +46,8 @@ public static class WallSerializer
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow
         };
+        
+        SerializeParameters(wall, dict);
+        return dict;
     }
 }

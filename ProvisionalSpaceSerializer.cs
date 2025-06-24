@@ -2,6 +2,7 @@ using Autodesk.Revit.DB;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
+using static SpaceTracker.ParameterUtils;
 
 namespace SpaceTracker;
 
@@ -20,22 +21,37 @@ public static class ProvisionalSpaceSerializer
         }
 
         var level = inst.Document.GetElement(inst.LevelId) as Level;
-        string levelName = level?.Name ?? "";
-                string name = inst.Name ?? inst.Symbol?.FamilyName ?? string.Empty;
+        string levelName = level?.Name ?? string.Empty;
+        string name = inst.Name ?? inst.Symbol?.FamilyName ?? string.Empty;
+        var loc = inst.Location as LocationPoint;
 
-        return new Dictionary<string, object>
+        var dict = new Dictionary<string, object>
         {
+            ["rvtClass"] = "ProvisionalSpace",
             ["guid"] = inst.UniqueId,
+            ["elementId"] = inst.Id.Value,
+            ["typeId"] = inst.GetTypeId().Value,
+            ["familyName"] = inst.Symbol?.FamilyName ?? string.Empty,
+            ["symbolName"] = inst.Symbol?.Name ?? string.Empty,
             ["name"] = name,
             ["width"] = width,
             ["height"] = height,
             ["thickness"] = thickness,
             ["level"] = levelName,
+            ["levelId"] = inst.LevelId.Value,
+            ["x"] = UnitConversion.ToMm(loc?.Point.X ?? 0),
+            ["y"] = UnitConversion.ToMm(loc?.Point.Y ?? 0),
+            ["z"] = UnitConversion.ToMm(loc?.Point.Z ?? 0),
+            ["rotation"] = loc?.Rotation ?? 0,
+            ["hostId"] = inst.Host?.Id.Value ?? -1,
             ["revitId"] = inst.Id.Value,
             ["ifcType"] = "IfcOpeningElement",
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
             ["user"] = Environment.UserName
         };
+        
+        SerializeParameters(inst, dict);
+        return dict;
     }
 }

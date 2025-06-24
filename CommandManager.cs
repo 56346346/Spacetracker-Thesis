@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
 using SpaceTracker;
+using System.Text.RegularExpressions;
 
 namespace SpaceTracker
 {
@@ -79,7 +80,7 @@ namespace SpaceTracker
         }
 
 
-        public async Task ProcessCypherQueueAsync()
+        public async Task ProcessCypherQueueAsync(Document currentDoc = null)
         {
             await _cypherLock.WaitAsync();
             try
@@ -88,16 +89,27 @@ namespace SpaceTracker
                     return;
 
                 var changes = new List<(string Command, string Path)>();
+                var ids = new HashSet<long>();
+                var idRegex = new Regex(@"ElementId\D+(\d+)");
                 while (cypherCommands.TryDequeue(out string cyCommand))
                 {
                     string cache = ChangeCacheHelper.WriteChange(cyCommand);
                     changes.Add((cyCommand, cache));
+                    var match = idRegex.Match(cyCommand);
+                    if (match.Success && long.TryParse(match.Groups[1].Value, out long parsed))
+                        ids.Add(parsed);
                 }
 
- await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName, null).ConfigureAwait(false);                LastSyncTime = DateTime.Now;
+                await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName, currentDoc).ConfigureAwait(false);
+                LastSyncTime = DateTime.Now;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
                 await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                                if (currentDoc != null)
+                {
+                    foreach (var id in ids)
+                        _ = Task.Run(() => SolibriChecker.CheckElementAsync(new ElementId((int)id), currentDoc));
+                }
             }
             catch (Exception ex)
             {

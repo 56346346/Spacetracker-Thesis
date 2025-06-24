@@ -44,6 +44,8 @@ namespace SpaceTracker
 
         private Neo4jConnector _neo4jConnector;
         private DatabaseUpdateHandler _databaseUpdateHandler;
+                private GraphPuller _graphPuller;
+
 
         public const int SolibriApiPort = 10876;
 
@@ -254,11 +256,9 @@ namespace SpaceTracker
                 _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
 
                 CommandManager.Initialize(_neo4jConnector);
-
-
                 _extractor = new SpaceExtractor(CommandManager.Instance);
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
-
+                                _graphPuller = new GraphPuller(_neo4jConnector);
                 _cmdManager = CommandManager.Instance;
             }
             catch (Exception ex)
@@ -720,6 +720,8 @@ namespace SpaceTracker
                 // Direkt nach dem Einreihen einen Push anstoßen, damit die
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
                 _databaseUpdateHandler.TriggerPush();
+                _graphPuller?.RequestPull(doc, Environment.UserName);
+
 
             }
             catch (Exception ex)
