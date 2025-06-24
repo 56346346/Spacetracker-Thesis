@@ -44,8 +44,8 @@ public static class RevitElementBuilder
         double height = UnitConversion.ToFt(Convert.ToDouble(node["h"]));
         double offset = node.ContainsKey("bo") ? UnitConversion.ToFt(Convert.ToDouble(node["bo"])) : 0;
         bool flip = node.ContainsKey("flip") && Convert.ToBoolean(node["flip"]);
-        Wall wall = Wall.Create(doc, line, typeId, levelId, height, offset, flip);
-        if (node.TryGetValue("locLine", out var ll))
+ bool structural = node.ContainsKey("structural") && Convert.ToBoolean(node["structural"]);
+        Wall wall = Wall.Create(doc, line, typeId, levelId, height, offset, flip, structural);        if (node.TryGetValue("locLine", out var ll))
             wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(Convert.ToInt32(ll));
         ParameterUtils.ApplyParameters(wall, node);
         return wall;
@@ -78,8 +78,8 @@ public static class RevitElementBuilder
         XYZ p = new XYZ(UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("x", 0.0))),
                         UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("y", 0.0))),
                         UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("z", 0.0))));
-        Level level = doc.GetElement(new ElementId(Convert.ToInt32(node["levelId"]))) as Level;
-        Element host = null;
+Level? level = doc.GetElement(new ElementId(Convert.ToInt32(node["levelId"]))) as Level;
+        Element? host = null;
         if (node.TryGetValue("hostId", out var hostObj) && Convert.ToInt64(hostObj) > 0)
             host = doc.GetElement(new ElementId(Convert.ToInt32(hostObj)));
         FamilyInstance fi = host != null
@@ -91,7 +91,7 @@ public static class RevitElementBuilder
     private static void BuildWall(Document doc, INode node)
     {
         string uid = node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty;
-        Element existing = !string.IsNullOrEmpty(uid) ? doc.GetElement(uid) : null;
+        Element? existing = !string.IsNullOrEmpty(uid) ? doc.GetElement(uid) : null;
         XYZ s = new XYZ(UnitConversion.ToFt(node.Properties["x1"].As<double>()),
                         UnitConversion.ToFt(node.Properties["y1"].As<double>()),
                         UnitConversion.ToFt(node.Properties["z1"].As<double>()));
@@ -151,7 +151,7 @@ public static class RevitElementBuilder
     private static void BuildPipe(Document doc, INode node)
     {
         string uid = node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty;
-        Element existing = !string.IsNullOrEmpty(uid) ? doc.GetElement(uid) : null;
+        Element? existing = !string.IsNullOrEmpty(uid) ? doc.GetElement(uid) : null;
         XYZ s = new XYZ(UnitConversion.ToFt(node.Properties["x1"].As<double>()),
                         UnitConversion.ToFt(node.Properties["y1"].As<double>()),
                         UnitConversion.ToFt(node.Properties["z1"].As<double>()));
@@ -168,11 +168,15 @@ public static class RevitElementBuilder
         {
             double diam = UnitConversion.ToFt(node.Properties["diameter"].As<double>());
             var line = Line.CreateBound(s, e);
+            ElementId systemTypeId = node.Properties.ContainsKey("systemTypeId")
+                ? new ElementId((long)node.Properties["systemTypeId"].As<long>())
+                : ElementId.InvalidElementId;
             Pipe newPipe = Pipe.Create(doc,
+             systemTypeId,
                 doc.GetDefaultElementTypeId(ElementTypeGroup.PipeType),
                 new ElementId((long)node.Properties["levelId"].As<long>()),
                 line.GetEndPoint(0), line.GetEndPoint(1));
-            newPipe.Diameter = diam;
-        }
+            newPipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)?.Set(diam);     
+      }
     }
 }

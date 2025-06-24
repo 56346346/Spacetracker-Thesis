@@ -2,6 +2,8 @@ using System;
 using Autodesk.Revit.UI;
 using System.Linq;
 
+#nullable enable
+
 
 
 namespace SpaceTracker
@@ -12,10 +14,10 @@ namespace SpaceTracker
         {
             try
             {
-                   await CommandManager.Instance.ProcessCypherQueueAsync(doc).ConfigureAwait(false);
-
-                // Nach dem Push sofort die Solibri-Regeln validieren und die Ampel anpassen
                 var doc = app.ActiveUIDocument?.Document;
+                await CommandManager.Instance.ProcessCypherQueueAsync(doc).ConfigureAwait(false);
+                // Nach dem Push sofort die Solibri-Regeln validieren und die Ampel anpassen
+
                 if (doc != null)
                 {
                     var errs = SolibriRulesetValidator.Validate(doc);

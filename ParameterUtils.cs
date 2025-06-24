@@ -5,6 +5,8 @@ using System.Runtime.Versioning;
 
 namespace SpaceTracker;
 
+#nullable enable
+
 [SupportedOSPlatform("windows")]
 public static class ParameterUtils
 {
@@ -26,7 +28,7 @@ public static class ParameterUtils
                     StorageType.Double => p.AsDouble(),
                     StorageType.Integer => p.AsInteger(),
                     StorageType.String => p.AsString() ?? string.Empty,
-                    StorageType.ElementId => p.AsElementId().IntegerValue,
+                    StorageType.ElementId => p.AsElementId().Value,
                     _ => p.AsValueString() ?? string.Empty
                 };
                 dict[key] = value;
