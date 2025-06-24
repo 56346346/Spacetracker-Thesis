@@ -2,8 +2,14 @@ using Autodesk.Revit.DB;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
+using Autodesk.Revit.DB.Plumbing;
+using Autodesk.Revit.DB.Structure;
+using Neo4j.Driver;
+using System.Diagnostics;
 
 namespace SpaceTracker;
+
+#nullable enable
 
 [SupportedOSPlatform("windows")]
 public static class RevitElementBuilder
@@ -82,7 +88,7 @@ public static class RevitElementBuilder
         ParameterUtils.ApplyParameters(fi, node);
         return fi;
     }
-     private static void BuildWall(Document doc, INode node)
+    private static void BuildWall(Document doc, INode node)
     {
         string uid = node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty;
         Element existing = !string.IsNullOrEmpty(uid) ? doc.GetElement(uid) : null;
@@ -113,8 +119,7 @@ public static class RevitElementBuilder
                 llp.Set(node.Properties["location_line"].As<int>());
         }
     }
-    
-     public static void BuildFromNodes(Document doc, INode node)
+        public static void BuildFromNodes(Document doc, INode node)
     {
         if (node == null) return;
         try
@@ -169,3 +174,5 @@ public static class RevitElementBuilder
                 line.GetEndPoint(0), line.GetEndPoint(1));
             newPipe.Diameter = diam;
         }
+    }
+}
