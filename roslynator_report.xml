@@ -41,7 +41,7 @@
             <Severity>Info</Severity>
             <Message>Member als statisch markieren</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="571" Character="23" />
+            <Location Line="579" Character="23" />
           </Diagnostic>
           <Diagnostic Id="CA2211">
             <Severity>Info</Severity>
