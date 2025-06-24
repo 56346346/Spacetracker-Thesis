@@ -16,5 +16,8 @@ public record WallNode(
     double Z2,
     double HeightMm,
     double ThicknessMm,
-    bool Structural
+     bool Structural,
+    bool Flipped,
+    double BaseOffsetMm,
+    int LocationLine
 );

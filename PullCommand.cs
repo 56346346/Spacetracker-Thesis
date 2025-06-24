@@ -59,8 +59,12 @@ public class PullCommand : IExternalCommand
                 Line loc = Line.CreateBound(
                     new XYZ(UnitConversion.ToFt(w.X1), UnitConversion.ToFt(w.Y1), UnitConversion.ToFt(w.Z1)),
                     new XYZ(UnitConversion.ToFt(w.X2), UnitConversion.ToFt(w.Y2), UnitConversion.ToFt(w.Z2)));
- Wall.Create(doc, loc, new ElementId(w.TypeId), new ElementId(w.LevelId),
-                    UnitConversion.ToFt(w.HeightMm), UnitConversion.ToFt(w.ThicknessMm), false, w.Structural);            }
+ Wall newWall = Wall.Create(doc, loc, new ElementId(w.TypeId), new ElementId(w.LevelId),
+                    UnitConversion.ToFt(w.HeightMm), UnitConversion.ToFt(w.BaseOffsetMm), w.Flipped, w.Structural);
+                Parameter llp = newWall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM);
+                if (llp != null && !llp.IsReadOnly)
+                    llp.Set(w.LocationLine);
+            }
             revitTx.Commit();
    }
 

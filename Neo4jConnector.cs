@@ -472,6 +472,9 @@ SET   w.typeId          = $typeId,
       w.height_mm       = $h,
       w.thickness_mm    = $t,
       w.structural      = $struct,
+        w.flipped         = $flip,
+      w.base_offset_mm  = $bo,
+      w.location_line   = $locLine,
       w.createdBy       = coalesce(w.createdBy,$user),
       w.createdAt       = coalesce(w.createdAt,$created),
       w.lastModifiedUtc = datetime($modified)
@@ -559,7 +562,10 @@ RETURN w";
                     node.Properties["z2"].As<double>(),
                     node.Properties["height_mm"].As<double>(),
                     node.Properties["thickness_mm"].As<double>(),
-                    node.Properties["structural"].As<bool>()
+                     node.Properties["structural"].As<bool>(),
+                    node.Properties.ContainsKey("flipped") ? node.Properties["flipped"].As<bool>() : false,
+                    node.Properties.ContainsKey("base_offset_mm") ? node.Properties["base_offset_mm"].As<double>() : 0.0,
+                    node.Properties.ContainsKey("location_line") ? node.Properties["location_line"].As<int>() : (int)WallLocationLine.WallCenterline
                 );
             }).ConfigureAwait(false);
             _logger.LogInformation("Pulled {Count} walls", list.Count);

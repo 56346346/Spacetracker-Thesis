@@ -423,16 +423,7 @@ namespace SpaceTracker
 
                 }
 
-                var pipeCollector = new FilteredElementCollector(doc)
-                    .OfCategory(BuiltInCategory.OST_PipeCurves)
-                    .OfClass(typeof(MEPCurve))
-                    .WherePasses(lvlFilter);
 
-                foreach (MEPCurve pipe in pipeCollector)
-                {
-                    ProcessPipe(pipe, doc);
-
-                }
                 var provCollector = new FilteredElementCollector(doc)
                                  .OfCategory(BuiltInCategory.OST_GenericModel)
                                  .OfClass(typeof(FamilyInstance))
@@ -446,7 +437,18 @@ namespace SpaceTracker
                         ProcessProvisionalSpace(inst, doc);
                     }
                 }
-            }
+                
+                var pipeCollector = new FilteredElementCollector(doc)
+                    .OfCategory(BuiltInCategory.OST_PipeCurves)
+                    .OfClass(typeof(MEPCurve))
+                    .WherePasses(lvlFilter);
+
+                foreach (MEPCurve pipe in pipeCollector)
+                {
+                    ProcessPipe(pipe, doc);
+
+                }
+                            }
             foreach (Element stair in new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_Stairs)
                 .WhereElementIsNotElementType())
