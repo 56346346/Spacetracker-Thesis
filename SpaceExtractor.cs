@@ -149,9 +149,6 @@ namespace SpaceTracker
                 if (ifc != "IfcOpeningElement")
                     return;
                 var host = inst.Host as Wall;
-                if (host == null)
-                    return;
-
                 var data = ProvisionalSpaceSerializer.ToNode(inst);
                 var inv = CultureInfo.InvariantCulture;
                 string cyNode =
@@ -161,15 +158,16 @@ namespace SpaceTracker
                     $"p.thickness = {((double)data["thickness"]).ToString(inv)}, " +
                     $"p.level = '{EscapeString(data["level"].ToString())}', " +
                     $"p.revitId = {data["revitId"]}, p.ifcType = 'IfcOpeningElement'";
-                _cmdManager.cypherCommands.Enqueue(cyNode);
-
-                string cyRel =
-                    $"MATCH (w:Wall {{ElementId:{host.Id.Value}}}), (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
-                    "MERGE (w)-[:HAS_PROV_SPACE]->(p)";
-                _cmdManager.cypherCommands.Enqueue(cyRel);
+                 if (host != null)
+                {
+                    string cyRel =
+                        $"MATCH (w:Wall {{ElementId:{host.Id.Value}}}), (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
+                        "MERGE (w)-[:HAS_PROV_SPACE]->(p)";
+                    _cmdManager.cypherCommands.Enqueue(cyRel);
+                    Debug.WriteLine("[Neo4j] Cypher erzeugt (ProvSpace Rel): " + cyRel);
+                }
 
                 Debug.WriteLine("[Neo4j] Cypher erzeugt (ProvSpace Node): " + cyNode);
-                Debug.WriteLine("[Neo4j] Cypher erzeugt (ProvSpace Rel): " + cyRel);
             }
             catch (Exception ex)
             {
@@ -191,6 +189,8 @@ namespace SpaceTracker
                     $"p.x2 = {((double)data["x2"]).ToString(inv)}, p.y2 = {((double)data["y2"]).ToString(inv)}, p.z2 = {((double)data["z2"]).ToString(inv)}, " +
                     $"p.diameter_mm = {((double)data["diameter"]).ToString(inv)}";
                 _cmdManager.cypherCommands.Enqueue(cyNode);
+                                Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe Node): " + cyNode);
+
 
                 BoundingBoxXYZ bbPipe = pipe.get_BoundingBox(null);
                 if (bbPipe == null) return;
@@ -219,6 +219,8 @@ namespace SpaceTracker
                             $"MATCH (pi:Pipe {{uid:'{data["uid"]}'}}), (ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) " +
                             "MERGE (pi)-[:CONTAINED_IN]->(ps)";
                         _cmdManager.cypherCommands.Enqueue(cyRel);
+                        Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe->ProvSpace): " + cyRel);
+
                     }
                 }
             }
