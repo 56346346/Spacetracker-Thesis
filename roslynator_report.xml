@@ -2,11 +2,7 @@
 <Roslynator>
   <CodeAnalysis>
     <Summary>
-      <Diagnostic Id="CA1806" Title="Methodenergebnisse nicht ignorieren" Count="2">
-        <Description>Ein neues Objekt wird erstellt, aber nicht verwendet, oder eine Methode wird aufgerufen, die eine neue Zeichenfolge erstellt und zurückgibt, aber die neue Zeichenfolge wird niemals verwendet, oder eine COM- oder P/Invoke-Methode gibt einen HRESULT-Wert oder einen Fehlercode zurück, der nicht verwendet wird.</Description>
-        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1806</HelpLink>
-      </Diagnostic>
-      <Diagnostic Id="CA1822" Title="Member als statisch markieren" Count="9">
+      <Diagnostic Id="CA1822" Title="Member als statisch markieren" Count="1">
         <Description>Member, die nicht auf Instanzdaten zugreifen oder Instanzmethoden aufrufen, können als "static" markiert werden. Nachdem Sie die Methoden als statisch markiert haben, gibt der Compiler nicht virtuelle Aufrufsites an diese Member aus. Dadurch kann sich für leistungsabhängigen Code eine spürbare Leistungssteigerung ergeben.</Description>
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1822</HelpLink>
       </Diagnostic>
@@ -14,33 +10,9 @@
         <Description>Das NeutralResourcesLanguage-Attribut informiert den ResourceManager über die Sprache, die zum Anzeigen der Ressourcen einer neutralen Kultur für eine Assembly verwendet wurde. Dadurch wird die Suchleistung für die erste von Ihnen geladene Ressource verbessert, und Ihr Arbeitssatz wird möglicherweise reduziert.</Description>
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1824</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CA1836" Title="Ziehen Sie &quot;IsEmpty&quot; gegenüber &quot;Count&quot; vor" Count="1">
-        <Description>Wenn Sie bestimmen möchten, ob das Objekt Elemente enthält oder nicht, verwenden Sie die Eigenschaft "IsEmpty", anstatt die Anzahl von Elementen aus der Eigenschaft "Count" abzurufen und mit 0 oder 1 zu vergleichen.</Description>
-        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1836</HelpLink>
-      </Diagnostic>
-      <Diagnostic Id="CA1837" Title="&quot;Environment.ProcessId&quot; verwenden" Count="1">
-        <Description>"Environment.ProcessId" ist einfacher und schneller als "Process.GetCurrentProcess().Id".</Description>
-        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1837</HelpLink>
-      </Diagnostic>
-      <Diagnostic Id="CA1853" Title="Nicht erforderlicher Aufruf von “Dictionary.ContainsKey(key)”" Count="1">
-        <Description>Schützen Sie “Dictionary.Remove(key)” nicht mit “Dictionary.ContainsKey(key)”. Der erste Schlüssel überprüft bereits, ob der Schlüssel vorhanden ist, und gibt keinen Fehler aus, wenn dies nicht der Fall ist.</Description>
-        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1853</HelpLink>
-      </Diagnostic>
-      <Diagnostic Id="CA1854" Title="Methode „IDictionary.TryGetValue(TKey, out TValue)“ bevorzugen" Count="1">
-        <Description>Ziehen Sie einen „TryGetValue“-Aufruf einem Wörterbuchindexerzugriff vor, der durch eine „ContainsKey“-Überprüfung geschützt wird. „ContainsKey“ und der Indexer würden beide den Schlüssel im Hintergrund suchen; die Verwendung von „TryGetValue“ entfernt die zusätzliche Suche.</Description>
-        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1854</HelpLink>
-      </Diagnostic>
-      <Diagnostic Id="CA1860" Title="Verwendung der Erweiterungsmethode „Enumerable.Any()“ vermeiden" Count="5">
-        <Description>Verwenden Sie lieber die Eigenschaften „IsEmpty“, „Count“ oder „Length“, sofern verfügbar, statt „Enumerable.Any()“ aufzurufen. Die Absicht ist klarer und das Ausführungsverhalten besser als bei Verwendung der Erweiterungsmethode „Enumerable.Any()“.</Description>
-        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1860</HelpLink>
-      </Diagnostic>
       <Diagnostic Id="CA2211" Title="Nicht konstante Felder dürfen nicht sichtbar sein" Count="2">
         <Description>Statische Felder, die weder Konstanten noch schreibgeschützt sind, sind nicht threadsicher. Der Zugriff auf ein solches Feld muss sorgfältig kontrolliert werden und erfordert erweiterte Programmiertechniken, um den Zugriff auf das Klassenobjekt zu synchronisieren.</Description>
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2211</HelpLink>
-      </Diagnostic>
-      <Diagnostic Id="CA2249" Title="Erwägen Sie die Verwendung von &quot;string.Contains&quot; anstelle von &quot;string.IndexOf&quot;" Count="5">
-        <Description>Aufrufe von "string.IndexOf", um das Ergebnis auf das Vorhandensein/Fehlen einer Teilzeichenfolge zu überprüfen, können durch "string.Contains" ersetzt werden.</Description>
-        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2249</HelpLink>
       </Diagnostic>
       <Diagnostic Id="SYSLIB1045" Title="In „GeneratedRegexAttribute“ konvertieren." Count="2">
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/syslib-diagnostics/syslib1045</HelpLink>
@@ -59,42 +31,6 @@
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\ChangeCacheHelper.cs</FilePath>
             <Location Line="67" Character="25" />
           </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\CommandManager.cs</FilePath>
-            <Location Line="130" Character="24" />
-          </Diagnostic>
-          <Diagnostic Id="CA1837">
-            <Severity>Info</Severity>
-            <Message>"Environment.ProcessId" verwenden</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\CommandManager.cs</FilePath>
-            <Location Line="133" Character="32" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\DatabaseUpdateHandler.cs</FilePath>
-            <Location Line="149" Character="31" />
-          </Diagnostic>
-          <Diagnostic Id="CA1806">
-            <Severity>Info</Severity>
-            <Message>Methodenergebnisse nicht ignorieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\Neo4jConnector.cs</FilePath>
-            <Location Line="117" Character="25" />
-          </Diagnostic>
-          <Diagnostic Id="CA2249">
-            <Severity>Info</Severity>
-            <Message>Erwägen Sie die Verwendung von "string.Contains" anstelle von "string.IndexOf"</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\Neo4jConnector.cs</FilePath>
-            <Location Line="106" Character="25" />
-          </Diagnostic>
-          <Diagnostic Id="CA2249">
-            <Severity>Info</Severity>
-            <Message>Erwägen Sie die Verwendung von "string.Contains" anstelle von "string.IndexOf"</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\Neo4jConnector.cs</FilePath>
-            <Location Line="108" Character="30" />
-          </Diagnostic>
           <Diagnostic Id="SYSLIB1045">
             <Severity>Info</Severity>
             <Message>In „GeneratedRegexAttribute“ konvertieren.</Message>
@@ -105,97 +41,7 @@
             <Severity>Info</Severity>
             <Message>Member als statisch markieren</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="265" Character="24" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="586" Character="23" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="926" Character="31" />
-          </Diagnostic>
-          <Diagnostic Id="CA1806">
-            <Severity>Info</Severity>
-            <Message>Methodenergebnisse nicht ignorieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="143" Character="21" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="371" Character="31" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="400" Character="22" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="634" Character="31" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="642" Character="31" />
-          </Diagnostic>
-          <Diagnostic Id="CA1836">
-            <Severity>Info</Severity>
-            <Message>Ziehen Sie "IsEmpty" gegenüber "Count" vor</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="766" Character="25" />
-          </Diagnostic>
-          <Diagnostic Id="CA1853">
-            <Severity>Info</Severity>
-            <Message>Nicht erforderlicher Aufruf von “Dictionary.ContainsKey(key)”</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="630" Character="21" />
-          </Diagnostic>
-          <Diagnostic Id="CA1854">
-            <Severity>Info</Severity>
-            <Message>Methode „IDictionary.TryGetValue(TKey, out TValue)“ bevorzugen</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="167" Character="36" />
-          </Diagnostic>
-          <Diagnostic Id="CA1860">
-            <Severity>Info</Severity>
-            <Message>Verwendung der Erweiterungsmethode „Enumerable.Any()“ vermeiden</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="700" Character="22" />
-          </Diagnostic>
-          <Diagnostic Id="CA1860">
-            <Severity>Info</Severity>
-            <Message>Verwendung der Erweiterungsmethode „Enumerable.Any()“ vermeiden</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="701" Character="20" />
-          </Diagnostic>
-          <Diagnostic Id="CA1860">
-            <Severity>Info</Severity>
-            <Message>Verwendung der Erweiterungsmethode „Enumerable.Any()“ vermeiden</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="702" Character="20" />
-          </Diagnostic>
-          <Diagnostic Id="CA1860">
-            <Severity>Info</Severity>
-            <Message>Verwendung der Erweiterungsmethode „Enumerable.Any()“ vermeiden</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="703" Character="20" />
-          </Diagnostic>
-          <Diagnostic Id="CA1860">
-            <Severity>Info</Severity>
-            <Message>Verwendung der Erweiterungsmethode „Enumerable.Any()“ vermeiden</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="704" Character="20" />
+            <Location Line="571" Character="23" />
           </Diagnostic>
           <Diagnostic Id="CA2211">
             <Severity>Info</Severity>
@@ -208,24 +54,6 @@
             <Message>Nicht konstante Felder dürfen nicht sichtbar sein</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
             <Location Line="60" Character="34" />
-          </Diagnostic>
-          <Diagnostic Id="CA2249">
-            <Severity>Info</Severity>
-            <Message>Erwägen Sie die Verwendung von "string.Contains" anstelle von "string.IndexOf"</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="148" Character="21" />
-          </Diagnostic>
-          <Diagnostic Id="CA2249">
-            <Severity>Info</Severity>
-            <Message>Erwägen Sie die Verwendung von "string.Contains" anstelle von "string.IndexOf"</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="150" Character="26" />
-          </Diagnostic>
-          <Diagnostic Id="CA2249">
-            <Severity>Info</Severity>
-            <Message>Erwägen Sie die Verwendung von "string.Contains" anstelle von "string.IndexOf"</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="150" Character="91" />
           </Diagnostic>
         </Diagnostics>
       </Project>

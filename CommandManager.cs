@@ -127,10 +127,10 @@ namespace SpaceTracker
             }
         }
 
-        private string GenerateSessionId()
-        {
+ private static string GenerateSessionId()
+         {
             string user = Environment.UserName;
-            string processId = Process.GetCurrentProcess().Id.ToString();
+            string processId = Environment.ProcessId.ToString();
             return $"{user}_{processId}_{Guid.NewGuid().ToString().Substring(0, 8)}";
         }
 

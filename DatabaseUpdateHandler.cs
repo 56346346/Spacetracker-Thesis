@@ -146,7 +146,7 @@ namespace SpaceTracker
 
          private enum IssueSeverity { None, Warning, Error }
 
-        private IssueSeverity ProcessBcfAndWriteToNeo4j(string bcfZipPath)
+        private static IssueSeverity ProcessBcfAndWriteToNeo4j(string bcfZipPath)
         {
             IssueSeverity worst = IssueSeverity.None;
             using var archive = ZipFile.OpenRead(bcfZipPath);

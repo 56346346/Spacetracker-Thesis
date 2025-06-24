@@ -103,9 +103,9 @@ namespace SpaceTracker
 
                     // 4.2) Änderungstyp bestimmen (Insert/Modify/Delete)
                     string changeType;
-                    if (cmd.IndexOf("DELETE", StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (cmd.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
                         changeType = "Delete";
-                    else if (cmd.IndexOf("MERGE", StringComparison.OrdinalIgnoreCase) >= 0)
+                    else if (cmd.Contains("MERGE", StringComparison.OrdinalIgnoreCase))
                         changeType = "Insert";
                     else
                         changeType = "Modify";
@@ -113,8 +113,8 @@ namespace SpaceTracker
                     // 4.3) ElementId extrahieren (oder -1, wenn nicht gefunden)
                     long elementId = -1;
                     var match = idRegex.Match(cmd);
-                    if (match.Success)
-                        long.TryParse(match.Groups[1].Value, out elementId);
+                      if (match.Success && long.TryParse(match.Groups[1].Value, out var parsedId))
+                        elementId = parsedId;
 
                     // 4.4) Audit-Log-Einträge erzeugen. Bei "Insert" nur ein Log
                     //      pro ElementId und Session erlauben

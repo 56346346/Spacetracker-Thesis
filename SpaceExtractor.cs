@@ -196,7 +196,7 @@ namespace SpaceTracker
                     .OfCategory(BuiltInCategory.OST_GenericModel)
                     .OfClass(typeof(FamilyInstance));
 
-                foreach (FamilyInstance ps in psCollector)
+                foreach (FamilyInstance ps in psCollector.Cast<FamilyInstance>())
                 {
                     var ifcPs = GetIfcExportClass(ps);
                     if (ifcPs != "IfcOpeningElement")
@@ -251,7 +251,7 @@ namespace SpaceTracker
 
 
 
-        private string EscapeString(string input)
+        private static string EscapeString(string input)
         {
             if (string.IsNullOrEmpty(input)) return "";
             return input
@@ -908,7 +908,7 @@ namespace SpaceTracker
 
         }
 
-        public IList<Element> getRoomFromWall(Document doc, Wall wall)
+        public static IList<Element> getRoomFromWall(Document doc, Wall wall)
         {
             BoundingBoxXYZ wall_bb = wall.get_BoundingBox(null);
             Outline outl = new Outline(wall_bb.Min, wall_bb.Max);

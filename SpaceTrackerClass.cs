@@ -140,15 +140,15 @@ namespace SpaceTracker
                     string sub = cmd.Substring(idx);
                     sub = new string(sub.SkipWhile(ch => !char.IsDigit(ch) && ch != '-').ToArray());
                     string num = new string(sub.TakeWhile(ch => char.IsDigit(ch) || ch == '-').ToArray());
-                    long.TryParse(num, out id);
+                    if (long.TryParse(num, out var parsedId))
+                        id = parsedId;
                 }
                 if (id < 0) continue;
                 localPendingIds.Add(id);
                 string lType;
-                if (cmd.IndexOf("DELETE", StringComparison.OrdinalIgnoreCase) >= 0)
+                if (cmd.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
                     lType = "Delete";
-                else if (cmd.IndexOf("MERGE", StringComparison.OrdinalIgnoreCase) >= 0 && cmd.IndexOf("MATCH", StringComparison.OrdinalIgnoreCase) == -1)
-                    lType = "Insert";
+                else if (cmd.Contains("MERGE", StringComparison.OrdinalIgnoreCase) && !cmd.Contains("MATCH", StringComparison.OrdinalIgnoreCase)) lType = "Insert";
                 else
                     lType = "Modify";
                 localChangeType[id] = lType;
@@ -164,7 +164,7 @@ namespace SpaceTracker
                 string rType = rec["type"].As<string>();
                 if (localPendingIds.Contains(id))
                 {
-                    string lType = localChangeType.ContainsKey(id) ? localChangeType[id] : "Modify";
+                    string lType = localChangeType.TryGetValue(id, out var tmp) ? tmp : "Modify";
                     if (!(rType == "Delete" && lType == "Delete"))
                     {
                         conflict = true;
@@ -368,7 +368,7 @@ namespace SpaceTracker
             }
         }
 
-        private UIApplication TryGetUIApplication(UIControlledApplication app)
+        private static UIApplication TryGetUIApplication(UIControlledApplication app)
         {
             try
             {
@@ -397,7 +397,7 @@ namespace SpaceTracker
             return null;
         }
 
-        private void RegisterGlobalExceptionHandlers()
+        private static void RegisterGlobalExceptionHandlers()
         {
             SolibriProcessManager.Port = SolibriApiPort;
             _ = Task.Run(() =>
@@ -627,11 +627,10 @@ namespace SpaceTracker
             }
             foreach (var delId in deletedIds)
             {
-                if (_elementCache.ContainsKey(delId))
-                    _elementCache.Remove(delId);
+                _elementCache.Remove(delId);
             }
         }
-        private List<Element> GetAddedElements(DocumentChangedEventArgs e, Document doc)
+        private static List<Element> GetAddedElements(DocumentChangedEventArgs e, Document doc)
         {
             return e.GetAddedElementIds()
                    .Select(id => doc.GetElement(id))
@@ -639,7 +638,7 @@ namespace SpaceTracker
                    .ToList();
         }
 
-        private List<Element> GetModifiedElements(DocumentChangedEventArgs e, Document doc)
+        private static List<Element> GetModifiedElements(DocumentChangedEventArgs e, Document doc)
         {
             return e.GetModifiedElementIds()
                    .Select(id => doc.GetElement(id))
@@ -697,11 +696,11 @@ namespace SpaceTracker
                 var addedElements = GetAddedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
 
                 var modifiedElements = GetModifiedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
-                if (!addedElements.Any() &&
-                  !modifiedElements.Any() &&
-                  !deletedIds.Any() &&
-                  !addedIds.Any() &&
-                  !modifiedIds.Any())
+                if (addedElements.Count == 0 &&
+                 modifiedElements.Count == 0 &&
+                 deletedIds.Count == 0 &&
+                 addedIds.Count == 0 &&
+                 modifiedIds.Count == 0)
                     return;
 
 
@@ -763,7 +762,7 @@ namespace SpaceTracker
                     Debug.WriteLine("[SpaceTracker] Neuer Graph - initialer Upload der Modelldaten.");
                     _extractor.CreateInitialGraph(doc);  // alle vorhandenen Elemente ins Queue einreihen
                                                          // Änderungen in einem Batch an Neo4j senden (Push)
-                    if (CommandManager.Instance.cypherCommands.Count > 0)
+                    if (!CommandManager.Instance.cypherCommands.IsEmpty)
                     {
                         // Befehle kopieren, damit die Queue sofort wieder benutzt werden kann
                         var cmds = CommandManager.Instance.cypherCommands.ToList();
