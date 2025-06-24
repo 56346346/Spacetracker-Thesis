@@ -9,6 +9,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.DB.Events;
 using System.Linq;
+using System.Globalization;
 
 
 namespace SpaceTracker
@@ -144,7 +145,7 @@ namespace SpaceTracker
         {
             try
             {
- var ifc = GetIfcExportClass(inst);
+                var ifc = GetIfcExportClass(inst);
                 if (ifc != "IfcOpeningElement")
                     return;
                 var host = inst.Host as Wall;
@@ -152,11 +153,12 @@ namespace SpaceTracker
                     return;
 
                 var data = ProvisionalSpaceSerializer.ToNode(inst);
+                var inv = CultureInfo.InvariantCulture;
                 string cyNode =
                     $"MERGE (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
                     $"SET p.name = '{EscapeString(data["name"].ToString())}', " +
-                    $"p.width = {data["width"]}, p.height = {data["height"]}, " +
-                    $"p.thickness = {data["thickness"]}, " +
+                       $"p.width = {((double)data["width"]).ToString(inv)}, p.height = {((double)data["height"]).ToString(inv)}, " +
+                    $"p.thickness = {((double)data["thickness"]).ToString(inv)}, " +
                     $"p.level = '{EscapeString(data["level"].ToString())}', " +
                     $"p.revitId = {data["revitId"]}, p.ifcType = 'IfcOpeningElement'";
                 _cmdManager.cypherCommands.Enqueue(cyNode);
@@ -175,17 +177,19 @@ namespace SpaceTracker
             }
         }
 
-          private void ProcessPipe(MEPCurve pipe, Document doc)
+        private void ProcessPipe(MEPCurve pipe, Document doc)
         {
             try
             {
                 var data = PipeSerializer.ToNode(pipe);
+                                var inv = CultureInfo.InvariantCulture;
+
                 string cyNode =
                     $"MERGE (p:Pipe {{uid:'{data["uid"]}'}}) " +
                     $"SET p.elementId = {data["elementId"]}, p.levelId = {data["levelId"]}, " +
-                    $"p.x1 = {data["x1"]}, p.y1 = {data["y1"]}, p.z1 = {data["z1"]}, " +
-                    $"p.x2 = {data["x2"]}, p.y2 = {data["y2"]}, p.z2 = {data["z2"]}, " +
-                    $"p.diameter_mm = {data["diameter"]}";
+                     $"p.x1 = {((double)data["x1"]).ToString(inv)}, p.y1 = {((double)data["y1"]).ToString(inv)}, p.z1 = {((double)data["z1"]).ToString(inv)}, " +
+                    $"p.x2 = {((double)data["x2"]).ToString(inv)}, p.y2 = {((double)data["y2"]).ToString(inv)}, p.z2 = {((double)data["z2"]).ToString(inv)}, " +
+                    $"p.diameter_mm = {((double)data["diameter"]).ToString(inv)}";
                 _cmdManager.cypherCommands.Enqueue(cyNode);
 
                 BoundingBoxXYZ bbPipe = pipe.get_BoundingBox(null);
@@ -259,8 +263,8 @@ namespace SpaceTracker
                 .Replace("'", "''")
                 .Replace("\"", "'");      // für Cypher (doppelte Anführungszeichen → einfach)
         }
-        
-         private static string GetIfcExportClass(Element elem)
+
+        private static string GetIfcExportClass(Element elem)
         {
             var p = elem.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT);
             var ifcClass = p?.AsString() ?? string.Empty;
@@ -426,8 +430,8 @@ namespace SpaceTracker
 
                 foreach (MEPCurve pipe in pipeCollector)
                 {
-                        ProcessPipe(pipe, doc);
-                    
+                    ProcessPipe(pipe, doc);
+
                 }
                 var provCollector = new FilteredElementCollector(doc)
                                  .OfCategory(BuiltInCategory.OST_GenericModel)
@@ -437,7 +441,7 @@ namespace SpaceTracker
                 foreach (FamilyInstance inst in provCollector)
                 {
                     var ifc = GetIfcExportClass(inst);
- if (ifc == "IfcOpeningElement")
+                    if (ifc == "IfcOpeningElement")
                     {
                         ProcessProvisionalSpace(inst, doc);
                     }
@@ -509,7 +513,7 @@ namespace SpaceTracker
                         case BuiltInCategory.OST_GenericModel when element is FamilyInstance fi:
                             ProcessProvisionalSpace(fi, doc);
                             break;
-                            case BuiltInCategory.OST_PipeCurves:
+                        case BuiltInCategory.OST_PipeCurves:
                             if (element is MEPCurve pipe)
                                 ProcessPipe(pipe, doc);
                             break;
