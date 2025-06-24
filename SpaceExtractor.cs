@@ -144,11 +144,8 @@ namespace SpaceTracker
         {
             try
             {
-                var ifc = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
+ var ifc = GetIfcExportClass(inst);
                 if (ifc != "IfcOpeningElement")
-                    return;
-                string name = inst.Name ?? inst.Symbol?.FamilyName ?? "";
-                if (!(name.Contains("ProvSpaceVoid") || (inst.Symbol?.FamilyName?.Contains("ProvSpaceVoid") ?? false)))
                     return;
                 var host = inst.Host as Wall;
                 if (host == null)
@@ -182,11 +179,6 @@ namespace SpaceTracker
         {
             try
             {
-                string ifc = pipe.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
-                string exportEntity = pipe.LookupParameter("ExportEntity")?.AsString();
-                if (ifc != "IfcPipeSegmentType" && exportEntity != "IfcPipeSegment")
-                    return;
-
                 var data = PipeSerializer.ToNode(pipe);
                 string cyNode =
                     $"MERGE (p:Pipe {{uid:'{data["uid"]}'}}) " +
@@ -206,11 +198,8 @@ namespace SpaceTracker
 
                 foreach (FamilyInstance ps in psCollector)
                 {
-                    var ifcPs = ps.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
+                    var ifcPs = GetIfcExportClass(ps);
                     if (ifcPs != "IfcOpeningElement")
-                        continue;
-                    string name = ps.Name ?? ps.Symbol?.FamilyName ?? "";
-                    if (!(name.Contains("ProvSpaceVoid") || (ps.Symbol?.FamilyName?.Contains("ProvSpaceVoid") ?? false)))
                         continue;
                     var psLevel = doc.GetElement(ps.LevelId) as Level;
                     if (psLevel != null && Math.Abs(psLevel.Elevation - bbPipe.Min.Z) > tol)
@@ -270,6 +259,20 @@ namespace SpaceTracker
                 .Replace("'", "''")
                 .Replace("\"", "'");      // für Cypher (doppelte Anführungszeichen → einfach)
         }
+        
+         private static string GetIfcExportClass(Element elem)
+        {
+            var p = elem.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT);
+            var ifcClass = p?.AsString() ?? string.Empty;
+            if (string.IsNullOrEmpty(ifcClass))
+            {
+                var type = elem.Document.GetElement(elem.GetTypeId());
+                var pt = type?.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT_TYPE);
+                ifcClass = pt?.AsString() ?? string.Empty;
+            }
+            return ifcClass;
+        }
+
 
 
 
@@ -415,7 +418,7 @@ namespace SpaceTracker
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
                 }
-                
+
                 var pipeCollector = new FilteredElementCollector(doc)
                     .OfCategory(BuiltInCategory.OST_PipeCurves)
                     .OfClass(typeof(MEPCurve))
@@ -423,12 +426,8 @@ namespace SpaceTracker
 
                 foreach (MEPCurve pipe in pipeCollector)
                 {
-                    var ifcParam = pipe.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
-                    var exportEntity = pipe.LookupParameter("ExportEntity")?.AsString();
-                    if (ifcParam == "IfcPipeSegmentType" || exportEntity == "IfcPipeSegment")
-                    {
                         ProcessPipe(pipe, doc);
-                    }
+                    
                 }
                 var provCollector = new FilteredElementCollector(doc)
                                  .OfCategory(BuiltInCategory.OST_GenericModel)
@@ -437,8 +436,8 @@ namespace SpaceTracker
 
                 foreach (FamilyInstance inst in provCollector)
                 {
-                    var ifc = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
-                    if (ifc == "IfcOpeningElement" && inst.Name.Contains("ProvSpaceVoid"))
+                    var ifc = GetIfcExportClass(inst);
+ if (ifc == "IfcOpeningElement")
                     {
                         ProcessProvisionalSpace(inst, doc);
                     }

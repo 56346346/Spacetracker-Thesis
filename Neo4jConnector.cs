@@ -528,7 +528,7 @@ MERGE (w)-[:HAS_PROV_SPACE]->(p)";
         }
 
 
- public async Task LinkPipeToProvisionalSpaceAsync(string pipeUid, string provGuid)
+        public async Task LinkPipeToProvisionalSpaceAsync(string pipeUid, string provGuid)
         {
             const string cypher = @"MATCH (p:Pipe {uid:$uid}), (ps:ProvisionalSpace {guid:$guid})
 MERGE (p)-[:CONTAINED_IN]->(ps)";
@@ -565,6 +565,49 @@ RETURN w";
             _logger.LogInformation("Pulled {Count} walls", list.Count);
             return list;
         }
+
+         public async Task<int> AcknowledgeLogChangesAsync(CancellationToken cancellationToken = default)
+        {
+            const string cypher = @"MATCH (lc:LogChanges)
+WITH lc,
+     SIZE( (lc)<-[:RECEIVED]-(:User {online:true}) ) AS rcv,
+     SIZE( (:User {online:true}) )                  AS all
+WHERE rcv = all AND all > 0
+CALL {
+  WITH lc
+  REMOVE lc:LogChanges
+  SET   lc:LogChangesAcknowledged,
+        lc.tsAcknowledged = datetime()
+} IN TRANSACTIONS OF 1000 ROWS
+RETURN count(*) AS updated";
+
+            var session = _driver.AsyncSession();
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var updated = await session.ExecuteWriteAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(cypher).ConfigureAwait(false);
+                    var record = await cursor.SingleAsync().ConfigureAwait(false);
+                    return record["updated"].As<int>();
+                }).ConfigureAwait(false);
+
+                sw.Stop();
+                _logger.LogInformation("Acknowledged {Count} LogChanges in {Elapsed}", updated, sw.Elapsed);
+                return updated;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to acknowledge LogChanges");
+                throw;
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
         public void Dispose()
         {
             _driver?.Dispose();
