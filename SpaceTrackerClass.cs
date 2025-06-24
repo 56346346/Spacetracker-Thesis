@@ -291,10 +291,6 @@ namespace SpaceTracker
                );
            };
 
-
-
-
-
             // 1. Logging-Pfade in Benutzerverzeichnis verlegen
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string logDir = Path.Combine(appDataPath, "SpaceTracker");
@@ -316,41 +312,10 @@ namespace SpaceTracker
                 // 5. Assembly-Versionen protokollieren
                 var revitApiVersion = typeof(Document).Assembly.GetName().Version;
                 var revitUIVersion = typeof(UIApplication).Assembly.GetName().Version;
-                var addinVersion = Assembly.GetExecutingAssembly().GetName().Version;
-
-                Logger.LogToFile($"RevitAPI Version: {revitApiVersion}", "assembly.log");
-                Logger.LogToFile($"RevitAPIUI Version: {revitUIVersion}", "assembly.log");
-                Logger.LogToFile($"Add-In Version: {addinVersion}", "assembly.log");
-                Logger.LogToFile("OnStartup initialisiert", "assembly.log");
-
-                // 6. Datenbankverbindungen initialisieren
-                Logger.LogToFile("Initialisiere Datenbankverbindungen");
-
-
-
-
-                // 7. Event-Handler erstellen
-
-
-
-                // 7. Event-Handler erstellen
-
-
-
-
-
-                // 7. Event-Handler erstellen
-
-
-                Logger.LogToFile("Handler erfolgreich initialisiert");
+                var addinVersion = Assembly.GetExecutingAssembly().GetName().Version;;
 
                 // 8. Ribbon-UI erstellen
                 CreateRibbonUI(application);
-
-
-
-
-
 
                 // 9. Events registrieren
                 RegisterDocumentEvents(application);

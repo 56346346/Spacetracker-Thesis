@@ -37,21 +37,20 @@ public class PullCommand : IExternalCommand
         var cmdMgr = CommandManager.Instance;
         var connector = cmdMgr.Neo4jConnector;
 
-        _ = Task.Run(async () =>
+         List<WallNode> walls;
+        try
         {
-            List<WallNode> walls;
-            try
-            {
-                walls = await connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-
-            }
-            catch (Neo4j.Driver.Neo4jException ex)
-            {
-                TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
-                return;
-            }
-            // Änderungen im CommandManager festhalten
-            using var revitTx = new Transaction(doc, "Import Wall");
+             // Daten direkt laden (kein Hintergrund-Thread, um Revit API sicher zu nutzen)
+            walls = connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime)
+                .GetAwaiter().GetResult();
+        }
+        catch (Neo4j.Driver.Neo4jException ex)
+        {
+            TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
+            return Result.Failed;
+        }
+       using (var revitTx = new Transaction(doc, "Import Wall"))
+        {
             revitTx.Start();
             foreach (var w in walls)
             {
@@ -60,12 +59,15 @@ public class PullCommand : IExternalCommand
                 Line loc = Line.CreateBound(
                     new XYZ(UnitConversion.ToFt(w.X1), UnitConversion.ToFt(w.Y1), UnitConversion.ToFt(w.Z1)),
                     new XYZ(UnitConversion.ToFt(w.X2), UnitConversion.ToFt(w.Y2), UnitConversion.ToFt(w.Z2)));
-                Wall.Create(doc, loc, new ElementId(w.TypeId), new ElementId(w.LevelId), UnitConversion.ToFt(w.HeightMm), UnitConversion.ToFt(w.ThicknessMm), false, w.Structural);
-            }
+ Wall.Create(doc, loc, new ElementId(w.TypeId), new ElementId(w.LevelId),
+                    UnitConversion.ToFt(w.HeightMm), UnitConversion.ToFt(w.ThicknessMm), false, w.Structural);            }
             revitTx.Commit();
-            cmdMgr.LastSyncTime = System.DateTime.UtcNow;
-            cmdMgr.PersistSyncTime();
-             });
+   }
+
+        cmdMgr.LastSyncTime = System.DateTime.UtcNow;
+        cmdMgr.PersistSyncTime();
+
+        TaskDialog.Show("Neo4j", $"{walls.Count} Wände importiert.");
         return Result.Succeeded;
            
 }

@@ -22,10 +22,9 @@ namespace SpaceTracker
             {
                 cypher = cypherCommand,
                 elementId,
-                timestampUtc = DateTime.Now
+                timestampUtc = DateTime.UtcNow
             };
-            string file = Path.Combine(CacheDir, $"change_{DateTime.Now:yyyyMMddHHmmssfff}_{elementId}.json");
-            File.WriteAllText(file, JsonSerializer.Serialize(payload));
+ string file = Path.Combine(CacheDir, $"change_{DateTime.UtcNow:yyyyMMddHHmmssfff}_{elementId}.json");            File.WriteAllText(file, JsonSerializer.Serialize(payload));
             return file;
         }
 
