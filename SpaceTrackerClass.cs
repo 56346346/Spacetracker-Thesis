@@ -250,7 +250,7 @@ namespace SpaceTracker
                 RegisterGlobalExceptionHandlers();
 
 
-                 using var loggerFactory = LoggerFactory.Create(b => b.AddDebug());
+                using var loggerFactory = LoggerFactory.Create(b => b.AddDebug());
                 _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
 
                 CommandManager.Initialize(_neo4jConnector);
@@ -312,7 +312,7 @@ namespace SpaceTracker
                 // 5. Assembly-Versionen protokollieren
                 var revitApiVersion = typeof(Document).Assembly.GetName().Version;
                 var revitUIVersion = typeof(UIApplication).Assembly.GetName().Version;
-                var addinVersion = Assembly.GetExecutingAssembly().GetName().Version;;
+                var addinVersion = Assembly.GetExecutingAssembly().GetName().Version; ;
 
                 // 8. Ribbon-UI erstellen
                 CreateRibbonUI(application);
@@ -582,7 +582,8 @@ namespace SpaceTracker
     new ElementCategoryFilter(BuiltInCategory.OST_Rooms),
     new ElementCategoryFilter(BuiltInCategory.OST_Levels),
     new ElementCategoryFilter(BuiltInCategory.OST_Doors),
-     new ElementCategoryFilter(BuiltInCategory.OST_Stairs)
+    new ElementCategoryFilter(BuiltInCategory.OST_Stairs),
+    new ElementCategoryFilter(BuiltInCategory.OST_GenericModel)
 
 });
 
@@ -680,7 +681,8 @@ namespace SpaceTracker
     new ElementCategoryFilter(BuiltInCategory.OST_Rooms),
     new ElementCategoryFilter(BuiltInCategory.OST_Doors),
     new ElementCategoryFilter(BuiltInCategory.OST_Levels),
-    new ElementCategoryFilter(BuiltInCategory.OST_Stairs)
+    new ElementCategoryFilter(BuiltInCategory.OST_Stairs),
+    new ElementCategoryFilter(BuiltInCategory.OST_GenericModel)
                 });
 
                 // 2. Änderungen identifizieren

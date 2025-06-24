@@ -484,6 +484,27 @@ RETURN w";
             _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
         }
 
+          public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)
+        {
+            const string cypher = @"MERGE (p:ProvisionalSpace {guid:$guid})
+SET p += $props";
+
+            await using var session = _driver.AsyncSession();
+            await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, new { guid, props }).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
+            _logger.LogInformation("ProvisionalSpace {Guid} upserted", guid);
+        }
+
+        public async Task LinkProvisionalSpaceToWallAsync(string guid, long wallId)
+        {
+            const string cypher = @"MATCH (w:Wall {ElementId:$wid}), (p:ProvisionalSpace {guid:$guid})
+MERGE (w)-[:HAS_PROV_SPACE]->(p)";
+            await using var session = _driver.AsyncSession();
+            await session.RunAsync(cypher, new { wid = wallId, guid }).ConfigureAwait(false);
+        }
+
+
         public async Task<List<WallNode>> GetUpdatedWallsAsync(DateTime sinceUtc)
         {
             const string cypher = @"MATCH (w:Wall)

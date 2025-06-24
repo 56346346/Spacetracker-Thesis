@@ -140,6 +140,45 @@ namespace SpaceTracker
             }
         }
 
+        private void ProcessProvisionalSpace(FamilyInstance inst, Document doc)
+        {
+            try
+            {
+                var ifc = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_AS)?.AsString();
+                if (ifc != "IfcOpeningElement")
+                    return;
+                string name = inst.Name ?? inst.Symbol?.FamilyName ?? "";
+                if (!(name.Contains("ProvSpaceVoid") || (inst.Symbol?.FamilyName?.Contains("ProvSpaceVoid") ?? false)))
+                    return;
+                var host = inst.Host as Wall;
+                if (host == null)
+                    return;
+
+                var data = ProvisionalSpaceSerializer.ToNode(inst);
+                string cyNode =
+                    $"MERGE (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
+                    $"SET p.name = '{EscapeString(data["name"].ToString())}', " +
+                    $"p.width = {data["width"]}, p.height = {data["height"]}, " +
+                    $"p.thickness = {data["thickness"]}, " +
+                    $"p.level = '{EscapeString(data["level"].ToString())}', " +
+                    $"p.revitId = {data["revitId"]}, p.ifcType = 'IfcOpeningElement'";
+                _cmdManager.cypherCommands.Enqueue(cyNode);
+
+                string cyRel =
+                    $"MATCH (w:Wall {{ElementId:{host.Id.Value}}}), (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
+                    "MERGE (w)-[:HAS_PROV_SPACE]->(p)";
+                _cmdManager.cypherCommands.Enqueue(cyRel);
+
+                Debug.WriteLine("[Neo4j] Cypher erzeugt (ProvSpace Node): " + cyNode);
+                Debug.WriteLine("[Neo4j] Cypher erzeugt (ProvSpace Rel): " + cyRel);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ProvisionalSpace Error] {ex.Message}");
+            }
+        }
+
+
         private void ProcessRoom(Element room, Document doc)
         {
             if (room.LevelId == ElementId.InvalidElementId) return;
@@ -317,16 +356,27 @@ namespace SpaceTracker
                     _cmdManager.cypherCommands.Enqueue(cy);
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
+                }
+                var provCollector = new FilteredElementCollector(doc)
+                                 .OfCategory(BuiltInCategory.OST_GenericModel)
+                                 .OfClass(typeof(FamilyInstance))
+                                 .WherePasses(lvlFilter);
 
-
+                foreach (FamilyInstance inst in provCollector)
+                {
+                    var ifc = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_AS)?.AsString();
+                    if (ifc == "IfcOpeningElement" && inst.Name.Contains("ProvSpaceVoid"))
+                    {
+                        ProcessProvisionalSpace(inst, doc);
+                    }
                 }
             }
-foreach (Element stair in new FilteredElementCollector(doc)
-    .OfCategory(BuiltInCategory.OST_Stairs)
-    .WhereElementIsNotElementType())
-{
-    ProcessStair(stair, doc);
-}
+            foreach (Element stair in new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_Stairs)
+                .WhereElementIsNotElementType())
+            {
+                ProcessStair(stair, doc);
+            }
 
             string baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker");
             Directory.CreateDirectory(baseDir); // falls noch nicht vorhanden
@@ -384,6 +434,9 @@ foreach (Element stair in new FilteredElementCollector(doc)
                         case BuiltInCategory.OST_Walls:
                             ProcessWall(element, doc);
                             break;
+                        case BuiltInCategory.OST_GenericModel when element is FamilyInstance fi:
+                            ProcessProvisionalSpace(fi, doc);
+                            break;
                         case BuiltInCategory.OST_Doors:
                             ProcessDoor(element, doc);
                             break;
@@ -406,14 +459,14 @@ foreach (Element stair in new FilteredElementCollector(doc)
         private void ProcessStair(Element stairElem, Document doc)
         {
             var baseParam = stairElem.get_Parameter(BuiltInParameter.STAIRS_BASE_LEVEL_PARAM);
-  ElementId baseLevelId = (baseParam != null && baseParam.AsElementId() != ElementId.InvalidElementId)
-        ? baseParam.AsElementId()
-        : stairElem.LevelId;
+            ElementId baseLevelId = (baseParam != null && baseParam.AsElementId() != ElementId.InvalidElementId)
+                  ? baseParam.AsElementId()
+                  : stairElem.LevelId;
 
-    var topParam = stairElem.get_Parameter(BuiltInParameter.STAIRS_TOP_LEVEL_PARAM);
-    ElementId topLevelId = (topParam != null && topParam.AsElementId() != ElementId.InvalidElementId)
-        ? topParam.AsElementId()
-        : stairElem.LevelId;
+            var topParam = stairElem.get_Parameter(BuiltInParameter.STAIRS_TOP_LEVEL_PARAM);
+            ElementId topLevelId = (topParam != null && topParam.AsElementId() != ElementId.InvalidElementId)
+                ? topParam.AsElementId()
+                : stairElem.LevelId;
 
             // 2) Revit-Level-Instanzen
             var baseLevel = doc.GetElement(baseLevelId) as Level;
@@ -470,7 +523,7 @@ foreach (Element stair in new FilteredElementCollector(doc)
             var sessionDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
             Directory.CreateDirectory(sessionDir);
             var tempIfcPath = Path.Combine(sessionDir, $"change_{Guid.NewGuid()}.ifc");
-            
+
             // Der Export ändert das Dokument und muss daher in einer Transaction
             // ausgeführt werden.
             using (var txExport = new Transaction(doc, "Export IFC Subset"))
