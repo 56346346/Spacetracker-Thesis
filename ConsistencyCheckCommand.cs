@@ -16,8 +16,17 @@ namespace SpaceTracker
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            SpaceTrackerClass.PerformConsistencyCheck(true);
-            return Result.Succeeded;
+             var doc = commandData.Application.ActiveUIDocument?.Document;
+            if (doc != null)
+            {
+                SpaceTrackerClass.PerformConsistencyCheck(doc, true);
+                return Result.Succeeded;
+            }
+            else
+            {
+                SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
+                return Result.Failed;
+            }
         }
     }
 }

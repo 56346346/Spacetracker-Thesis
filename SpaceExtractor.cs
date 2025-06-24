@@ -161,8 +161,19 @@ namespace SpaceTracker
                        $"p.width = {((double)data["width"]).ToString(inv)}, p.height = {((double)data["height"]).ToString(inv)}, " +
                     $"p.thickness = {((double)data["thickness"]).ToString(inv)}, " +
                     $"p.level = '{EscapeString(data["level"].ToString())}', " +
-                    $"p.revitId = {data["revitId"]}, p.ifcType = 'IfcOpeningElement'";
-                 if (host != null)
+                      $"p.revitId = {data["revitId"]}, p.ifcType = 'IfcOpeningElement', " +
+                    $"p.category = '{EscapeString(data.GetValueOrDefault("category", "").ToString())}', " +
+                    $"p.familyName = '{EscapeString(data.GetValueOrDefault("familyName", "").ToString())}', " +
+                    $"p.phaseCreated = {data.GetValueOrDefault("phaseCreated", -1)}, " +
+                    $"p.phaseDemolished = {data.GetValueOrDefault("phaseDemolished", -1)}, " +
+                    $"p.bbMinX = {((double)data.GetValueOrDefault("bbMinX", 0.0)).ToString(inv)}, " +
+                    $"p.bbMinY = {((double)data.GetValueOrDefault("bbMinY", 0.0)).ToString(inv)}, " +
+                    $"p.bbMinZ = {((double)data.GetValueOrDefault("bbMinZ", 0.0)).ToString(inv)}, " +
+                    $"p.bbMaxX = {((double)data.GetValueOrDefault("bbMaxX", 0.0)).ToString(inv)}, " +
+                    $"p.bbMaxY = {((double)data.GetValueOrDefault("bbMaxY", 0.0)).ToString(inv)}, " +
+                    $"p.bbMaxZ = {((double)data.GetValueOrDefault("bbMaxZ", 0.0)).ToString(inv)}";
+                _cmdManager.cypherCommands.Enqueue(cyNode);
+                if (host != null)
                 {
                     string cyRel =
                         $"MATCH (w:Wall {{ElementId:{host.Id.Value}}}), (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +

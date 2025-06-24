@@ -110,7 +110,7 @@ namespace SpaceTracker
         // Runs a consistency check against Neo4j and updates the status
         // indicator. Dialog messages can be suppressed with the showDialogs
         // flag.
-        public static void PerformConsistencyCheck(bool showDialogs)
+        public static void PerformConsistencyCheck(Document doc, bool showDialogs)
         {
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
@@ -228,6 +228,20 @@ namespace SpaceTracker
                         Debug.WriteLine($"[ConsistencyCheck] Cleanup failed: {ex.Message}");
                     }
                 }
+            }
+            
+            // Nach der Prüfung in Neo4j zusätzlich den Solibri-Check ausführen
+            // und die Status-Ampel entsprechend der höchsten gefundenen
+            // Fehlerstufe setzen
+            try
+            {
+                var errs = SolibriRulesetValidator.Validate(doc);
+                var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
+                UpdateConsistencyCheckerButton(sev);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ConsistencyCheck] Solibri validation failed: {ex.Message}");
             }
         }
 

@@ -19,6 +19,20 @@ public static class ProvisionalSpaceSerializer
             height = UnitConversion.ToMm(Math.Abs(bb.Max.Z - bb.Min.Z));
             thickness = UnitConversion.ToMm(Math.Abs(bb.Max.Y - bb.Min.Y));
         }
+        bool isProv = inst.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase)
+                      && GetIfcEntity(inst).Equals("IfcBuildingElementProxy", StringComparison.OrdinalIgnoreCase);
+
+        BoundingBoxXYZ? bbView = null;
+        XYZ bbMin = XYZ.Zero, bbMax = XYZ.Zero;
+        if (isProv)
+        {
+            bbView = inst.get_BoundingBox(inst.Document.ActiveView) ?? inst.get_BoundingBox(null);
+            if (bbView != null)
+            {
+                bbMin = bbView.Min;
+                bbMax = bbView.Max;
+            }
+        }
 
         var level = inst.Document.GetElement(inst.LevelId) as Level;
         string levelName = level?.Name ?? string.Empty;
@@ -50,6 +64,19 @@ public static class ProvisionalSpaceSerializer
             ["modified"] = DateTime.UtcNow,
             ["user"] = Environment.UserName
         };
+        if (isProv)
+        {
+            dict["category"] = inst.Category?.Name ?? string.Empty;
+            dict["familyName"] = inst.Symbol?.FamilyName ?? string.Empty;
+            dict["phaseCreated"] = inst.get_Parameter(BuiltInParameter.PHASE_CREATED)?.AsInteger() ?? -1;
+            dict["phaseDemolished"] = inst.get_Parameter(BuiltInParameter.PHASE_DEMOLISHED)?.AsInteger() ?? -1;
+            dict["bbMinX"] = UnitConversion.ToMm(bbMin.X);
+            dict["bbMinY"] = UnitConversion.ToMm(bbMin.Y);
+            dict["bbMinZ"] = UnitConversion.ToMm(bbMin.Z);
+            dict["bbMaxX"] = UnitConversion.ToMm(bbMax.X);
+            dict["bbMaxY"] = UnitConversion.ToMm(bbMax.Y);
+            dict["bbMaxZ"] = UnitConversion.ToMm(bbMax.Z);
+        }
         
         SerializeParameters(inst, dict);
         return dict;
