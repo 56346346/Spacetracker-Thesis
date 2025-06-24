@@ -144,7 +144,7 @@ namespace SpaceTracker
         {
             try
             {
-                var ifc = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_AS)?.AsString();
+                var ifc = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
                 if (ifc != "IfcOpeningElement")
                     return;
                 string name = inst.Name ?? inst.Symbol?.FamilyName ?? "";
@@ -177,6 +177,64 @@ namespace SpaceTracker
                 Debug.WriteLine($"[ProvisionalSpace Error] {ex.Message}");
             }
         }
+
+          private void ProcessPipe(MEPCurve pipe, Document doc)
+        {
+            try
+            {
+                string ifc = pipe.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
+                string exportEntity = pipe.LookupParameter("ExportEntity")?.AsString();
+                if (ifc != "IfcPipeSegmentType" && exportEntity != "IfcPipeSegment")
+                    return;
+
+                var data = PipeSerializer.ToNode(pipe);
+                string cyNode =
+                    $"MERGE (p:Pipe {{uid:'{data["uid"]}'}}) " +
+                    $"SET p.elementId = {data["elementId"]}, p.levelId = {data["levelId"]}, " +
+                    $"p.x1 = {data["x1"]}, p.y1 = {data["y1"]}, p.z1 = {data["z1"]}, " +
+                    $"p.x2 = {data["x2"]}, p.y2 = {data["y2"]}, p.z2 = {data["z2"]}, " +
+                    $"p.diameter_mm = {data["diameter"]}";
+                _cmdManager.cypherCommands.Enqueue(cyNode);
+
+                BoundingBoxXYZ bbPipe = pipe.get_BoundingBox(null);
+                if (bbPipe == null) return;
+
+                double tol = UnitConversion.ToFt(100); // 100 mm tolerance
+                var psCollector = new FilteredElementCollector(doc)
+                    .OfCategory(BuiltInCategory.OST_GenericModel)
+                    .OfClass(typeof(FamilyInstance));
+
+                foreach (FamilyInstance ps in psCollector)
+                {
+                    var ifcPs = ps.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
+                    if (ifcPs != "IfcOpeningElement")
+                        continue;
+                    string name = ps.Name ?? ps.Symbol?.FamilyName ?? "";
+                    if (!(name.Contains("ProvSpaceVoid") || (ps.Symbol?.FamilyName?.Contains("ProvSpaceVoid") ?? false)))
+                        continue;
+                    var psLevel = doc.GetElement(ps.LevelId) as Level;
+                    if (psLevel != null && Math.Abs(psLevel.Elevation - bbPipe.Min.Z) > tol)
+                        continue;
+                    BoundingBoxXYZ bbPs = ps.get_BoundingBox(null);
+                    if (bbPs == null) continue;
+                    bool contained =
+                        bbPipe.Min.X >= bbPs.Min.X && bbPipe.Max.X <= bbPs.Max.X &&
+                        bbPipe.Min.Y >= bbPs.Min.Y && bbPipe.Max.Y <= bbPs.Max.Y;
+                    if (contained)
+                    {
+                        string cyRel =
+                            $"MATCH (pi:Pipe {{uid:'{data["uid"]}'}}), (ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) " +
+                            "MERGE (pi)-[:CONTAINED_IN]->(ps)";
+                        _cmdManager.cypherCommands.Enqueue(cyRel);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Pipe Processing Error] {ex.Message}");
+            }
+        }
+
 
 
         private void ProcessRoom(Element room, Document doc)
@@ -357,6 +415,21 @@ namespace SpaceTracker
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
                 }
+                
+                var pipeCollector = new FilteredElementCollector(doc)
+                    .OfCategory(BuiltInCategory.OST_PipeCurves)
+                    .OfClass(typeof(MEPCurve))
+                    .WherePasses(lvlFilter);
+
+                foreach (MEPCurve pipe in pipeCollector)
+                {
+                    var ifcParam = pipe.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
+                    var exportEntity = pipe.LookupParameter("ExportEntity")?.AsString();
+                    if (ifcParam == "IfcPipeSegmentType" || exportEntity == "IfcPipeSegment")
+                    {
+                        ProcessPipe(pipe, doc);
+                    }
+                }
                 var provCollector = new FilteredElementCollector(doc)
                                  .OfCategory(BuiltInCategory.OST_GenericModel)
                                  .OfClass(typeof(FamilyInstance))
@@ -364,7 +437,7 @@ namespace SpaceTracker
 
                 foreach (FamilyInstance inst in provCollector)
                 {
-                    var ifc = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_AS)?.AsString();
+                    var ifc = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
                     if (ifc == "IfcOpeningElement" && inst.Name.Contains("ProvSpaceVoid"))
                     {
                         ProcessProvisionalSpace(inst, doc);
@@ -436,6 +509,10 @@ namespace SpaceTracker
                             break;
                         case BuiltInCategory.OST_GenericModel when element is FamilyInstance fi:
                             ProcessProvisionalSpace(fi, doc);
+                            break;
+                            case BuiltInCategory.OST_PipeCurves:
+                            if (element is MEPCurve pipe)
+                                ProcessPipe(pipe, doc);
                             break;
                         case BuiltInCategory.OST_Doors:
                             ProcessDoor(element, doc);

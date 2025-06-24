@@ -484,8 +484,31 @@ RETURN w";
             _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
         }
 
-          public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)
+    public async Task UpsertPipeAsync(Dictionary<string, object> args)
         {
+            const string cypher = @"MERGE (p:Pipe {uid:$uid})
+SET   p.elementId       = $elementId,
+      p.levelId         = $levelId,
+      p.x1              = $x1,
+      p.y1              = $y1,
+      p.z1              = $z1,
+      p.x2              = $x2,
+      p.y2              = $y2,
+      p.z2              = $z2,
+      p.diameter_mm     = $diameter,
+      p.createdBy       = coalesce(p.createdBy,$user),
+      p.createdAt       = coalesce(p.createdAt,$created),
+      p.lastModifiedUtc = datetime($modified)
+RETURN p";
+
+            await using var session = _driver.AsyncSession();
+            await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
+            _logger.LogInformation("Pipe {Uid} upserted", args["uid"]);
+        }
+
+        public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)        {
             const string cypher = @"MERGE (p:ProvisionalSpace {guid:$guid})
 SET p += $props";
 
@@ -502,6 +525,15 @@ SET p += $props";
 MERGE (w)-[:HAS_PROV_SPACE]->(p)";
             await using var session = _driver.AsyncSession();
             await session.RunAsync(cypher, new { wid = wallId, guid }).ConfigureAwait(false);
+        }
+
+
+ public async Task LinkPipeToProvisionalSpaceAsync(string pipeUid, string provGuid)
+        {
+            const string cypher = @"MATCH (p:Pipe {uid:$uid}), (ps:ProvisionalSpace {guid:$guid})
+MERGE (p)-[:CONTAINED_IN]->(ps)";
+            await using var session = _driver.AsyncSession();
+            await session.RunAsync(cypher, new { uid = pipeUid, guid = provGuid }).ConfigureAwait(false);
         }
 
 
