@@ -6,6 +6,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using SpaceTracker.Utilities;
+using Autodesk.Revit.UI;
+
 
 namespace SpaceTracker
 {
@@ -25,9 +27,14 @@ namespace SpaceTracker
         // In production this would call the Solibri API and return the found issues.
         public static List<ValidationError> Validate(Document doc)
         {
- var errors = new List<ValidationError>();
+            var errors = new List<ValidationError>();
             try
             {
+                if (doc.IsReadOnly)
+                {
+                    TaskDialog.Show("Solibri", "Dokument ist schreibgesch\u00fctzt. IFC-Export nicht m\u00f6glich.");
+                    return errors;
+                }
                 // Export the entire model as IFC to a temporary location
                 var extractor = new SpaceExtractor(CommandManager.Instance);
                 var allIds = new FilteredElementCollector(doc)

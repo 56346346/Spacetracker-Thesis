@@ -19,9 +19,8 @@ public static class ProvisionalSpaceSerializer
             height = UnitConversion.ToMm(Math.Abs(bb.Max.Z - bb.Min.Z));
             thickness = UnitConversion.ToMm(Math.Abs(bb.Max.Y - bb.Min.Y));
         }
-        bool isProv = ParameterUtils.IsProvisionalSpaceName(inst.Name)
-            || ParameterUtils.IsProvisionalSpaceName(inst.Symbol?.Name)
-            || ParameterUtils.IsProvisionalSpaceName(inst.Symbol?.FamilyName);
+                bool isProv = ParameterUtils.IsProvisionalSpace(inst);
+
         BoundingBoxXYZ? bbView = null;
         XYZ bbMin = XYZ.Zero, bbMax = XYZ.Zero;
         if (isProv)

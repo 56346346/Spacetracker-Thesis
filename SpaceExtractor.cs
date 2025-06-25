@@ -10,6 +10,8 @@ using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.DB.Events;
 using System.Linq;
 using System.Globalization;
+using Autodesk.Revit.UI;
+
 
 
 namespace SpaceTracker
@@ -491,13 +493,12 @@ namespace SpaceTracker
             timer.Stop();
         }
 
-        public async Task UpdateGraphAsync(
+        public Task UpdateGraphAsync(
         Document doc,
         List<ElementId> EnqueuedElementIds,
         List<ElementId> deletedElementIds,
         List<ElementId> modifiedElementIds)
-        {
-            await Task.Run(() =>
+      
         {
             try
             {
@@ -516,7 +517,7 @@ namespace SpaceTracker
             {
                 Debug.WriteLine($"[Neo4j-Error] {ex.Message}");
             }
-        });
+         return Task.CompletedTask;
         }
 
         private void ProcessElements(Document doc, IReadOnlyCollection<ElementId> elementIds)
@@ -628,6 +629,11 @@ namespace SpaceTracker
 
         public string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
         {
+             if (doc.IsReadOnly)
+            {
+                TaskDialog.Show("IFC Export", "Dokument ist schreibgesch\u00fctzt. Export nicht m\u00f6glich.");
+                return string.Empty;
+            }
             // 1. Temporäre 3D-Ansicht erstellen und Elemente isolieren
             View3D view = null;
             using (var tx = new Transaction(doc, "Temp IFC View"))

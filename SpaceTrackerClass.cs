@@ -23,16 +23,11 @@ using System.Windows.Media.Imaging;
 using System.Net.Http;
 using System.Collections.Concurrent;
 using System.Threading;
-using SpaceTracker.Utilities;
 using Autodesk.Revit.ApplicationServices;
 using RevitApplication = Autodesk.Revit.ApplicationServices.Application;
 using System.Runtime.Versioning;
 
-
-
-
 [assembly: SupportedOSPlatform("windows")]
-
 
 
 namespace SpaceTracker
@@ -44,7 +39,7 @@ namespace SpaceTracker
 
         private Neo4jConnector _neo4jConnector;
         private DatabaseUpdateHandler _databaseUpdateHandler;
-                private GraphPuller _graphPuller;
+        private GraphPuller _graphPuller;
 
 
         public const int SolibriApiPort = 10876;
@@ -238,7 +233,17 @@ namespace SpaceTracker
                 var errs = SolibriRulesetValidator.Validate(doc);
                 var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                 UpdateConsistencyCheckerButton(sev);
-                 var mappingIssues = ValidateElementMappings(doc, connector);
+
+                if (showDialogs)
+                {
+                    int errCount = errs.Count(e => e.Severity == Severity.Error);
+                    int warnCount = errs.Count(e => e.Severity == Severity.Warning);
+                    Autodesk.Revit.UI.TaskDialog.Show(
+                        "Consistency Check",
+                        $"Solibri-Prüfung abgeschlossen: {errCount} Fehler, {warnCount} Warnungen.");
+                }
+
+                var mappingIssues = ValidateElementMappings(doc, connector);
                 if (mappingIssues.Count > 0 && showDialogs)
                 {
                     Autodesk.Revit.UI.TaskDialog.Show(
@@ -251,7 +256,7 @@ namespace SpaceTracker
                 Debug.WriteLine($"[ConsistencyCheck] Solibri validation failed: {ex.Message}");
             }
         }
-private static List<string> ValidateElementMappings(Document doc, Neo4jConnector connector)
+        private static List<string> ValidateElementMappings(Document doc, Neo4jConnector connector)
         {
             const string cypher = "MATCH (n) WHERE exists(n.elementId) RETURN labels(n) AS labels, n.elementId AS id";
             var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
@@ -293,7 +298,7 @@ private static List<string> ValidateElementMappings(Document doc, Neo4jConnector
                 CommandManager.Initialize(_neo4jConnector);
                 _extractor = new SpaceExtractor(CommandManager.Instance);
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
-                                _graphPuller = new GraphPuller(_neo4jConnector);
+                _graphPuller = new GraphPuller(_neo4jConnector);
                 _cmdManager = CommandManager.Instance;
             }
             catch (Exception ex)
@@ -816,10 +821,10 @@ private static List<string> ValidateElementMappings(Document doc, Neo4jConnector
                             await _neo4jConnector.PushChangesAsync(
                                 changes,
                                 CommandManager.Instance.SessionId,
-  Environment.UserName, doc).ConfigureAwait(false);
+                                Environment.UserName, doc);
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
-                            await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                            await _neo4jConnector.CleanupObsoleteChangeLogsAsync();
 
                             // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
                             var errs = SolibriRulesetValidator.Validate(doc);

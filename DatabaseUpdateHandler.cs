@@ -8,13 +8,8 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System.IO.Compression;
 using System.Xml.Linq;
-
 using System.IO;                     // für Path
-                                     // für XDocument
 using Autodesk.Revit.DB.Architecture;// für Room
-using SpaceTracker.Utilities;
-
-
 using SpaceTracker;
 
 namespace SpaceTracker
@@ -90,6 +85,12 @@ namespace SpaceTracker
               {
                     try
                     {
+                         if (!await _solibriClient.PingAsync().ConfigureAwait(false))
+                        {
+                            Logger.LogToFile("Solibri REST API nicht erreichbar, überspringe Delta-Prüfung");
+                            return;
+                        }
+
                         string modelId = SpaceTrackerClass.SolibriModelUUID;
                         if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
                         {
@@ -101,19 +102,26 @@ namespace SpaceTracker
                         await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
                         var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
                         string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
-                         var severity = ProcessBcfAndWriteToNeo4j(bcfZip);
-                        switch (severity)
-                        {
-                            case IssueSeverity.Error:
-                                SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
-                                break;
-                            case IssueSeverity.Warning:
-                                SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
-                                break;
-                            default:
-                                SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
-                                break;
-                        }
+ Debug.WriteLine($"[DatabaseUpdateHandler] BCF results stored at {bcfZip}");
+                        var severity = ProcessBcfAndWriteToNeo4j(bcfZip);
+                                                switch (severity)
+                      {
+                          case IssueSeverity.Error:
+                              SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
+                                                            Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: error");
+
+                              break;
+                          case IssueSeverity.Warning:
+                              SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
+                                                            Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: warning");
+
+                              break;
+                          default:
+                              SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
+                                                             Debug.WriteLine("[DatabaseUpdateHandler] No Solibri issues detected");
+
+                              break;
+                      }
                     }
                     catch (Exception ex)
                     {

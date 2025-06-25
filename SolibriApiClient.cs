@@ -4,8 +4,12 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using SpaceTracker;
+using System.Diagnostics;
 
-namespace SpaceTracker.Utilities
+
+
+namespace SpaceTracker
 {
     public class SolibriApiClient
     {
@@ -15,25 +19,30 @@ namespace SpaceTracker.Utilities
 
         public SolibriApiClient(int port)
         {
-             // Die REST-API von Solibri hängt unter dem Pfad "/solibri/v1".
+            // Die REST-API von Solibri hängt unter dem Pfad "/solibri/v1".
             // Ohne diesen Zusatz würden die Requests ein 404 zurückliefern.
             _baseUrl = $"http://localhost:{port}/solibri/v1";
             Http.Timeout = TimeSpan.FromMinutes(5);
+                        Debug.WriteLine($"[SolibriApiClient] Base URL set to {_baseUrl}");
+
         }
 
         public async Task<string> ImportIfcAsync(string ifcFilePath)
         {
             if (string.IsNullOrWhiteSpace(ifcFilePath))
                 throw new ArgumentException("Pfad zur IFC-Datei darf nicht leer sein.", nameof(ifcFilePath));
+            SolibriProcessManager.EnsureStarted();
+            if (!await PingAsync().ConfigureAwait(false))
+                throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
-
+                Logger.LogToFile($"Importiere IFC '{ifcFilePath}'");
                 using var fs = File.OpenRead(ifcFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                var response = await Http.PostAsync($"{_baseUrl}/models", content); response.EnsureSuccessStatusCode();
-
+                var response = await Http.PostAsync($"{_baseUrl}/models", content).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
                 if (response.Headers.Location == null)
                     throw new Exception("Model-URI fehlt!");
 
@@ -47,10 +56,12 @@ namespace SpaceTracker.Utilities
             }
             catch (HttpRequestException ex)
             {
+                Logger.LogCrash("Solibri Import IFC", ex);
                 throw new Exception($"Fehler beim Importieren des IFC-Modells: {ex.Message}", ex);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.LogCrash("Solibri Import IFC", ex);
                 throw;
             }
         }
@@ -59,13 +70,18 @@ namespace SpaceTracker.Utilities
         {
             if (string.IsNullOrWhiteSpace(csetFilePath))
                 throw new ArgumentException("Pfad zur Ruleset-Datei darf nicht leer sein.", nameof(csetFilePath));
+            SolibriProcessManager.EnsureStarted();
+            if (!await PingAsync().ConfigureAwait(false))
+                throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
+                Logger.LogToFile($"Importiere Ruleset '{csetFilePath}'");
+
                 using var fs = File.OpenRead(csetFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                var response = await Http.PostAsync($"{_baseUrl}/rulesets", content);
+                var response = await Http.PostAsync($"{_baseUrl}/rulesets", content).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
                 if (response.Headers.Location == null)
@@ -81,10 +97,14 @@ namespace SpaceTracker.Utilities
             }
             catch (HttpRequestException ex)
             {
+                Logger.LogCrash("Solibri Import Ruleset", ex);
+
                 throw new Exception($"Fehler beim Hochladen der Ruleset-Datei: {ex.Message}", ex);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.LogCrash("Solibri Import Ruleset", ex);
+
                 throw;
             }
         }
@@ -95,21 +115,28 @@ namespace SpaceTracker.Utilities
                 throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
             if (string.IsNullOrWhiteSpace(rulesetId))
                 throw new ArgumentException("Regelsatz-ID darf nicht leer sein.", nameof(rulesetId));
+            SolibriProcessManager.EnsureStarted();
+            if (!await PingAsync().ConfigureAwait(false))
+                throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
 
                 var json = $"{{\"rulesetIds\":[\"{rulesetId}\"]}}";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                var response = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", content);
-                response.EnsureSuccessStatusCode();
+                Logger.LogToFile($"Starte Modellprüfung für {modelId}");
+                var response = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", content).ConfigureAwait(false); response.EnsureSuccessStatusCode();
             }
             catch (HttpRequestException ex)
             {
+                Logger.LogCrash("Solibri Modellprüfung", ex);
+
                 throw new Exception($"Fehler beim Ausführen der Modellprüfung: {ex.Message}", ex);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.LogCrash("Solibri Modellprüfung", ex);
+
                 throw;
             }
         }
@@ -120,21 +147,30 @@ namespace SpaceTracker.Utilities
                 throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
             if (string.IsNullOrWhiteSpace(ifcFilePath))
                 throw new ArgumentException("Pfad zur IFC-Datei darf nicht leer sein.", nameof(ifcFilePath));
+            SolibriProcessManager.EnsureStarted();
+            if (!await PingAsync().ConfigureAwait(false))
+                throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
+                Logger.LogToFile($"Partielles Update für Modell {modelId}");
+
                 using var fs = File.OpenRead(ifcFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                var response = await Http.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content);
+                var response = await Http.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
             }
             catch (HttpRequestException ex)
             {
+                Logger.LogCrash("Solibri Partial Update", ex);
+
                 throw new Exception($"Fehler beim partiellen Update des IFC-Modells: {ex.Message}", ex);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.LogCrash("Solibri Partial Update", ex);
+
                 throw;
             }
         }
@@ -145,14 +181,17 @@ namespace SpaceTracker.Utilities
                 throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
             if (string.IsNullOrWhiteSpace(outDirectory))
                 throw new ArgumentException("Ausgabeverzeichnis darf nicht leer sein.", nameof(outDirectory));
+            SolibriProcessManager.EnsureStarted();
+            if (!await PingAsync().ConfigureAwait(false))
+                throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
                 if (!Directory.Exists(outDirectory))
                     Directory.CreateDirectory(outDirectory);
 
-                var response = await Http.GetAsync($"{_baseUrl}/models/{modelId}/bcfxml/two_one?scope=all");
-
+                Logger.LogToFile($"Exportiere BCF für {modelId}");
+                var response = await Http.GetAsync($"{_baseUrl}/models/{modelId}/bcfxml/two_one?scope=all").ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
                 var filePath = Path.Combine(outDirectory, $"result_{modelId}.bcfzip");
@@ -164,38 +203,50 @@ namespace SpaceTracker.Utilities
             }
             catch (HttpRequestException ex)
             {
+                Logger.LogCrash("Solibri Export BCF", ex);
+
                 throw new Exception($"Fehler beim Exportieren des BCF-Ergebnisses: {ex.Message}", ex);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Logger.LogCrash("Solibri Export BCF", ex);
+
                 throw;
             }
         }
-        
+
         public async Task<bool> PingAsync()
         {
+            SolibriProcessManager.EnsureStarted();
+
             try
             {
-                var response = await Http.GetAsync($"{_baseUrl}/ping");
+                var response = await Http.GetAsync($"{_baseUrl}/ping").ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 return true;
             }
-            catch
+            catch (Exception ex)
+
             {
+                Logger.LogCrash("Solibri Ping", ex);
+
                 return false;
             }
         }
 
         public async Task<string> GetStatusAsync()
         {
+            SolibriProcessManager.EnsureStarted();
+
             try
             {
-                var response = await Http.GetAsync($"{_baseUrl}/status");
+                var response = await Http.GetAsync($"{_baseUrl}/status").ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadAsStringAsync();
             }
             catch (HttpRequestException ex)
             {
+                Logger.LogCrash("Solibri Status", ex);
                 throw new Exception($"Fehler beim Abrufen des Serverstatus: {ex.Message}", ex);
             }
         }
