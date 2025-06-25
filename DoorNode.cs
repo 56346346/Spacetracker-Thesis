@@ -11,6 +11,7 @@ public record DoorNode(
     string SymbolName,
     long LevelId,
     long HostId,
+    string HostUid,
     double X,
     double Y,
     double Z,

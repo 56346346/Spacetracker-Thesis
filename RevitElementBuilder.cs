@@ -235,8 +235,13 @@ public static class RevitElementBuilder
         XYZ p = new XYZ(UnitConversion.ToFt(x), UnitConversion.ToFt(y), UnitConversion.ToFt(z));
         Level? level = doc.GetElement(new ElementId((long)node.Properties["levelId"].As<long>())) as Level;
         Element? host = null;
-        if (node.Properties.TryGetValue("hostId", out var hostObj) && hostObj.As<long>() > 0)
-            host = doc.GetElement(new ElementId((int)hostObj.As<long>()));
+        if (node.Properties.TryGetValue("hostUid", out var hostUidProp))
+        {
+            string hUid = hostUidProp.As<string>();
+            if (!string.IsNullOrEmpty(hUid))
+                host = doc.GetElement(hUid);
+        }
+        if (host == null && node.Properties.TryGetValue("hostId", out var hostObj) && hostObj.As<long>() > 0) host = doc.GetElement(new ElementId((int)hostObj.As<long>()));
 
         FamilyInstance fi = host != null
             ? doc.Create.NewFamilyInstance(p, symbol, host, level, StructuralType.NonStructural)

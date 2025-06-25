@@ -73,7 +73,7 @@ namespace SpaceTracker
                 case StatusColor.Yellow:
                     StatusIndicatorButton.LargeImage = YellowIcon;
                     StatusIndicatorButton.Image = YellowIcon;
-                    StatusIndicatorButton.ToolTip = "Status: Externe Änderungen vorhanden (Gelb)";
+                    StatusIndicatorButton.ToolTip = "Status: Warnungen vorhanden (Gelb)";
                     break;
                 case StatusColor.Red:
                     StatusIndicatorButton.LargeImage = RedIcon;
@@ -109,123 +109,9 @@ namespace SpaceTracker
         {
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
-            var parameters = new { session = cmdMgr.SessionId };
-            string query = "MATCH (c:ChangeLog) " +
-                           "WHERE c.sessionId <> $session AND c.acknowledged = false " +
-                           "RETURN c.elementId AS id, c.type AS type, c.sessionId AS session";
 
-            List<IRecord> records;
-            try
-            {
-                records = Task.Run(() => connector.RunReadQueryAsync(query, parameters)).Result;
-            }
-            catch (Exception ex)
-            {
-                if (showDialogs)
-                    Autodesk.Revit.UI.TaskDialog.Show("Consistency Check", $"Fehler bei der Abfrage: {ex.Message}");
-                return;
-            }
 
-            var localPendingIds = new HashSet<long>();
-            var localChangeType = new Dictionary<long, string>();
-            foreach (var cmd in cmdMgr.cypherCommands.ToArray())
-            {
-                long id = -1;
-                int idx = cmd.IndexOf("ElementId");
-                if (idx >= 0)
-                {
-                    string sub = cmd.Substring(idx);
-                    sub = new string(sub.SkipWhile(ch => !char.IsDigit(ch) && ch != '-').ToArray());
-                    string num = new string(sub.TakeWhile(ch => char.IsDigit(ch) || ch == '-').ToArray());
-                    if (long.TryParse(num, out var parsedId))
-                        id = parsedId;
-                }
-                if (id < 0) continue;
-                localPendingIds.Add(id);
-                string lType;
-                if (cmd.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
-                    lType = "Delete";
-                else if (cmd.Contains("MERGE", StringComparison.OrdinalIgnoreCase) && !cmd.Contains("MATCH", StringComparison.OrdinalIgnoreCase)) lType = "Insert";
-                else
-                    lType = "Modify";
-                localChangeType[id] = lType;
-            }
-
-            bool conflict = false;
-            bool remoteChanges = records.Count > 0;
-            var conflictDetails = new List<string>();
-
-            foreach (var rec in records)
-            {
-                long id = rec["id"].As<long>();
-                string rType = rec["type"].As<string>();
-                if (localPendingIds.Contains(id))
-                {
-                    string lType = localChangeType.TryGetValue(id, out var tmp) ? tmp : "Modify";
-                    if (!(rType == "Delete" && lType == "Delete"))
-                    {
-                        conflict = true;
-                        string rDesc = (rType == "Delete") ? "gelöscht" : (rType == "Insert" ? "eingefügt" : "geändert");
-                        string lDesc = (lType == "Delete") ? "gelöscht" : (lType == "Insert" ? "eingefügt" : "geändert");
-                        conflictDetails.Add($"Element {id}: extern {rDesc}, lokal {lDesc}");
-                    }
-                }
-            }
-
-            if (conflict)
-            {
-                SetStatusIndicator(StatusColor.Red);
-                if (showDialogs)
-                {
-                    string detailText = conflictDetails.Count > 0
-                        ? string.Join("\n", conflictDetails)
-                        : "Siehe Änderungsprotokoll für Details.";
-                    Autodesk.Revit.UI.TaskDialog.Show("Consistency Check",
-                        $"*** Konflikt erkannt! ***\n" +
-                        $"Einige Elemente wurden sowohl lokal als auch von einem anderen Nutzer geändert.\n" +
-                        $"{detailText}\n\nBitte Konflikte manuell lösen.");
-                }
-            }
-            else if (remoteChanges)
-            {
-                SetStatusIndicator(StatusColor.Yellow);
-                if (showDialogs)
-                {
-                    int count = records.Count;
-                    Autodesk.Revit.UI.TaskDialog.Show("Consistency Check",
-                        $"Es liegen {count} neue Änderungen von anderen Nutzern vor.\n" +
-                        $"Keine direkten Konflikte mit lokalen Änderungen erkannt.\n" +
-                        $"Sie können einen Pull durchführen, um diese zu übernehmen.");
-                }
-            }
-            else
-            {
-                SetStatusIndicator(StatusColor.Green);
-                if (showDialogs)
-                {
-                    string note = localPendingIds.Count > 0
-                        ? "\n(Hinweis: Es gibt ungesicherte lokale Änderungen, bitte Push ausführen.)"
-                        : string.Empty;
-                    Autodesk.Revit.UI.TaskDialog.Show("Consistency Check", "Das lokale Modell ist konsistent mit dem Neo4j-Graph." + note);
-                }
-
-                if (localPendingIds.Count == 0)
-                {
-                    cmdMgr.LastSyncTime = DateTime.Now;
-                    cmdMgr.PersistSyncTime();
-                    try
-                    {
-                        Task.Run(() => connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime)).Wait();
-                        Task.Run(() => connector.CleanupObsoleteChangeLogsAsync()).Wait();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[ConsistencyCheck] Cleanup failed: {ex.Message}");
-                    }
-                }
-            }
-
-            // Nach der Prüfung in Neo4j zusätzlich den Solibri-Check ausführen
+            //Solibri-Check ausführen
             // und die Status-Ampel entsprechend der höchsten gefundenen
             // Fehlerstufe setzen
             try
@@ -821,9 +707,8 @@ namespace SpaceTracker
                     }
                     else
                     {
-                        // Neo4j-Graph enthält bereits Daten -> keine Überschreibung, Status-Ampel auf Gelb setzen
-                        Debug.WriteLine("[SpaceTracker] Vorhandene Graph-Daten erkannt - bitte Pull/Check durchführen.");
-                        SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
+                        // Neo4j-Graph enthält bereits Daten
+
                     }
                     // After loading the model trigger a pull to ensure latest changes
                     _graphPuller?.RequestPull(doc, Environment.UserName);
