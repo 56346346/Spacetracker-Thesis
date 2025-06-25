@@ -5,7 +5,6 @@ using System.IO.Compression;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using SpaceTracker.Utilities;
 using Autodesk.Revit.UI;
 
 
@@ -25,6 +24,8 @@ namespace SpaceTracker
 
         // Validates the given document against the current Solibri ruleset.
         // In production this would call the Solibri API and return the found issues.
+                // Exportiert das Modell, prüft es mit Solibri und liefert gefundene Fehler.
+
         public static List<ValidationError> Validate(Document doc)
         {
             var errors = new List<ValidationError>();
@@ -32,7 +33,7 @@ namespace SpaceTracker
             {
                 if (doc.IsReadOnly)
                 {
-                    TaskDialog.Show("Solibri", "Dokument ist schreibgesch\u00fctzt. IFC-Export nicht m\u00f6glich.");
+                    Autodesk.Revit.UI.TaskDialog.Show("Solibri", "Dokument ist schreibgesch\u00fctzt. IFC-Export nicht m\u00f6glich.");
                     return errors;
                 }
                 // Export the entire model as IFC to a temporary location
@@ -69,7 +70,7 @@ namespace SpaceTracker
 
             return errors;
         }
-
+        // Liest eine BCF-ZIP-Datei ein und wandelt sie in ValidationError-Objekte um.
         private static List<ValidationError> ParseBcfResults(string bcfZipPath)
         {
             var result = new List<ValidationError>();

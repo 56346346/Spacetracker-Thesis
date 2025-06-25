@@ -8,6 +8,7 @@ namespace SpaceTracker
     // In production this would integrate with Solibri's API.
     public static class SolibriChecker
     {
+                // Platzhalter für eine asynchrone Solibri-Prüfung eines Elements.
         public static Task CheckElementAsync(ElementId id, Document doc)
         {
             Debug.WriteLine($"[SolibriChecker] Checking element {id.Value}");

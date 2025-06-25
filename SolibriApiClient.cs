@@ -16,17 +16,17 @@ namespace SpaceTracker
         private readonly string _baseUrl;
         private static readonly HttpClient Http = new HttpClient();
 
-
+        // Initialisiert den Client mit dem REST-Port von Solibri.
         public SolibriApiClient(int port)
         {
             // Die REST-API von Solibri hängt unter dem Pfad "/solibri/v1".
             // Ohne diesen Zusatz würden die Requests ein 404 zurückliefern.
             _baseUrl = $"http://localhost:{port}/solibri/v1";
             Http.Timeout = TimeSpan.FromMinutes(5);
-                        Debug.WriteLine($"[SolibriApiClient] Base URL set to {_baseUrl}");
+            Debug.WriteLine($"[SolibriApiClient] Base URL set to {_baseUrl}");
 
         }
-
+        // Importiert eine IFC-Datei in Solibri und liefert die Modell-ID zurück.
         public async Task<string> ImportIfcAsync(string ifcFilePath)
         {
             if (string.IsNullOrWhiteSpace(ifcFilePath))
@@ -65,7 +65,7 @@ namespace SpaceTracker
                 throw;
             }
         }
-
+        // Lädt ein Ruleset hoch und gibt dessen ID zurück.
         public async Task<string> ImportRulesetAsync(string csetFilePath)
         {
             if (string.IsNullOrWhiteSpace(csetFilePath))
@@ -108,7 +108,7 @@ namespace SpaceTracker
                 throw;
             }
         }
-
+        // Startet eine Prüfung in Solibri für das angegebene Modell.
         public async Task CheckModelAsync(string modelId, string rulesetId)
         {
             if (string.IsNullOrWhiteSpace(modelId))
@@ -140,7 +140,7 @@ namespace SpaceTracker
                 throw;
             }
         }
-
+        // Aktualisiert nur einen Teil des Modells in Solibri.
         public async Task PartialUpdateAsync(string modelId, string ifcFilePath)
         {
             if (string.IsNullOrWhiteSpace(modelId))
@@ -174,7 +174,7 @@ namespace SpaceTracker
                 throw;
             }
         }
-
+        // Exportiert die BCF-Ergebnisse eines Modells in ein Verzeichnis.
         public async Task<string> ExportBcfAsync(string modelId, string outDirectory)
         {
             if (string.IsNullOrWhiteSpace(modelId))
@@ -214,7 +214,7 @@ namespace SpaceTracker
                 throw;
             }
         }
-
+        // Testet, ob die REST-API erreichbar ist.
         public async Task<bool> PingAsync()
         {
             SolibriProcessManager.EnsureStarted();
@@ -233,7 +233,7 @@ namespace SpaceTracker
                 return false;
             }
         }
-
+        // Liefert den aktuellen Status der Solibri-Instanz als JSON.
         public async Task<string> GetStatusAsync()
         {
             SolibriProcessManager.EnsureStarted();

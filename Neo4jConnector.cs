@@ -29,9 +29,8 @@ namespace SpaceTracker
     "SpaceTracker",
     "neo4j_cypher.txt"
 );
-        /// <summary>
-        /// public constructor
-        /// </summary>
+        // Stellt die Verbindung zu Neo4j her. Die Zugangsdaten können optional
+        // angepasst werden.
         public Neo4jConnector(Microsoft.Extensions.Logging.ILogger<Neo4jConnector> logger, string uri = "bolt://localhost:7687",
                                 string user = "neo4j",
                                string password = "password")
@@ -44,6 +43,7 @@ namespace SpaceTracker
                                   .WithMaxConnectionPoolSize(50)
                         );
         }
+        // Führt eine Leseabfrage aus und gibt die Ergebnismenge zurück.
 
         public async Task<List<IRecord>> RunReadQueryAsync(string query, object parameters = null)
         {
@@ -62,10 +62,8 @@ namespace SpaceTracker
             }
         }
 
-        /// <summary>
-        /// Überträgt eine Liste von Cypher-Befehlen als Atomar-Transaktion an Neo4j 
-        /// und protokolliert jede Änderung im ChangeLog (mit Benutzer & Timestamp).
-        /// </summary>
+        // Schreibt alle Änderungen in einer Transaktion nach Neo4j und legt für
+        // jedes Element einen Log-Eintrag an.
         public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName, Autodesk.Revit.DB.Document currentDocument = null)
         {
             // 1) Asynchrone Neo4j-Session öffnen
@@ -168,14 +166,6 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                 await tx.CommitAsync().ConfigureAwait(false);
                 Debug.WriteLine($"[Neo4j] PushChanges: {changes.Count()} Änderungen übertragen und protokolliert.");
 
-
-                // Nach Abschluss der Transaktion den aktuellen Revit-Status validieren
-                if (currentDocument != null)
-                {
-                    var errs = SolibriRulesetValidator.Validate(currentDocument);
-                    var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
-                    SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
-                }
             }
             catch (Exception ex)
             {
@@ -194,7 +184,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
-
+        // Prüft, ob alle aktiven Sessions den gleichen Synchronisationsstand haben.
         public async Task<bool> AreAllUsersConsistentAsync()
         {
             await using var session = _driver.AsyncSession();
@@ -221,6 +211,8 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         }
 
         // Liefert den Sync-Status aller Sessions zur Prüfung, ob alle gepullt haben
+                // Liefert eine Liste aller Sessions inklusive Pull-Status.
+
         public async Task<List<SessionStatus>> GetSessionStatusesAsync()
         {
             var result = new List<SessionStatus>();
@@ -249,7 +241,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             }
             return result;
         }
-
+        // Entfernt sämtliche Session- und ChangeLog-Knoten aus der Datenbank.
         public async Task DeleteAllSessionsAndLogsAsync()
         {
             await using var session = _driver.AsyncSession();
@@ -266,8 +258,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
-
-
+        // Gibt alle noch nicht bestätigten ChangeLogs anderer Sessions zurück.
         public async Task<List<IRecord>> GetPendingChangeLogsAsync(string currentSession)
         {
             string query = @"MATCH (c:ChangeLog)
@@ -276,7 +267,7 @@ RETURN c.sessionId AS sessionId, c.elementId AS elementId, c.type AS type, c.tim
 ORDER BY c.timestamp";
             return await RunReadQueryAsync(query, new { session = currentSession }).ConfigureAwait(false);
         }
-
+        // Markiert alle fremden ChangeLogs als gelesen.
         public async Task AcknowledgeAllAsync(string currentSession)
         {
             await using var session = _driver.AsyncSession();
@@ -294,6 +285,7 @@ SET c.acknowledged = true", new { session = currentSession }).ConfigureAwait(fal
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+        // Bestätigt nur Logs der angegebenen Elemente.
 
         public async Task AcknowledgeSelectedAsync(string currentSession, IEnumerable<long> elementIds)
         {
@@ -318,6 +310,7 @@ SET c.acknowledged = true",
         }
 
 
+        // Führt einen beliebigen Cypher-String aus.
 
         public async Task RunCypherQuery(string query)
         {
@@ -335,6 +328,7 @@ SET c.acknowledged = true",
                 throw;
             }
         }
+        // Löscht alte ChangeLogs anhand des kleinsten Session-Zeitstempels.
 
         public async Task CleanupObsoleteChangeLogsAsync()
         {
@@ -365,6 +359,7 @@ SET c.acknowledged = true",
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+        // Entfernt Session-Knoten die länger nicht synchronisiert wurden.
 
         public async Task RemoveStaleSessionsAsync(TimeSpan maxAge)
         {
@@ -386,7 +381,7 @@ SET c.acknowledged = true",
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
-
+        // Aktualisiert das lastSync-Datum einer Session in Neo4j.
         public async Task UpdateSessionLastSyncAsync(string sessionId, DateTime syncTime)
         {
             await using var session = _driver.AsyncSession();
@@ -406,6 +401,7 @@ SET c.acknowledged = true",
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+        // Schreibt eine Tür in Neo4j (INSERT/UPDATE).
 
            public async Task UpsertDoorAsync(Dictionary<string, object> args)
         {
@@ -429,7 +425,7 @@ SET c.acknowledged = true",
         }
 
 
-
+        // Spielt zuvor gespeicherte Cypher-Befehle aus der Datei in die Datenbank ein.
         public async Task ExportToNeo4j()
         {
             try
@@ -471,6 +467,7 @@ SET c.acknowledged = true",
         }
         // ------------------------------------------------------------------
         // Neue API für Node-basierten Datenaustausch
+        // Helfer für generische Abfragen mit Mapping-Funktion.
 
         public async Task<List<T>> RunQueryAsync<T>(string cypher, object parameters, Func<IRecord, T> map)
         {
@@ -481,7 +478,7 @@ SET c.acknowledged = true",
             await cursor.ForEachAsync(r => list.Add(map(r))).ConfigureAwait(false);
             return list;
         }
-
+        // Erstellt oder aktualisiert eine Wand in Neo4j.
         public async Task UpsertWallAsync(Dictionary<string, object> args)
         {
             var setParts = new List<string>();
@@ -501,6 +498,7 @@ SET c.acknowledged = true",
             await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
         }
+        // Erstellt oder aktualisiert ein Rohr in Neo4j.
 
         public async Task UpsertPipeAsync(Dictionary<string, object> args)
         {
@@ -522,6 +520,7 @@ SET c.acknowledged = true",
             await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("Pipe {Uid} upserted", args["uid"]);
         }
+        // Erstellt oder aktualisiert einen ProvisionalSpace-Knoten.
 
         public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)
         {
@@ -538,7 +537,7 @@ SET c.acknowledged = true",
             await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("ProvisionalSpace {Guid} upserted", guid);
         }
-
+        // Verbindet einen ProvisionalSpace mit einer Wand.
         public async Task LinkProvisionalSpaceToWallAsync(string guid, long wallId)
         {
             const string cypher = @"MATCH (w:Wall {ElementId:$wid}), (p:ProvisionalSpace {guid:$guid})
@@ -547,6 +546,7 @@ MERGE (w)-[:HAS_PROV_SPACE]->(p)";
             await session.RunAsync(cypher, new { wid = wallId, guid }).ConfigureAwait(false);
         }
 
+        // Verknüpft ein Rohr mit einem ProvisionalSpace.
 
         public async Task LinkPipeToProvisionalSpaceAsync(string pipeUid, string provGuid)
         {
@@ -556,6 +556,7 @@ MERGE (p)-[:CONTAINED_IN]->(ps)";
             await session.RunAsync(cypher, new { uid = pipeUid, guid = provGuid }).ConfigureAwait(false);
         }
 
+        // Holt alle seit einem Zeitpunkt geänderten Wände.
 
         public async Task<List<WallNode>> GetUpdatedWallsAsync(DateTime sinceUtc)
         {
@@ -591,7 +592,7 @@ RETURN w";
             _logger.LogInformation("Pulled {Count} walls", list.Count);
             return list;
         }
-
+        // Setzt LogChanges auf "acknowledged" sobald alle Online-Nutzer sie empfangen haben.
         public async Task<int> AcknowledgeLogChangesAsync(CancellationToken cancellationToken = default)
         {
             const string cypher = @"MATCH (lc:LogChanges)
@@ -633,7 +634,7 @@ RETURN count(*) AS updated";
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
-
+        // Speichert einen Status für einen bestimmten LogChange.
         public async Task SetLogChangeStatusAsync(long elementId, string sessionId, string status, string code)
         {
             const string cypher = @"MATCH (cl:ChangeLog { elementId: $id, sessionId: $session }) SET cl.status = $status, cl.errorCode = $code";
@@ -644,7 +645,7 @@ RETURN count(*) AS updated";
             }).ConfigureAwait(false);
         }
 
-
+        // Schließt den Neo4j-Treiber und gibt Ressourcen frei.
         public void Dispose()
         {
             _driver?.Dispose();

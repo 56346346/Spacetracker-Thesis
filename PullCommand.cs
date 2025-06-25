@@ -27,6 +27,9 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public class PullCommand : IExternalCommand
 {
+    
+        // Importiert neue oder geänderte Wände aus Neo4j in das aktuelle Modell.
+
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
 
     {
@@ -37,10 +40,10 @@ public class PullCommand : IExternalCommand
         var cmdMgr = CommandManager.Instance;
         var connector = cmdMgr.Neo4jConnector;
 
-         List<WallNode> walls;
+        List<WallNode> walls;
         try
         {
-             // Daten direkt laden (kein Hintergrund-Thread, um Revit API sicher zu nutzen)
+            // Daten direkt laden (kein Hintergrund-Thread, um Revit API sicher zu nutzen)
             walls = connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime)
                 .GetAwaiter().GetResult();
         }
@@ -49,7 +52,7 @@ public class PullCommand : IExternalCommand
             TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
             return Result.Failed;
         }
-       using (var revitTx = new Transaction(doc, "Import Wall"))
+        using (var revitTx = new Transaction(doc, "Import Wall"))
         {
             revitTx.Start();
             foreach (var w in walls)
@@ -59,20 +62,20 @@ public class PullCommand : IExternalCommand
                 Line loc = Line.CreateBound(
                     new XYZ(UnitConversion.ToFt(w.X1), UnitConversion.ToFt(w.Y1), UnitConversion.ToFt(w.Z1)),
                     new XYZ(UnitConversion.ToFt(w.X2), UnitConversion.ToFt(w.Y2), UnitConversion.ToFt(w.Z2)));
- Wall newWall = Wall.Create(doc, loc, new ElementId(w.TypeId), new ElementId(w.LevelId),
-                    UnitConversion.ToFt(w.HeightMm), UnitConversion.ToFt(w.BaseOffsetMm), w.Flipped, w.Structural);
+                Wall newWall = Wall.Create(doc, loc, new ElementId(w.TypeId), new ElementId(w.LevelId),
+                                   UnitConversion.ToFt(w.HeightMm), UnitConversion.ToFt(w.BaseOffsetMm), w.Flipped, w.Structural);
                 Parameter llp = newWall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM);
                 if (llp != null && !llp.IsReadOnly)
                     llp.Set(w.LocationLine);
             }
             revitTx.Commit();
-   }
+        }
 
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;
         cmdMgr.PersistSyncTime();
 
         TaskDialog.Show("Neo4j", $"{walls.Count} Wände importiert.");
         return Result.Succeeded;
-           
-}
+
+    }
 }

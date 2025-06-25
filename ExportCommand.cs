@@ -15,10 +15,10 @@ namespace SpaceTracker
     [Regeneration(RegenerationOption.Manual)]
     public class ExportCommand : IExternalCommand
     {
-        public Result Execute(
-    ExternalCommandData commandData,
-    ref string message,
-    ElementSet elements)
+        
+        // Exportiert das komplette Modell nach Neo4j und legt die erzeugten
+        // Cypher-Befehle optional im Benutzerprofil ab.
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
 
             UIApplication uiApp = commandData.Application;
@@ -33,7 +33,7 @@ namespace SpaceTracker
             var connector = cmdMgr.Neo4jConnector;
             string sessionId = cmdMgr.SessionId;
 
-           
+
             Document doc = uiDoc.Document;
 
             // 1) Gesamtes Modell exportieren
@@ -76,7 +76,7 @@ namespace SpaceTracker
                 connector.PushChangesAsync(changes, sessionId, Environment.UserName, doc).GetAwaiter().GetResult();
                 connector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
 
-                    var errs = SolibriRulesetValidator.Validate(doc);
+                var errs = SolibriRulesetValidator.Validate(doc);
                 var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                 SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
 
@@ -88,7 +88,7 @@ namespace SpaceTracker
                     $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
             }
 
-                 
+
             return Result.Succeeded;
         }
     }

@@ -9,6 +9,8 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class ProvisionalSpaceSerializer
 {
+        // Wandelt einen ProvisionalSpace in ein Dictionary zur Ablage in Neo4j um.
+
     public static Dictionary<string, object> ToNode(FamilyInstance inst)
     {
         BoundingBoxXYZ bb = inst.get_BoundingBox(null);
@@ -19,7 +21,7 @@ public static class ProvisionalSpaceSerializer
             height = UnitConversion.ToMm(Math.Abs(bb.Max.Z - bb.Min.Z));
             thickness = UnitConversion.ToMm(Math.Abs(bb.Max.Y - bb.Min.Y));
         }
-                bool isProv = ParameterUtils.IsProvisionalSpace(inst);
+        bool isProv = ParameterUtils.IsProvisionalSpace(inst);
 
         BoundingBoxXYZ? bbView = null;
         XYZ bbMin = XYZ.Zero, bbMax = XYZ.Zero;
@@ -76,7 +78,7 @@ public static class ProvisionalSpaceSerializer
             dict["bbMaxY"] = UnitConversion.ToMm(bbMax.Y);
             dict["bbMaxZ"] = UnitConversion.ToMm(bbMax.Z);
         }
-        
+
         SerializeParameters(inst, dict);
         return dict;
     }

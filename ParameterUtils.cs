@@ -10,10 +10,13 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class ParameterUtils
 {
+        // Ersetzt problematische Zeichen in Parameternamen durch Unterstriche.
+
     private static string Sanitize(string name)
     {
         return name.Replace(" ", "_").Replace("-", "_").Replace(".", "_").Replace(":", "_");
     }
+    // Schreibt alle Parameter eines Elements in das Dictionary.
 
     public static void SerializeParameters(Element elem, Dictionary<string, object> dict)
     {
@@ -39,6 +42,7 @@ public static class ParameterUtils
             // ignore serialization errors
         }
     }
+    // Überträgt Werte aus dem Dictionary zurück auf die Revit-Parameter.
 
     public static void ApplyParameters(Element elem, Dictionary<string, object> dict)
     {
@@ -85,6 +89,7 @@ public static class ParameterUtils
             // ignore errors
         }
     }
+    // Liefert die eingestellte IFC-Entität des Elements, falls vorhanden.
 
     public static string GetIfcEntity(Element elem)
     {
@@ -98,6 +103,7 @@ public static class ParameterUtils
             return string.Empty;
         }
     }
+    // Prüft anhand des Namens auf einen ProvisionalSpace.
 
     public static bool IsProvisionalSpaceName(string? name)
     {
@@ -120,7 +126,8 @@ public static class ParameterUtils
         return false;
 
     }
-    
+        // Erkennt ProvisionalSpaces anhand mehrerer Kriterien.
+
     public static bool IsProvisionalSpace(Element elem)
     {
         if (IsProvisionalSpaceName(elem.Name))

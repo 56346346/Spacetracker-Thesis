@@ -11,6 +11,7 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class WallSerializer
 {
+        // Erstellt ein Dictionary aller wichtigen Wand-Eigenschaften für Neo4j.
     public static Dictionary<string, object> ToNode(Wall wall)
     {
         var lc = wall.Location as LocationCurve;
@@ -46,7 +47,7 @@ public static class WallSerializer
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow
         };
-        
+
         SerializeParameters(wall, dict);
         return dict;
     }

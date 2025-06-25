@@ -37,6 +37,9 @@ namespace SpaceTracker
         public List<LogChange> LogChanges { get; } = new();
         public List<LogChangeAcknowledged> LogChangesAcknowledged { get; } = new();
         public int ExpectedSessionCount { get; set; } = 1;
+
+        // Privater Konstruktor; erzeugt eine neue Instanz und initialisiert
+        // Session-ID sowie den Zeitstempel der letzten Synchronisation.
         private CommandManager(Neo4jConnector neo4jConnector)
         {
             _neo4jConnector = neo4jConnector;
@@ -47,7 +50,7 @@ namespace SpaceTracker
             cypherCommands = new ConcurrentQueue<string>();
         }
 
-
+        // Muss einmalig aufgerufen werden um die Singleton-Instanz anzulegen.
         public static void Initialize(Neo4jConnector neo4jConnector)
         {
             lock (_lock)
@@ -61,6 +64,7 @@ namespace SpaceTracker
         }
 
         // Öffentliche Instanz-Eigenschaft
+        // Liefert die zuvor initialisierte Singleton-Instanz.
         public static CommandManager Instance
         {
             get
@@ -75,12 +79,16 @@ namespace SpaceTracker
         }
 
         // Öffentliche Instanz-Eigenschaft
+        // Gibt die Ressourcen des Neo4jConnectors frei.
+
         public void Dispose()
         {
             _neo4jConnector?.Dispose();
         }
 
-
+        // Überträgt alle gesammelten Cypher-Befehle an Neo4j und aktualisiert
+        // anschließend den Sync-Zeitstempel. Optional wird der aktuelle
+        // Revit-Status geprüft.
         public async Task ProcessCypherQueueAsync(Document currentDoc = null)
         {
             await _cypherLock.WaitAsync();
@@ -121,7 +129,8 @@ namespace SpaceTracker
                 _cypherLock.Release();
             }
         }
-
+        // Schreibt den aktuellen LastSyncTime-Wert in eine Datei im
+        // Benutzerprofil.
         public void PersistSyncTime()
         {
             try
@@ -139,15 +148,16 @@ namespace SpaceTracker
                 Logger.LogCrash("PersistSyncTime", ex);
             }
         }
-
+        // Generiert eine eindeutige Session-ID basierend auf dem Benutzernamen
         private static string GenerateSessionId()
         {
             string user = Environment.UserName;
             string processId = Environment.ProcessId.ToString();
             return $"{user}_{processId}_{Guid.NewGuid().ToString().Substring(0, 8)}";
         }
-
-        private DateTime LoadLastSyncTime()
+        // Liest einen zuvor gespeicherten Sync-Zeitstempel aus der Datei oder
+        // liefert DateTime.Now wenn keiner vorhanden ist. 
+         private DateTime LoadLastSyncTime()
         {
             try
             {

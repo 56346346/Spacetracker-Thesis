@@ -18,11 +18,15 @@ public class GraphPuller : IExternalEventHandler
     private Document _doc;
     private string _userId;
 
+
+    // Erzeugt den Puller und registriert ein ExternalEvent
+
     public GraphPuller(Neo4jConnector connector)
     {
         _connector = connector;
         _event = ExternalEvent.Create(this);
     }
+    // Fordert einen Pull an; wird von anderen Klassen aufgerufen.
 
     public void RequestPull(Document doc, string currentUserId)
     {
@@ -31,8 +35,9 @@ public class GraphPuller : IExternalEventHandler
         if (!_event.IsPending)
             _event.Raise();
     }
-
+    // Name des Events für Debugzwecke.
     public string GetName() => "GraphPuller";
+    // ExternalEvent-Callback, ruft PullRemoteChanges auf.
 
     public void Execute(UIApplication app)
     {
@@ -52,6 +57,7 @@ public class GraphPuller : IExternalEventHandler
             _userId = null;
         }
     }
+    // Holt ausstehende Änderungen anderer Nutzer und baut die Objekte im Modell nach.
 
     public async Task PullRemoteChanges(Document doc, string currentUserId)
     {
@@ -77,6 +83,7 @@ RETURN lc, e ORDER BY lc.timestamp";
             await _connector.RunCypherQuery(relCypher).ConfigureAwait(false);
         }
     }
+    // Kleine Hilfsfunktion für Cypher-Sicherheit.
 
     private static string EscapeString(string input)
     {

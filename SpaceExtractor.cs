@@ -38,12 +38,7 @@ namespace SpaceTracker
             _stairCounters[key] = count;
             return $"Treppe {baseLevelName} {topLevelName} {count}";
         }
-
-
-
-        /// <summary>
-        /// Dflt constructor
-        /// </summary>
+        // Konstruktor, erhält den CommandManager zum Einreihen von Cypher-Befehlen.
         public SpaceExtractor(CommandManager cmdManager)
         {
 
@@ -325,14 +320,7 @@ namespace SpaceTracker
         {
             return ParameterUtils.GetIfcEntity(elem);
         }
-
-
-
-
-        /// <summary>
-        /// Extracts the existing situation from a model 
-        /// </summary>
-        /// <param name="doc"></param>
+        // Liest alle relevanten Elemente aus dem Dokument und erzeugt erste Neo4j-Knoten.
         public void CreateInitialGraph(Document doc)
         {
 
@@ -492,7 +480,7 @@ namespace SpaceTracker
             Debug.WriteLine($"#--------#\nTimer stopped: {timer.ElapsedMilliseconds}ms\n#--------#");
             timer.Stop();
         }
-
+        // Aktualisiert den Graph asynchron basierend auf Änderungslisten.
         public Task UpdateGraphAsync(
         Document doc,
         List<ElementId> EnqueuedElementIds,
@@ -626,12 +614,12 @@ namespace SpaceTracker
             Debug.WriteLine("[Neo4j] Cypher erzeugt (Stair-Verbindungen): " + cy);
         }
 
-
+        // Exportiert nur die angegebenen Elemente als temporäre IFC-Datei.
         public string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
         {
              if (doc.IsReadOnly)
             {
-                TaskDialog.Show("IFC Export", "Dokument ist schreibgesch\u00fctzt. Export nicht m\u00f6glich.");
+                Autodesk.Revit.UI.TaskDialog.Show("IFC Export", "Dokument ist schreibgesch\u00fctzt. Export nicht m\u00f6glich.");
                 return string.Empty;
             }
             // 1. Temporäre 3D-Ansicht erstellen und Elemente isolieren
@@ -683,12 +671,7 @@ namespace SpaceTracker
 
             return tempIfcPath;
         }
-
-
-
-        // Deletes all previously existing data (convenient for debugging)
-
-
+        // Ältere Methode zur Graphaktualisierung, wird für Debugzwecke verwendet.
         public void UpdateGraph(Document doc, List<Element> EnqueuedElements, List<ElementId> deletedElementIds, List<Element> modifiedElements)
         {
             Debug.WriteLine(" Starting to update Graph...\n");

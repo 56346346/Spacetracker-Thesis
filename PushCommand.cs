@@ -19,6 +19,9 @@ namespace SpaceTracker;
 public class PushCommand : IExternalCommand
 
 {
+
+        // Lädt alle Wände des aktuellen Modells zu Neo4j hoch.
+
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
 
     {

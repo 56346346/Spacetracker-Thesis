@@ -10,6 +10,8 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class DoorSerializer
 {
+    // Erstellt ein Dictionary mit allen relevanten Eigenschaften einer Tür,
+    // welches später nach Neo4j geschrieben werden kann.
     public static Dictionary<string, object> ToNode(FamilyInstance door)
     {
         var loc = door.Location as LocationPoint;

@@ -105,6 +105,7 @@ namespace SpaceTracker
         // Runs a consistency check against Neo4j and updates the status
         // indicator. Dialog messages can be suppressed with the showDialogs
         // flag.
+        // Vergleicht lokale Änderungen mit dem Graphen und setzt die Ampel. Optionale Dialoge informieren den Nutzer.
         public static void PerformConsistencyCheck(Document doc, bool showDialogs)
         {
             var cmdMgr = CommandManager.Instance;
@@ -258,8 +259,7 @@ namespace SpaceTracker
         }
         private static List<string> ValidateElementMappings(Document doc, Neo4jConnector connector)
         {
-            const string cypher = "MATCH (n) WHERE exists(n.elementId) RETURN labels(n) AS labels, n.elementId AS id";
-            var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
+  const string cypher = "MATCH (n) WHERE n.elementId IS NOT NULL RETURN labels(n) AS labels, n.elementId AS id";            var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
             var issues = new List<string>();
             foreach (var r in records)
             {
@@ -270,18 +270,9 @@ namespace SpaceTracker
             }
             return issues;
         }
-
-
-
-
-
+        
         #region register events
-
-        /// <summary>
-        /// Catch startup and mount event handlers
-        /// </summary>
-        /// <param name="application"></param>
-        /// <returns></returns>
+        // Wird beim Laden des Add-Ins aufgerufen und richtet alle Komponenten ein.
         public Result OnStartup(UIControlledApplication application)
         {
             Logger.LogToFile("OnStartup begin", "assembly.log");
@@ -685,13 +676,7 @@ namespace SpaceTracker
                    .Where(el => el != null)
                    .ToList();
         }
-
-
-        /// <summary>
-        /// remove mounted events
-        /// </summary>
-        /// <param name="application"></param>
-        /// <returns></returns>
+        // Aufräumarbeiten beim Beenden von Revit.
         public Result OnShutdown(UIControlledApplication application)
         {
             CommandManager.Instance.Dispose();
@@ -699,7 +684,6 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentChanged -= documentChanged;
             application.ControlledApplication.DocumentCreated -= documentCreated;
             _neo4jConnector?.Dispose();
-            SolibriProcessManager.Stop();
             return Result.Succeeded;
 
         }

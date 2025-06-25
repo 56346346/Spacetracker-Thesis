@@ -14,6 +14,8 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class RevitElementBuilder
 {
+
+        // Erstellt ein Revit-Element anhand der in Neo4j gespeicherten Eigenschaften.
     public static Element BuildFromNode(Document doc, Dictionary<string, object> node)
     {
         if (!node.TryGetValue("rvtClass", out object? clsObj))
@@ -29,6 +31,7 @@ public static class RevitElementBuilder
             _ => throw new NotSupportedException($"Unsupported rvtClass {cls}")
         };
     }
+    // Baut eine Wand aus den übertragenen Attributen nach.
 
     private static Wall BuildWall(Document doc, Dictionary<string, object> node)
     {
@@ -53,7 +56,7 @@ public static class RevitElementBuilder
         ParameterUtils.ApplyParameters(wall, node);
         return wall;
     }
-
+   // Baut ein Rohr nach.
     private static Pipe BuildPipe(Document doc, Dictionary<string, object> node)
     {
         XYZ s = new XYZ(UnitConversion.ToFt(Convert.ToDouble(node["x1"])),
@@ -73,7 +76,7 @@ public static class RevitElementBuilder
         ParameterUtils.ApplyParameters(pipe, node);
         return pipe;
     }
-
+    // Erstellt ein FamilyInstance-Element (z.B. Tür oder ProvisionalSpace).
     private static FamilyInstance BuildFamilyInstance(Document doc, Dictionary<string, object> node)
     {
         ElementId typeId = new ElementId(Convert.ToInt32(node["typeId"]));
@@ -93,6 +96,7 @@ public static class RevitElementBuilder
         ParameterUtils.ApplyParameters(fi, node);
         return fi;
     }
+    // Interne Variante für Node-Objekte.
     private static void BuildWall(Document doc, INode node)
     {
         string uid = node.Properties.TryGetValue("uid", out var uidObj)
@@ -126,6 +130,7 @@ public static class RevitElementBuilder
                 llp.Set(llv.As<int>());
         }
     }
+    // Erkennt den Knotentyp und ruft den passenden Builder auf.
     public static void BuildFromNodes(Document doc, INode node)
     {
         if (node == null) return;

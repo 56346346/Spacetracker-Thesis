@@ -8,6 +8,8 @@ namespace SpaceTracker
     [Regeneration(RegenerationOption.Manual)]
     public class InfoCommand : IExternalCommand
     {
+                // Zeigt eine kurze Erläuterung der verfügbaren Befehle an.
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             string infoText =

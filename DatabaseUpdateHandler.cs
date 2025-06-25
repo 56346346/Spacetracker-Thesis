@@ -27,7 +27,8 @@ namespace SpaceTracker
         private readonly CypherPushHandler _pushHandler = new CypherPushHandler();
         private ExternalEvent _pushEvent;
 
-
+        // Wird aufgerufen, wenn Änderungen verarbeitet werden sollen.
+        // Erstellt IFC-Teilexporte und triggert anschließend die Solibri-Prüfung.    
         public void Execute(UIApplication app)
         {
             var doc = app.ActiveUIDocument?.Document;
@@ -143,8 +144,11 @@ namespace SpaceTracker
 
 
 
-
+         // Name des ExternalEvents.
         public string GetName() => "SpaceTracker Real-Time Sync";
+
+                // Reicht eine Änderung zur späteren Verarbeitung ein und startet das Event.
+
 
         public void EnqueueChange(ChangeData data)
         {
