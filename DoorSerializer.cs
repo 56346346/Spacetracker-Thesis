@@ -34,6 +34,7 @@ public static class DoorSerializer
             ["symbolName"] = door.Symbol?.Name ?? string.Empty,
             ["levelId"] = door.LevelId.Value,
             ["hostId"] = door.Host?.Id.Value ?? -1,
+            ["hostUid"] = door.Host?.UniqueId ?? string.Empty,
             ["x"] = UnitConversion.ToMm(loc?.Point.X ?? 0),
             ["y"] = UnitConversion.ToMm(loc?.Point.Y ?? 0),
             ["z"] = UnitConversion.ToMm(loc?.Point.Z ?? 0),
@@ -49,7 +50,7 @@ public static class DoorSerializer
         SerializeParameters(door, dict);
         return dict;
     }
-    
+
     // Erstellt einen DoorNode aus den übertragenen Attributen.
     public static DoorNode ToDoorNode(FamilyInstance door)
     {
@@ -62,6 +63,7 @@ public static class DoorSerializer
             dict.GetValueOrDefault("symbolName", string.Empty).ToString() ?? string.Empty,
             Convert.ToInt64(dict["levelId"]),
             Convert.ToInt64(dict["hostId"]),
+            dict.GetValueOrDefault("hostUid", string.Empty).ToString() ?? string.Empty,
             Convert.ToDouble(dict.GetValueOrDefault("x", 0.0)),
             Convert.ToDouble(dict.GetValueOrDefault("y", 0.0)),
             Convert.ToDouble(dict.GetValueOrDefault("z", 0.0)),

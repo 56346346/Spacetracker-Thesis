@@ -21,9 +21,10 @@ namespace SpaceTracker
 
 
         private readonly CommandManager _cmdManager;
+        // Separate Logdatei für ProvisionalSpaces
+        private const string ProvLog = "provisional_spaces.log";
 
         private static int _wallCounter = 0;
-
         private readonly Dictionary<(string baseLevel, string topLevel), int> _stairCounters
           = new Dictionary<(string baseLevel, string topLevel), int>();
 
@@ -125,6 +126,7 @@ namespace SpaceTracker
                     $"d.symbolName = '{EscapeString(data.GetValueOrDefault("symbolName", string.Empty).ToString())}'",
                     $"d.levelId = {door.LevelId.Value}",
                     $"d.hostId = {doorInstance?.Host?.Id.Value ?? -1}",
+                    $"d.hostUid = '{EscapeString(doorInstance?.Host?.UniqueId ?? string.Empty)}'",
                     $"d.x = {((double)data.GetValueOrDefault("x", 0.0)).ToString(inv)}",
                     $"d.y = {((double)data.GetValueOrDefault("y", 0.0)).ToString(inv)}",
                     $"d.z = {((double)data.GetValueOrDefault("z", 0.0)).ToString(inv)}",
@@ -162,12 +164,18 @@ namespace SpaceTracker
         {
             try
             {
+                Logger.LogToFile($"Begin processing {inst.UniqueId}", ProvLog);
                 bool isProv = ParameterUtils.IsProvisionalSpace(inst);
-
+                Logger.LogToFile($"Is provisional: {isProv}", ProvLog);
                 if (!isProv)
+                {
+                    Logger.LogToFile("Skipped - not provisional", ProvLog);
                     return;
+                }
                 var host = inst.Host as Wall;
                 var data = ProvisionalSpaceSerializer.ToNode(inst);
+                Logger.LogToFile($"Serialized data for {inst.UniqueId}", ProvLog);
+
                 var inv = CultureInfo.InvariantCulture;
                 var setParts = new List<string>
                 {
@@ -207,22 +215,25 @@ namespace SpaceTracker
                     $"MERGE (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
                           $"SET {string.Join(", ", setParts)}";
                 _cmdManager.cypherCommands.Enqueue(cyNode);
+                Logger.LogToFile($"Cypher node queued: {cyNode}", ProvLog);
                 if (host != null)
                 {
                     string cyRel =
                         $"MATCH (w:Wall {{ElementId:{host.Id.Value}}}), (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
                         "MERGE (w)-[:HAS_PROV_SPACE]->(p)";
                     _cmdManager.cypherCommands.Enqueue(cyRel);
+                    Logger.LogToFile($"Cypher relation queued: {cyRel}", ProvLog);
                     Debug.WriteLine("[Neo4j] Created ProvisionalSpace relation: " + cyRel);
                 }
 
                 Debug.WriteLine("[Neo4j] Created ProvisionalSpace node: " + cyNode);
                 Logger.LogToFile($"Created provisional space {inst.UniqueId} ({inst.Name})", "extractor.log");
-
+                Logger.LogToFile($"Finished processing {inst.UniqueId}", ProvLog);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ProvisionalSpace Error] {ex.Message}");
+                Logger.LogCrash("ProcessProvisionalSpace", ex);
             }
         }
 

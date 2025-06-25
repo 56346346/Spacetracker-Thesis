@@ -28,14 +28,10 @@ namespace SpaceTracker;
 public class PullCommand : IExternalCommand
 {
 
-    // Importiert neue oder geänderte Wände aus Neo4j in das aktuelle Modell.
-    public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
-
+    // Führt den eigentlichen Pull-Vorgang aus. Optional kann die Erfolgsmeldung
+    // angezeigt werden.
+    public static Result RunPull(Document doc, bool showDialog = true)
     {
-        var uiDoc = commandData.Application.ActiveUIDocument;
-        if (uiDoc?.Document is null)
-            return Result.Failed;
-        Document doc = uiDoc.Document;
         var cmdMgr = CommandManager.Instance;
         var connector = cmdMgr.Neo4jConnector;
 
@@ -80,8 +76,11 @@ public class PullCommand : IExternalCommand
 
                 XYZ p = new XYZ(UnitConversion.ToFt(d.X), UnitConversion.ToFt(d.Y), UnitConversion.ToFt(d.Z));
                 Level level = doc.GetElement(new ElementId((int)d.LevelId)) as Level;
-                Element host = d.HostId > 0 ? doc.GetElement(new ElementId((int)d.HostId)) : null;
-                FamilyInstance fi = host != null
+                Element host = null;
+                if (!string.IsNullOrEmpty(d.HostUid))
+                    host = doc.GetElement(d.HostUid);
+                if (host == null && d.HostId > 0)
+                    host = doc.GetElement(new ElementId((int)d.HostId)); FamilyInstance fi = host != null
                     ? doc.Create.NewFamilyInstance(p, symbol, host, level, StructuralType.NonStructural)
                     : doc.Create.NewFamilyInstance(p, symbol, level, StructuralType.NonStructural);
 
@@ -99,8 +98,20 @@ public class PullCommand : IExternalCommand
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;
         cmdMgr.PersistSyncTime();
 
-        TaskDialog.Show("Neo4j", $"{walls.Count} Wände und {doors.Count} Türen importiert.");
+        if (showDialog)
+            TaskDialog.Show("Neo4j", $"{walls.Count} Wände und {doors.Count} Türen importiert.");
         return Result.Succeeded;
+
+    }
+
+    // Importiert neue oder geänderte Wände aus Neo4j in das aktuelle Modell.
+    public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+
+    {
+        var uiDoc = commandData.Application.ActiveUIDocument;
+        if (uiDoc?.Document is null)
+            return Result.Failed;
+        return RunPull(uiDoc.Document, showDialog: true);
 
     }
 }

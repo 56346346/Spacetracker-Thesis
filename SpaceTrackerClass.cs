@@ -40,8 +40,7 @@ namespace SpaceTracker
         private Neo4jConnector _neo4jConnector;
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
-
-
+        private PullEventHandler _pullEventHandler;
         public const int SolibriApiPort = 10876;
 
 
@@ -259,7 +258,7 @@ namespace SpaceTracker
         }
         private static List<string> ValidateElementMappings(Document doc, Neo4jConnector connector)
         {
-  const string cypher = "MATCH (n) WHERE n.elementId IS NOT NULL RETURN labels(n) AS labels, n.elementId AS id";            var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
+            const string cypher = "MATCH (n) WHERE n.elementId IS NOT NULL RETURN labels(n) AS labels, n.elementId AS id"; var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
             var issues = new List<string>();
             foreach (var r in records)
             {
@@ -270,7 +269,7 @@ namespace SpaceTracker
             }
             return issues;
         }
-        
+
         #region register events
         // Wird beim Laden des Add-Ins aufgerufen und richtet alle Komponenten ein.
         public Result OnStartup(UIControlledApplication application)
@@ -291,6 +290,7 @@ namespace SpaceTracker
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
                 _graphPuller = new GraphPuller(_neo4jConnector);
                 _cmdManager = CommandManager.Instance;
+                _pullEventHandler = new PullEventHandler();
             }
             catch (Exception ex)
             {
@@ -745,8 +745,7 @@ namespace SpaceTracker
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
                 _databaseUpdateHandler.TriggerPush();
                 _graphPuller?.RequestPull(doc, Environment.UserName);
-
-
+                _pullEventHandler?.RequestPull(doc);
             }
             catch (Exception ex)
             {
@@ -765,7 +764,7 @@ namespace SpaceTracker
                 // Nach dem Initialisieren bereits vorhandener Elemente direkt
                 // die aktuellen Befehle an Neo4j senden
                 _databaseUpdateHandler.TriggerPush();
-
+                _pullEventHandler?.RequestPull(e.Document);
             }
             catch (Exception ex)
             {
@@ -828,6 +827,7 @@ namespace SpaceTracker
                     }
                     // After loading the model trigger a pull to ensure latest changes
                     _graphPuller?.RequestPull(doc, Environment.UserName);
+                    _pullEventHandler?.RequestPull(doc);
                 }
             }
             catch (Exception ex)

@@ -6,6 +6,8 @@ using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Structure;
 using Neo4j.Driver;
 using System.Diagnostics;
+using System.Linq;
+
 
 namespace SpaceTracker;
 
@@ -14,8 +16,10 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class RevitElementBuilder
 {
+    private const string ProvLog = "provisional_spaces.log";
 
-        // Erstellt ein Revit-Element anhand der in Neo4j gespeicherten Eigenschaften.
+
+    // Erstellt ein Revit-Element anhand der in Neo4j gespeicherten Eigenschaften.
     public static Element BuildFromNode(Document doc, Dictionary<string, object> node)
     {
         if (!node.TryGetValue("rvtClass", out object? clsObj))
@@ -26,7 +30,7 @@ public static class RevitElementBuilder
         {
             "Wall" => BuildWall(doc, node),
             "Pipe" => BuildPipe(doc, node),
-            "Door" => BuildFamilyInstance(doc, node),
+            "Door" => BuildDoor(doc, node),
             "ProvisionalSpace" => BuildFamilyInstance(doc, node),
             _ => throw new NotSupportedException($"Unsupported rvtClass {cls}")
         };
@@ -56,7 +60,7 @@ public static class RevitElementBuilder
         ParameterUtils.ApplyParameters(wall, node);
         return wall;
     }
-   // Baut ein Rohr nach.
+    // Baut ein Rohr nach.
     private static Pipe BuildPipe(Document doc, Dictionary<string, object> node)
     {
         XYZ s = new XYZ(UnitConversion.ToFt(Convert.ToDouble(node["x1"])),
@@ -88,12 +92,30 @@ public static class RevitElementBuilder
                         UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("z", 0.0))));
         Level? level = doc.GetElement(new ElementId(Convert.ToInt32(node["levelId"]))) as Level;
         Element? host = null;
-        if (node.TryGetValue("hostId", out var hostObj) && Convert.ToInt64(hostObj) > 0)
-            host = doc.GetElement(new ElementId(Convert.ToInt32(hostObj)));
+        if (node.TryGetValue("hostUid", out var hostUidObj) && hostUidObj is string hUid && !string.IsNullOrEmpty(hUid))
+            host = doc.GetElement(hUid);
+        if (host == null && node.TryGetValue("hostId", out var hostObj) && Convert.ToInt64(hostObj) > 0) host = doc.GetElement(new ElementId(Convert.ToInt32(hostObj)));
         FamilyInstance fi = host != null
             ? doc.Create.NewFamilyInstance(p, symbol, host, level, StructuralType.NonStructural)
             : doc.Create.NewFamilyInstance(p, symbol, level, StructuralType.NonStructural);
         ParameterUtils.ApplyParameters(fi, node);
+        return fi;
+    }
+
+    // Erstellt eine Tür aus den übertragenen Attributen.
+    private static FamilyInstance BuildDoor(Document doc, Dictionary<string, object> node)
+    {
+        FamilyInstance fi = BuildFamilyInstance(doc, node);
+        XYZ p = (fi.Location as LocationPoint)?.Point ?? XYZ.Zero;
+        if (node.TryGetValue("rotation", out var rotObj) && Math.Abs(Convert.ToDouble(rotObj)) > 1e-6)
+        {
+            var axis = Line.CreateBound(p, new XYZ(p.X, p.Y, p.Z + 1));
+            ElementTransformUtils.RotateElement(doc, fi.Id, axis, Convert.ToDouble(rotObj));
+        }
+        if (node.TryGetValue("width", out var w))
+            fi.get_Parameter(BuiltInParameter.DOOR_WIDTH)?.Set(UnitConversion.ToFt(Convert.ToDouble(w)));
+        if (node.TryGetValue("height", out var h))
+            fi.get_Parameter(BuiltInParameter.DOOR_HEIGHT)?.Set(UnitConversion.ToFt(Convert.ToDouble(h)));
         return fi;
     }
     // Interne Variante für Node-Objekte.
@@ -144,6 +166,10 @@ public static class RevitElementBuilder
             {
                 BuildPipe(doc, node);
             }
+            else if (node.Labels.Contains("Door"))
+            {
+                BuildDoor(doc, node);
+            }
             else if (node.Labels.Contains("ProvisionalSpace"))
             {
                 BuildProvisionalSpace(doc, node);
@@ -191,16 +217,59 @@ public static class RevitElementBuilder
             newPipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)?.Set(diam);
         }
     }
-   // Legt einen ProvisionalSpace im Modell an.
+
+    // Erstellt eine Tür anhand eines Neo4j-Knotens.
+    private static void BuildDoor(Document doc, INode node)
+    {
+        string uid = node.Properties.TryGetValue("uid", out var uidProp) ? uidProp.As<string>() : string.Empty;
+        Element? existing = !string.IsNullOrEmpty(uid) ? doc.GetElement(uid) : null;
+        if (existing != null) return;
+
+        FamilySymbol? symbol = doc.GetElement(new ElementId((long)node.Properties["typeId"].As<long>())) as FamilySymbol;
+        if (symbol == null) return;
+        if (!symbol.IsActive) symbol.Activate();
+
+        double x = node.Properties.TryGetValue("x", out var xObj) ? xObj.As<double>() : 0.0;
+        double y = node.Properties.TryGetValue("y", out var yObj) ? yObj.As<double>() : 0.0;
+        double z = node.Properties.TryGetValue("z", out var zObj) ? zObj.As<double>() : 0.0;
+        XYZ p = new XYZ(UnitConversion.ToFt(x), UnitConversion.ToFt(y), UnitConversion.ToFt(z));
+        Level? level = doc.GetElement(new ElementId((long)node.Properties["levelId"].As<long>())) as Level;
+        Element? host = null;
+        if (node.Properties.TryGetValue("hostId", out var hostObj) && hostObj.As<long>() > 0)
+            host = doc.GetElement(new ElementId((int)hostObj.As<long>()));
+
+        FamilyInstance fi = host != null
+            ? doc.Create.NewFamilyInstance(p, symbol, host, level, StructuralType.NonStructural)
+            : doc.Create.NewFamilyInstance(p, symbol, level, StructuralType.NonStructural);
+
+        if (node.Properties.TryGetValue("rotation", out var rotObj) && Math.Abs(rotObj.As<double>()) > 1e-6)
+        {
+            var axis = Line.CreateBound(p, new XYZ(p.X, p.Y, p.Z + 1));
+            ElementTransformUtils.RotateElement(doc, fi.Id, axis, rotObj.As<double>());
+        }
+
+        if (node.Properties.TryGetValue("width", out var width))
+            fi.get_Parameter(BuiltInParameter.DOOR_WIDTH)?.Set(UnitConversion.ToFt(width.As<double>()));
+        if (node.Properties.TryGetValue("height", out var height))
+            fi.get_Parameter(BuiltInParameter.DOOR_HEIGHT)?.Set(UnitConversion.ToFt(height.As<double>()));
+
+        var dict = node.Properties.ToDictionary(k => k.Key, k => (object)k.Value);
+        ParameterUtils.ApplyParameters(fi, dict);
+    }
+    // Legt einen ProvisionalSpace im Modell an.
     private static void BuildProvisionalSpace(Document doc, INode node)
     {
+        Logger.LogToFile("Start BuildProvisionalSpace", ProvLog);
+
         string guid = node.Properties.TryGetValue("guid", out var guidObj)
                    ? guidObj.As<string>()
                    : string.Empty;
         Element? existing = !string.IsNullOrEmpty(guid) ? doc.GetElement(guid) : null;
         if (existing != null)
+        {
+            Logger.LogToFile($"ProvisionalSpace {guid} already exists", ProvLog);
             return;
-
+        }
         string familyName = node.Properties.TryGetValue("familyName", out var famObj)
                    ? famObj.As<string>()
                    : string.Empty;
@@ -210,6 +279,7 @@ public static class RevitElementBuilder
 .FirstOrDefault(fs => fs.FamilyName.Equals(familyName, StringComparison.OrdinalIgnoreCase));
         if (symbol == null)
         {
+            Logger.LogToFile($"FamilySymbol '{familyName}' not found", ProvLog);
             Debug.WriteLine($"FamilySymbol '{familyName}' not found.");
             return;
         }
@@ -230,6 +300,7 @@ public static class RevitElementBuilder
         ElementId levelId = node.Properties.TryGetValue("levelId", out var lvl) ? new ElementId((long)lvl.As<long>()) : ElementId.InvalidElementId; Level? level = levelId != ElementId.InvalidElementId ? doc.GetElement(levelId) as Level : null;
 
         FamilyInstance inst = doc.Create.NewFamilyInstance(center, symbol, level, StructuralType.NonStructural);
+        Logger.LogToFile($"Created provisional space instance {guid}", ProvLog);
         int phaseCreated = node.Properties.TryGetValue("phaseCreated", out var pc) ? pc.As<int>() : -1;
         int phaseDemolished = node.Properties.TryGetValue("phaseDemolished", out var pd) ? pd.As<int>() : -1;
         inst.get_Parameter(BuiltInParameter.PHASE_CREATED)?.Set(phaseCreated);
@@ -242,6 +313,7 @@ public static class RevitElementBuilder
         inst.LookupParameter("Width")?.Set(widthFt);
         inst.LookupParameter("Depth")?.Set(depthFt);
         inst.LookupParameter("Height")?.Set(heightFt);
+        Logger.LogToFile($"Finished BuildProvisionalSpace {guid}", ProvLog);
 
     }
 }

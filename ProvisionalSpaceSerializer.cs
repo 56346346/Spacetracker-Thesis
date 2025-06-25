@@ -9,10 +9,14 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class ProvisionalSpaceSerializer
 {
+        private const string LogFile = "provisional_spaces.log";
+
     // Wandelt einen ProvisionalSpace in ein Dictionary zur Ablage in Neo4j um.
 
     public static Dictionary<string, object> ToNode(FamilyInstance inst)
     {
+                Logger.LogToFile($"[Serializer] Start {inst.UniqueId}", LogFile);
+
         BoundingBoxXYZ bb = inst.get_BoundingBox(null);
         double width = 0, height = 0, thickness = 0;
         if (bb != null)
@@ -22,7 +26,7 @@ public static class ProvisionalSpaceSerializer
             thickness = UnitConversion.ToMm(Math.Abs(bb.Max.Y - bb.Min.Y));
         }
         bool isProv = ParameterUtils.IsProvisionalSpace(inst);
-
+        Logger.LogToFile($"[Serializer] isProv {isProv}", LogFile);
         BoundingBoxXYZ? bbView = null;
         XYZ bbMin = XYZ.Zero, bbMax = XYZ.Zero;
         if (isProv)
@@ -80,12 +84,14 @@ public static class ProvisionalSpaceSerializer
         }
 
         SerializeParameters(inst, dict);
+                Logger.LogToFile($"[Serializer] Dictionary ready for {inst.UniqueId}", LogFile);
         return dict;
     }
-    
+
     // Erstellt einen ProvisionalSpaceNode aus dem Dictionary.
     public static ProvisionalSpaceNode ToProvisionalSpaceNode(FamilyInstance inst)
     {
+        Logger.LogToFile($"[Serializer] ToProvisionalSpaceNode {inst.UniqueId}", LogFile);
         var dict = ToNode(inst);
         return new ProvisionalSpaceNode(
             dict.TryGetValue("guid", out var gObj) ? gObj.ToString() ?? string.Empty : string.Empty,
@@ -114,5 +120,6 @@ public static class ProvisionalSpaceSerializer
             Convert.ToDouble(dict.GetValueOrDefault("bbMaxY", 0.0)),
             Convert.ToDouble(dict.GetValueOrDefault("bbMaxZ", 0.0))
         );
+                Logger.LogToFile($"[Serializer] Node created for {inst.UniqueId}", LogFile);
     }
 }
