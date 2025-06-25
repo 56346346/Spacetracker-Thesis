@@ -211,7 +211,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         }
 
         // Liefert den Sync-Status aller Sessions zur Prüfung, ob alle gepullt haben
-                // Liefert eine Liste aller Sessions inklusive Pull-Status.
+        // Liefert eine Liste aller Sessions inklusive Pull-Status.
 
         public async Task<List<SessionStatus>> GetSessionStatusesAsync()
         {
@@ -403,7 +403,7 @@ SET c.acknowledged = true",
         }
         // Schreibt eine Tür in Neo4j (INSERT/UPDATE).
 
-           public async Task UpsertDoorAsync(Dictionary<string, object> args)
+        public async Task UpsertDoorAsync(Dictionary<string, object> args)
         {
             var setParts = new List<string>();
             foreach (var kvp in args)
@@ -590,6 +590,38 @@ RETURN w";
                     );
             }).ConfigureAwait(false);
             _logger.LogInformation("Pulled {Count} walls", list.Count);
+            return list;
+        }
+
+        // Holt alle seit einem Zeitpunkt geänderten Türen.
+        public async Task<List<DoorNode>> GetUpdatedDoorsAsync(DateTime sinceUtc)
+        {
+            const string cypher = @"MATCH (d:Door)
+WHERE  d.lastModifiedUtc > datetime($since)
+RETURN d";
+            _logger.LogDebug("GetUpdatedDoors since {Time}", sinceUtc);
+            var list = await RunQueryAsync(cypher, new { since = sinceUtc.ToString("o") }, r =>
+            {
+                var node = r["d"].As<INode>();
+                return new DoorNode
+                (
+                    node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty,
+                    node.Properties.TryGetValue("elementId", out var elemId) ? elemId.As<long>() : -1,
+                    node.Properties["typeId"].As<long>(),
+                    node.Properties.TryGetValue("familyName", out var famName) ? famName.As<string>() : string.Empty,
+                    node.Properties.TryGetValue("symbolName", out var symName) ? symName.As<string>() : string.Empty,
+                    node.Properties["levelId"].As<long>(),
+                    node.Properties.TryGetValue("hostId", out var hostId) ? hostId.As<long>() : -1,
+                    node.Properties.TryGetValue("x", out var x) ? x.As<double>() : 0.0,
+                    node.Properties.TryGetValue("y", out var y) ? y.As<double>() : 0.0,
+                    node.Properties.TryGetValue("z", out var z) ? z.As<double>() : 0.0,
+                    node.Properties.TryGetValue("rotation", out var rot) ? rot.As<double>() : 0.0,
+                    node.Properties.TryGetValue("width", out var width) ? width.As<double>() : 0.0,
+                    node.Properties.TryGetValue("height", out var height) ? height.As<double>() : 0.0,
+                    node.Properties.TryGetValue("thickness", out var thickness) ? thickness.As<double>() : 0.0
+                );
+            }).ConfigureAwait(false);
+            _logger.LogInformation("Pulled {Count} doors", list.Count);
             return list;
         }
         // Setzt LogChanges auf "acknowledged" sobald alle Online-Nutzer sie empfangen haben.

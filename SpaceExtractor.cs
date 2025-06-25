@@ -217,7 +217,7 @@ namespace SpaceTracker
                 }
 
                 Debug.WriteLine("[Neo4j] Created ProvisionalSpace node: " + cyNode);
-                                Logger.LogToFile($"Created provisional space {inst.UniqueId} ({inst.Name})", "extractor.log");
+                Logger.LogToFile($"Created provisional space {inst.UniqueId} ({inst.Name})", "extractor.log");
 
             }
             catch (Exception ex)
@@ -445,21 +445,13 @@ namespace SpaceTracker
 
                 var doors = doorCollector.ToElements();
 
-                // Iterate over all door at current level
+                // Iterate over all doors at current level using the detailed
+                // serialization method so that all properties are stored in
+                // Neo4j. This ensures a door can be fully reconstructed when
+                // pulling the model.
                 foreach (var door in doors)
                 {
-                    var inst = (FamilyInstance)door;
-                    var wall = inst.Host;
-                    Debug.WriteLine($"Door ID: {door.Id}, HostId: {wall.Id}");
-
-                    string doorName = EscapeString(inst.Name);
-                    cy = $"MATCH (w:Wall{{ElementId:{wall.Id}}}) " +
-                         $"MATCH (l:Level{{ElementId:{door.LevelId}}}) " +
-                         $"MERGE (d:Door{{ElementId:{inst.Id.Value}, Name: \"{doorName}\"}}) " +
-                         $"MERGE (l)-[:CONTAINS]->(d)-[:CONTAINED_IN]->(w)";
-                    _cmdManager.cypherCommands.Enqueue(cy);
-                    Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
-
+                    ProcessDoor(door, doc);
                 }
                 ProcessProvisionalSpaces(doc, lvl);
                 ProcessPipes(doc, lvl);
@@ -488,7 +480,7 @@ namespace SpaceTracker
         List<ElementId> EnqueuedElementIds,
         List<ElementId> deletedElementIds,
         List<ElementId> modifiedElementIds)
-      
+
         {
             try
             {
@@ -507,7 +499,7 @@ namespace SpaceTracker
             {
                 Debug.WriteLine($"[Neo4j-Error] {ex.Message}");
             }
-         return Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         private void ProcessElements(Document doc, IReadOnlyCollection<ElementId> elementIds)
@@ -619,7 +611,7 @@ namespace SpaceTracker
         // Exportiert nur die angegebenen Elemente als temporäre IFC-Datei.
         public string ExportIfcSubset(Document doc, List<ElementId> elementsToExport)
         {
-             if (doc.IsReadOnly)
+            if (doc.IsReadOnly)
             {
                 Autodesk.Revit.UI.TaskDialog.Show("IFC Export", "Dokument ist schreibgesch\u00fctzt. Export nicht m\u00f6glich.");
                 return string.Empty;

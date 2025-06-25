@@ -27,9 +27,8 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public class PullCommand : IExternalCommand
 {
-    
-        // Importiert neue oder geänderte Wände aus Neo4j in das aktuelle Modell.
 
+    // Importiert neue oder geänderte Wände aus Neo4j in das aktuelle Modell.
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
 
     {
@@ -41,18 +40,21 @@ public class PullCommand : IExternalCommand
         var connector = cmdMgr.Neo4jConnector;
 
         List<WallNode> walls;
+        List<DoorNode> doors;
         try
         {
             // Daten direkt laden (kein Hintergrund-Thread, um Revit API sicher zu nutzen)
             walls = connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime)
                 .GetAwaiter().GetResult();
+            doors = connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime)
+           .GetAwaiter().GetResult();
         }
         catch (Neo4j.Driver.Neo4jException ex)
         {
             TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
             return Result.Failed;
         }
-        using (var revitTx = new Transaction(doc, "Import Wall"))
+        using (var revitTx = new Transaction(doc, "Import Elements"))
         {
             revitTx.Start();
             foreach (var w in walls)
@@ -68,13 +70,36 @@ public class PullCommand : IExternalCommand
                 if (llp != null && !llp.IsReadOnly)
                     llp.Set(w.LocationLine);
             }
+            foreach (var d in doors)
+            {
+                if (!string.IsNullOrEmpty(d.Uid) && doc.GetElement(d.Uid) != null)
+                    continue;
+                var symbol = doc.GetElement(new ElementId((int)d.TypeId)) as FamilySymbol;
+                if (symbol == null) continue;
+                if (!symbol.IsActive) symbol.Activate();
+
+                XYZ p = new XYZ(UnitConversion.ToFt(d.X), UnitConversion.ToFt(d.Y), UnitConversion.ToFt(d.Z));
+                Level level = doc.GetElement(new ElementId((int)d.LevelId)) as Level;
+                Element host = d.HostId > 0 ? doc.GetElement(new ElementId((int)d.HostId)) : null;
+                FamilyInstance fi = host != null
+                    ? doc.Create.NewFamilyInstance(p, symbol, host, level, StructuralType.NonStructural)
+                    : doc.Create.NewFamilyInstance(p, symbol, level, StructuralType.NonStructural);
+
+                if (Math.Abs(d.Rotation) > 1e-6)
+                {
+                    var axis = Line.CreateBound(p, new XYZ(p.X, p.Y, p.Z + 1));
+                    ElementTransformUtils.RotateElement(doc, fi.Id, axis, d.Rotation);
+                }
+                fi.get_Parameter(BuiltInParameter.DOOR_WIDTH)?.Set(UnitConversion.ToFt(d.Width));
+                fi.get_Parameter(BuiltInParameter.DOOR_HEIGHT)?.Set(UnitConversion.ToFt(d.Height));
+            }
             revitTx.Commit();
         }
 
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;
         cmdMgr.PersistSyncTime();
 
-        TaskDialog.Show("Neo4j", $"{walls.Count} Wände importiert.");
+        TaskDialog.Show("Neo4j", $"{walls.Count} Wände und {doors.Count} Türen importiert.");
         return Result.Succeeded;
 
     }
