@@ -66,12 +66,12 @@ RETURN lc, e ORDER BY lc.timestamp";
             using (var tx = new Transaction(doc, "Pull Remote Change"))
             {
                 tx.Start();
-                RevitElementBuilder.BuildFromNodes(doc, node);
-                 var dict = node.Properties.ToDictionary(k => k.Key, k => (object)k.Value);
+                                var dict = node.Properties.ToDictionary(k => k.Key, k => (object)k.Value);
+
                 RevitElementBuilder.BuildFromNode(doc, dict);
                 tx.Commit();
             }
-            long logId = long.TryParse(log.ElementId, out var id) ? id : log.Id;
+            long logId = log.Id;
             string relCypher =
                 $"MATCH (u:User {{id:'{EscapeString(currentUserId)}'}}), (lc:LogChanges) WHERE id(lc) = {logId} MERGE (u)-[:RECEIVED]->(lc)";
             await _connector.RunCypherQuery(relCypher).ConfigureAwait(false);

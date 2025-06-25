@@ -66,7 +66,7 @@ namespace SpaceTracker
             if (wall.LevelId == ElementId.InvalidElementId) return;
             try
             {
-                  Dictionary<string, object> data = WallSerializer.ToNode((Wall)wall);
+                Dictionary<string, object> data = WallSerializer.ToNode((Wall)wall);
                 var inv = CultureInfo.InvariantCulture;
                 var setParts = new List<string>
                 {
@@ -93,12 +93,12 @@ namespace SpaceTracker
                     $"w.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')"
                 };
 
-                  string cy =
-                    $"MATCH (l:Level {{ElementId: {wall.LevelId.Value}}}) MERGE (w:Wall {{ElementId: {wall.Id.Value}}}) SET {string.Join(", ", setParts)} MERGE (l)-[:CONTAINS]->(w)";
+                string cy =
+                  $"MATCH (l:Level {{ElementId: {wall.LevelId.Value}}}) MERGE (w:Wall {{ElementId: {wall.Id.Value}}}) SET {string.Join(", ", setParts)} MERGE (l)-[:CONTAINS]->(w)";
 
 
                 _cmdManager.cypherCommands.Enqueue(cy);
-Debug.WriteLine("[Neo4j] Created Wall node: " + cy);
+                Debug.WriteLine("[Neo4j] Created Wall node: " + cy);
 
             }
             catch (Exception ex)
@@ -116,7 +116,7 @@ Debug.WriteLine("[Neo4j] Created Wall node: " + cy);
                 FamilyInstance doorInstance = door as FamilyInstance;
                 Element hostWall = doorInstance?.Host;
                 var sym = doc.GetElement(door.GetTypeId()) as FamilySymbol;
-               Dictionary<string, object> data = doorInstance != null ? DoorSerializer.ToNode(doorInstance) : new();
+                Dictionary<string, object> data = doorInstance != null ? DoorSerializer.ToNode(doorInstance) : new();
                 var inv = CultureInfo.InvariantCulture;
                 var setParts = new List<string>
                 {
@@ -148,7 +148,7 @@ Debug.WriteLine("[Neo4j] Created Wall node: " + cy);
                 if (hostWall != null)
                     cyNode += " MERGE (l)-[:CONTAINS]->(d)-[:CONTAINED_IN]->(w)";
                 else
-                 cyNode += " MERGE (l)-[:CONTAINS]->(d)";
+                    cyNode += " MERGE (l)-[:CONTAINS]->(d)";
 
                 _cmdManager.cypherCommands.Enqueue(cyNode);
                 Debug.WriteLine("[Neo4j] Created Door node: " + cyNode);
@@ -165,15 +165,15 @@ Debug.WriteLine("[Neo4j] Created Wall node: " + cy);
         {
             try
             {
-bool isProv = inst.Name.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase)
-                    || (inst.Symbol?.Name?.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase) ?? false)
-                    || (inst.Symbol?.FamilyName?.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase) ?? false);
+                bool isProv = ParameterUtils.IsProvisionalSpaceName(inst.Name)
+                                  || ParameterUtils.IsProvisionalSpaceName(inst.Symbol?.Name)
+                                  || ParameterUtils.IsProvisionalSpaceName(inst.Symbol?.FamilyName);
                 if (!isProv)
                     return;
                 var host = inst.Host as Wall;
                 var data = ProvisionalSpaceSerializer.ToNode(inst);
                 var inv = CultureInfo.InvariantCulture;
-                  var setParts = new List<string>
+                var setParts = new List<string>
                 {
                     $"p.name = '{EscapeString(data["name"].ToString())}'",
                     $"p.width = {((double)data["width"]).ToString(inv)}",
@@ -255,9 +255,9 @@ bool isProv = inst.Name.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase
 
                 foreach (FamilyInstance ps in psCollector.Cast<FamilyInstance>())
                 {
- bool isProvPs = ps.Name.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase)
-                        || (ps.Symbol?.Name?.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase) ?? false)
-                        || (ps.Symbol?.FamilyName?.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase) ?? false);
+                    bool isProvPs = ParameterUtils.IsProvisionalSpaceName(ps.Name)
+                                        || ParameterUtils.IsProvisionalSpaceName(ps.Symbol?.Name)
+                                        || ParameterUtils.IsProvisionalSpaceName(ps.Symbol?.FamilyName);
                     if (!isProvPs)
                         continue;
                     var psLevel = doc.GetElement(ps.LevelId) as Level;

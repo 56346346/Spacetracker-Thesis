@@ -85,7 +85,7 @@ public static class ParameterUtils
             // ignore errors
         }
     }
-    
+
     public static string GetIfcEntity(Element elem)
     {
         try
@@ -97,5 +97,27 @@ public static class ParameterUtils
         {
             return string.Empty;
         }
+    }
+
+    public static bool IsProvisionalSpaceName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        string[] patterns =
+        {
+            "ProvSpace",
+            "ProvisionalSpace",
+            "Provisional Space"
+        };
+
+        foreach (var pat in patterns)
+        {
+            if (name.Contains(pat, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+
     }
 }
