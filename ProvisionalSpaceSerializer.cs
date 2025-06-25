@@ -19,8 +19,7 @@ public static class ProvisionalSpaceSerializer
             height = UnitConversion.ToMm(Math.Abs(bb.Max.Z - bb.Min.Z));
             thickness = UnitConversion.ToMm(Math.Abs(bb.Max.Y - bb.Min.Y));
         }
-        bool isProv = inst.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase)
-                      && GetIfcEntity(inst).Equals("IfcBuildingElementProxy", StringComparison.OrdinalIgnoreCase);
+                bool isProv = inst.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase);
 
         BoundingBoxXYZ? bbView = null;
         XYZ bbMin = XYZ.Zero, bbMax = XYZ.Zero;

@@ -6,6 +6,8 @@ namespace SpaceTracker;
 public record PipeNode(
     string Uid,
     long ElementId,
+    long TypeId,
+    long SystemTypeId,
     long LevelId,
     double X1,
     double Y1,

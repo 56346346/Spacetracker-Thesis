@@ -41,11 +41,12 @@ public static class RevitElementBuilder
         Line line = Line.CreateBound(s, e);
         ElementId typeId = new ElementId(Convert.ToInt32(node["typeId"]));
         ElementId levelId = new ElementId(Convert.ToInt32(node["levelId"]));
-        double height = UnitConversion.ToFt(Convert.ToDouble(node["h"]));
-        double offset = node.ContainsKey("bo") ? UnitConversion.ToFt(Convert.ToDouble(node["bo"])) : 0;
-        bool flip = node.ContainsKey("flip") && Convert.ToBoolean(node["flip"]);
+            double height = UnitConversion.ToFt(Convert.ToDouble(node["height_mm"]));
+        double offset = node.ContainsKey("base_offset_mm") ? UnitConversion.ToFt(Convert.ToDouble(node["base_offset_mm"])) : 0;
+        bool flip = node.ContainsKey("flipped") && Convert.ToBoolean(node["flipped"]);
         bool structural = node.ContainsKey("structural") && Convert.ToBoolean(node["structural"]);
-        Wall wall = Wall.Create(doc, line, typeId, levelId, height, offset, flip, structural); if (node.TryGetValue("locLine", out var ll))
+ Wall wall = Wall.Create(doc, line, typeId, levelId, height, offset, flip, structural);
+        if (node.TryGetValue("location_line", out var ll))
             wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(Convert.ToInt32(ll));
         ParameterUtils.ApplyParameters(wall, node);
         return wall;

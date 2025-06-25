@@ -546,8 +546,11 @@ RETURN w";
                 var node = r["w"].As<INode>();
                 return new WallNode
                 (
-                    node.Properties["uid"].As<string>(),
+                    node.Properties.ContainsKey("elementId") ? (long)node.Properties["elementId"].As<long>() : -1,
+                    node.Properties["uid"].As<long>(),
                     (long)node.Properties["typeId"].As<long>(),
+                    node.Properties.ContainsKey("typeName") ? node.Properties["typeName"].As<string>() : string.Empty,
+                    node.Properties.ContainsKey("familyName") ? node.Properties["familyName"].As<string>() : string.Empty,
                     (long)node.Properties["levelId"].As<long>(),
                     node.Properties["x1"].As<double>(),
                     node.Properties["y1"].As<double>(),

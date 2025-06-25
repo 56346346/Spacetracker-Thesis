@@ -6,7 +6,10 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public record WallNode(
     string Uid,
+    long ElementId,
     long TypeId,
+     string TypeName,
+    string FamilyName,
     long LevelId,
     double X1,
     double Y1,
@@ -17,6 +20,7 @@ public record WallNode(
     double HeightMm,
     double ThicknessMm,
      bool Structural,
+       bool Structural,
     bool Flipped,
     double BaseOffsetMm,
     int LocationLine

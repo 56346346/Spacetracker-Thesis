@@ -105,7 +105,7 @@ namespace SpaceTracker
                 FamilyInstance doorInstance = door as FamilyInstance;
                 Element hostWall = doorInstance?.Host;
                 var sym = doc.GetElement(door.GetTypeId()) as FamilySymbol;
-                if(doorInstance!=null)
+                if (doorInstance != null)
                     _ = DoorSerializer.ToNode(doorInstance);
 
 
@@ -148,10 +148,8 @@ namespace SpaceTracker
         {
             try
             {
-                var ifc = GetIfcExportClass(inst);
-            if (!(ifc.Equals("IfcBuildingElementProxy", StringComparison.OrdinalIgnoreCase)
-                  && inst.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase)))
-                return;
+                if (!inst.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase))
+                    return;
                 var host = inst.Host as Wall;
                 var data = ProvisionalSpaceSerializer.ToNode(inst);
                 var inv = CultureInfo.InvariantCulture;
@@ -195,7 +193,7 @@ namespace SpaceTracker
             try
             {
                 var data = PipeSerializer.ToNode(pipe);
-                                var inv = CultureInfo.InvariantCulture;
+                var inv = CultureInfo.InvariantCulture;
 
                 string cyNode =
                     $"MERGE (p:Pipe {{uid:'{data["uid"]}'}}) " +
@@ -204,7 +202,7 @@ namespace SpaceTracker
                     $"p.x2 = {((double)data["x2"]).ToString(inv)}, p.y2 = {((double)data["y2"]).ToString(inv)}, p.z2 = {((double)data["z2"]).ToString(inv)}, " +
                     $"p.diameter_mm = {((double)data["diameter"]).ToString(inv)}";
                 _cmdManager.cypherCommands.Enqueue(cyNode);
-                                Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe Node): " + cyNode);
+                Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe Node): " + cyNode);
 
 
                 BoundingBoxXYZ bbPipe = pipe.get_BoundingBox(null);
@@ -217,9 +215,8 @@ namespace SpaceTracker
 
                 foreach (FamilyInstance ps in psCollector.Cast<FamilyInstance>())
                 {
-                    var ifcPs = GetIfcExportClass(ps);
-   if (!(ifcPs.Equals("IfcBuildingElementProxy", StringComparison.OrdinalIgnoreCase)
-                          && ps.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase)))                        continue;
+                    if (!ps.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase))
+                        continue;
                     var psLevel = doc.GetElement(ps.LevelId) as Level;
                     if (psLevel != null && Math.Abs(psLevel.Elevation - bbPipe.Min.Z) > tol)
                         continue;
@@ -431,33 +428,9 @@ namespace SpaceTracker
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
 
                 }
-
-
-                var provCollector = new FilteredElementCollector(doc)
-                                 .OfCategory(BuiltInCategory.OST_GenericModel)
-                                 .OfClass(typeof(FamilyInstance))
-                                 .WherePasses(lvlFilter);
-
-                foreach (FamilyInstance inst in provCollector)
-                {
-                    var ifc = GetIfcExportClass(inst);
-                    if (ifc == "IfcOpeningElement")
-                    {
-                        ProcessProvisionalSpace(inst, doc);
-                    }
-                }
-                
-                var pipeCollector = new FilteredElementCollector(doc)
-                    .OfCategory(BuiltInCategory.OST_PipeCurves)
-                    .OfClass(typeof(MEPCurve))
-                    .WherePasses(lvlFilter);
-
-                foreach (MEPCurve pipe in pipeCollector)
-                {
-                    ProcessPipe(pipe, doc);
-
-                }
-                            }
+                ProcessProvisionalSpaces(doc, lvl);
+                ProcessPipes(doc, lvl);
+            }
             foreach (Element stair in new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_Stairs)
                 .WhereElementIsNotElementType())
@@ -544,6 +517,35 @@ namespace SpaceTracker
                 }
             }
         }
+
+        private void ProcessProvisionalSpaces(Document doc, Level level)
+        {
+            var filter = new ElementLevelFilter(level.Id);
+            var collector = new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_GenericModel)
+                .OfClass(typeof(FamilyInstance))
+                .WherePasses(filter);
+
+            foreach (FamilyInstance inst in collector)
+            {
+                ProcessProvisionalSpace(inst, doc);
+            }
+        }
+
+        private void ProcessPipes(Document doc, Level level)
+        {
+            var filter = new ElementLevelFilter(level.Id);
+            var collector = new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_PipeCurves)
+                .OfClass(typeof(MEPCurve))
+                .WherePasses(filter);
+
+            foreach (MEPCurve pipe in collector)
+            {
+                ProcessPipe(pipe, doc);
+            }
+        }
+
         /// <summary>
         /// Verarbeitet eine einzelne Treppen-Instanz und verbindet sie mit den Basis- und Ober-Ebenen.
         /// </summary>
