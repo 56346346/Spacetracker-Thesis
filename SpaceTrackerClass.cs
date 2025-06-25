@@ -41,6 +41,7 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
         private PullEventHandler _pullEventHandler;
+        private ChangeMonitor _changeMonitor;
         public const int SolibriApiPort = 10876;
 
 
@@ -177,6 +178,7 @@ namespace SpaceTracker
                 _graphPuller = new GraphPuller(_neo4jConnector);
                 _cmdManager = CommandManager.Instance;
                 _pullEventHandler = new PullEventHandler();
+                _changeMonitor = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
             }
             catch (Exception ex)
             {
@@ -260,6 +262,7 @@ namespace SpaceTracker
                 {
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
                     _databaseUpdateHandler.TriggerPush();
+                    _changeMonitor?.Start(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId);
                 }
 
                 Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
@@ -570,6 +573,7 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentChanged -= documentChanged;
             application.ControlledApplication.DocumentCreated -= documentCreated;
             _neo4jConnector?.Dispose();
+            _changeMonitor?.Dispose();
             return Result.Succeeded;
 
         }
@@ -632,6 +636,7 @@ namespace SpaceTracker
                 _databaseUpdateHandler.TriggerPush();
                 _graphPuller?.RequestPull(doc, Environment.UserName);
                 _pullEventHandler?.RequestPull(doc);
+                _changeMonitor?.UpdateDocument(doc);
             }
             catch (Exception ex)
             {
@@ -651,6 +656,7 @@ namespace SpaceTracker
                 // die aktuellen Befehle an Neo4j senden
                 _databaseUpdateHandler.TriggerPush();
                 _pullEventHandler?.RequestPull(e.Document);
+                _changeMonitor?.Start(e.Document, CommandManager.Instance.SessionId);
             }
             catch (Exception ex)
             {
@@ -713,6 +719,7 @@ namespace SpaceTracker
                     // After loading the model trigger a pull to ensure latest changes
                     _graphPuller?.RequestPull(doc, Environment.UserName);
                     _pullEventHandler?.RequestPull(doc);
+                    _changeMonitor?.Start(doc, CommandManager.Instance.SessionId);
                 }
             }
             catch (Exception ex)
@@ -720,7 +727,10 @@ namespace SpaceTracker
                 Logger.LogCrash("DocumentOpened", ex);
                 Debug.WriteLine($"[SpaceTracker] Fehler bei documentOpened: {ex.Message}");
             }
+
         }
+
+
 
         #endregion
     }

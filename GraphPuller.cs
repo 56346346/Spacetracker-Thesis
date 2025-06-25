@@ -72,9 +72,7 @@ RETURN lc, e ORDER BY lc.timestamp";
             using (var tx = new Transaction(doc, "Pull Remote Change"))
             {
                 tx.Start();
-                                var dict = node.Properties.ToDictionary(k => k.Key, k => (object)k.Value);
-
-                RevitElementBuilder.BuildFromNode(doc, dict);
+                 RevitElementBuilder.BuildFromNodes(doc, node);
                 tx.Commit();
             }
             long logId = log.Id;

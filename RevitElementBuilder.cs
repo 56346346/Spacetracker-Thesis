@@ -17,6 +17,20 @@ namespace SpaceTracker;
 public static class RevitElementBuilder
 {
     private const string ProvLog = "provisional_spaces.log";
+    private static Wall? FindHostWall(Document doc, XYZ point, double tol = 1.0)
+    {
+        var collector = new FilteredElementCollector(doc)
+            .OfClass(typeof(Wall));
+        foreach (Wall w in collector.Cast<Wall>())
+        {
+            BoundingBoxXYZ? bb = w.get_BoundingBox(null);
+            if (bb == null) continue;
+            if (point.X >= bb.Min.X - tol && point.X <= bb.Max.X + tol &&
+                point.Y >= bb.Min.Y - tol && point.Y <= bb.Max.Y + tol)
+                return w;
+        }
+        return null;
+    }
 
 
     // Erstellt ein Revit-Element anhand der in Neo4j gespeicherten Eigenschaften.
@@ -81,7 +95,7 @@ public static class RevitElementBuilder
         return pipe;
     }
     // Erstellt ein FamilyInstance-Element (z.B. Tür oder ProvisionalSpace).
-    private static FamilyInstance BuildFamilyInstance(Document doc, Dictionary<string, object> node)
+    private static FamilyInstance BuildFamilyInstance(Document doc, Dictionary<string, object> node, Element? hostOverride = null)
     {
         ElementId typeId = new ElementId(Convert.ToInt32(node["typeId"]));
         FamilySymbol symbol = doc.GetElement(typeId) as FamilySymbol ?? throw new InvalidOperationException("Symbol not found");
@@ -91,13 +105,14 @@ public static class RevitElementBuilder
                         UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("y", 0.0))),
                         UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("z", 0.0))));
         Level? level = doc.GetElement(new ElementId(Convert.ToInt32(node["levelId"]))) as Level;
-        Element? host = null;
-        if (node.TryGetValue("hostUid", out var hostUidObj) && hostUidObj is string hUid && !string.IsNullOrEmpty(hUid))
+        Element? host = hostOverride;
+        if (host == null && node.TryGetValue("hostUid", out var hostUidObj) && hostUidObj is string hUid && !string.IsNullOrEmpty(hUid))
             host = doc.GetElement(hUid);
-        if (host == null && node.TryGetValue("hostId", out var hostObj) && Convert.ToInt64(hostObj) > 0) host = doc.GetElement(new ElementId(Convert.ToInt32(hostObj)));
+        if (host == null && node.TryGetValue("hostId", out var hostObj) && Convert.ToInt64(hostObj) > 0)
+            host = doc.GetElement(new ElementId(Convert.ToInt32(hostObj)));
         FamilyInstance fi = host != null
-            ? doc.Create.NewFamilyInstance(p, symbol, host, level, StructuralType.NonStructural)
-            : doc.Create.NewFamilyInstance(p, symbol, level, StructuralType.NonStructural);
+? doc.Create.NewFamilyInstance(p, symbol, host, level, StructuralType.NonStructural)
+: doc.Create.NewFamilyInstance(p, symbol, level, StructuralType.NonStructural);
         ParameterUtils.ApplyParameters(fi, node);
         return fi;
     }
@@ -105,8 +120,19 @@ public static class RevitElementBuilder
     // Erstellt eine Tür aus den übertragenen Attributen.
     private static FamilyInstance BuildDoor(Document doc, Dictionary<string, object> node)
     {
-        FamilyInstance fi = BuildFamilyInstance(doc, node);
-        XYZ p = (fi.Location as LocationPoint)?.Point ?? XYZ.Zero;
+        XYZ p = new XYZ(UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("x", 0.0))),
+                        UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("y", 0.0))),
+                        UnitConversion.ToFt(Convert.ToDouble(node.GetValueOrDefault("z", 0.0))));
+        Element? host = null;
+        if (node.TryGetValue("hostUid", out var hUidObj) && hUidObj is string hUid && !string.IsNullOrEmpty(hUid))
+            host = doc.GetElement(hUid);
+        if (host == null && node.TryGetValue("hostId", out var hIdObj) && Convert.ToInt64(hIdObj) > 0)
+            host = doc.GetElement(new ElementId(Convert.ToInt32(hIdObj)));
+        if (host == null)
+            host = FindHostWall(doc, p);
+
+        FamilyInstance fi = BuildFamilyInstance(doc, node, host);
+        p = (fi.Location as LocationPoint)?.Point ?? p;
         if (node.TryGetValue("rotation", out var rotObj) && Math.Abs(Convert.ToDouble(rotObj)) > 1e-6)
         {
             var axis = Line.CreateBound(p, new XYZ(p.X, p.Y, p.Z + 1));
@@ -241,8 +267,10 @@ public static class RevitElementBuilder
             if (!string.IsNullOrEmpty(hUid))
                 host = doc.GetElement(hUid);
         }
-        if (host == null && node.Properties.TryGetValue("hostId", out var hostObj) && hostObj.As<long>() > 0) host = doc.GetElement(new ElementId((int)hostObj.As<long>()));
-
+        if (host == null && node.Properties.TryGetValue("hostId", out var hostObj) && hostObj.As<long>() > 0)
+            host = doc.GetElement(new ElementId((int)hostObj.As<long>()));
+        if (host == null)
+            host = FindHostWall(doc, p);
         FamilyInstance fi = host != null
             ? doc.Create.NewFamilyInstance(p, symbol, host, level, StructuralType.NonStructural)
             : doc.Create.NewFamilyInstance(p, symbol, level, StructuralType.NonStructural);
