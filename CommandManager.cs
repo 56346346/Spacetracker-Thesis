@@ -11,6 +11,8 @@ using System.Collections.Concurrent;
 using System.Threading;
 using SpaceTracker;
 using System.Text.RegularExpressions;
+using System.Linq;
+
 
 namespace SpaceTracker
 {
@@ -96,7 +98,7 @@ namespace SpaceTracker
             {
                 if (cypherCommands.IsEmpty)
                     return;
-
+                Logger.LogToFile($"Processing {cypherCommands.Count} cypher commands", "concurrency.log");
                 var changes = new List<(string Command, string Path)>();
                 var ids = new HashSet<long>();
                 var idRegex = new Regex(@"ElementId\D+(\d+)");
@@ -116,9 +118,11 @@ namespace SpaceTracker
                 await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
                 if (currentDoc != null)
                 {
-                    foreach (var id in ids)
-                        _ = Task.Run(() => SolibriChecker.CheckElementAsync(new ElementId((int)id), currentDoc));
+                    var checkTasks = ids.Select(id => SolibriChecker.CheckElementAsync(new ElementId((int)id), currentDoc));
+                    await Task.WhenAll(checkTasks);
                 }
+                Logger.LogToFile("ProcessCypherQueueAsync completed", "concurrency.log");
+
             }
             catch (Exception ex)
             {
@@ -157,7 +161,7 @@ namespace SpaceTracker
         }
         // Liest einen zuvor gespeicherten Sync-Zeitstempel aus der Datei oder
         // liefert DateTime.Now wenn keiner vorhanden ist. 
-         private DateTime LoadLastSyncTime()
+        private DateTime LoadLastSyncTime()
         {
             try
             {
@@ -181,6 +185,6 @@ namespace SpaceTracker
 
             return DateTime.Now;
         }
-        
+
     }
 }

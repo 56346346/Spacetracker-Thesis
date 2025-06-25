@@ -24,7 +24,7 @@ namespace SpaceTracker
 
         // Validates the given document against the current Solibri ruleset.
         // In production this would call the Solibri API and return the found issues.
-                // Exportiert das Modell, prüft es mit Solibri und liefert gefundene Fehler.
+        // Exportiert das Modell, prüft es mit Solibri und liefert gefundene Fehler.
 
         public static List<ValidationError> Validate(Document doc)
         {
@@ -57,11 +57,17 @@ namespace SpaceTracker
 
                 Task.Run(() => client.PartialUpdateAsync(modelId, ifcPath)).Wait();
                 Task.Run(() => client.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId)).Wait();
-
+                bool done = Task.Run(() => client.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5))).Result;
+                if (!done)
+                {
+                    Logger.LogToFile("Solibri Prüfung hat das Zeitlimit überschritten", "solibri.log");
+                    return errors;
+                }
                 var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
                 string bcfZip = Task.Run(() => client.ExportBcfAsync(modelId, bcfDir)).Result;
-
                 errors = ParseBcfResults(bcfZip);
+                   foreach (var err in errors)
+                    Logger.LogToFile($"Solibri Issue: {err.Severity} - {err.Message}", "solibri.log");
             }
             catch (Exception ex)
             {
@@ -112,6 +118,7 @@ namespace SpaceTracker
                     Severity = sev
                 });
             }
-            return result;        }
+            return result;
+        }
     }
 }

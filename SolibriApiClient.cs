@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading.Tasks;
 using SpaceTracker;
 using System.Diagnostics;
+using System.Net.Sockets;
+using System.Text.Json;
 
 
 
@@ -54,6 +56,11 @@ namespace SpaceTracker
                 var modelId = parts[parts.Length - 1];
                 return modelId;
             }
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
+            {
+                Logger.LogCrash("Solibri Import IFC", ex);
+                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
+            }
             catch (HttpRequestException ex)
             {
                 Logger.LogCrash("Solibri Import IFC", ex);
@@ -95,6 +102,11 @@ namespace SpaceTracker
                 var rulesetId = parts[parts.Length - 1];
                 return rulesetId;
             }
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
+            {
+                Logger.LogCrash("Solibri Import Ruleset", ex);
+                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
+            }
             catch (HttpRequestException ex)
             {
                 Logger.LogCrash("Solibri Import Ruleset", ex);
@@ -126,6 +138,11 @@ namespace SpaceTracker
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 Logger.LogToFile($"Starte Modellprüfung für {modelId}");
                 var response = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", content).ConfigureAwait(false); response.EnsureSuccessStatusCode();
+            }
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
+            {
+                Logger.LogCrash("Solibri Modellprüfung", ex);
+                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
             }
             catch (HttpRequestException ex)
             {
@@ -160,6 +177,11 @@ namespace SpaceTracker
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
                 var response = await Http.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
+            }
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
+            {
+                Logger.LogCrash("Solibri Partial Update", ex);
+                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
             }
             catch (HttpRequestException ex)
             {
@@ -201,6 +223,11 @@ namespace SpaceTracker
                 }
                 return filePath;
             }
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
+            {
+                Logger.LogCrash("Solibri Export BCF", ex);
+                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
+            }
             catch (HttpRequestException ex)
             {
                 Logger.LogCrash("Solibri Export BCF", ex);
@@ -225,11 +252,15 @@ namespace SpaceTracker
                 response.EnsureSuccessStatusCode();
                 return true;
             }
-            catch (Exception ex)
-
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
             {
                 Logger.LogCrash("Solibri Ping", ex);
-
+                Logger.LogToFile($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob Solibri auf Port {SolibriProcessManager.Port} läuft.", "solibri.log");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Solibri Ping", ex);
                 return false;
             }
         }
@@ -249,6 +280,47 @@ namespace SpaceTracker
                 Logger.LogCrash("Solibri Status", ex);
                 throw new Exception($"Fehler beim Abrufen des Serverstatus: {ex.Message}", ex);
             }
+        }
+        
+        // Pollt die REST-API bis die laufende Prüfung abgeschlossen ist.
+        public async Task<bool> WaitForCheckCompletionAsync(TimeSpan pollInterval, TimeSpan timeout)
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed < timeout)
+            {
+                await Task.Delay(pollInterval).ConfigureAwait(false);
+                string json;
+                try
+                {
+                    json = await GetStatusAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("Solibri Status Poll", ex);
+                    return false;
+                }
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("state", out var state))
+                    {
+                        var val = state.GetString();
+                        if (string.Equals(val, "IDLE", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(val, "READY", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore malformed json
+                }
+            }
+
+            Logger.LogToFile("Timeout beim Warten auf das Ende der Solibri Prüfung", "solibri.log");
+            return false;
         }
     }
 }

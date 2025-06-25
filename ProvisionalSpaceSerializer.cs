@@ -9,7 +9,7 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class ProvisionalSpaceSerializer
 {
-        // Wandelt einen ProvisionalSpace in ein Dictionary zur Ablage in Neo4j um.
+    // Wandelt einen ProvisionalSpace in ein Dictionary zur Ablage in Neo4j um.
 
     public static Dictionary<string, object> ToNode(FamilyInstance inst)
     {
@@ -81,5 +81,38 @@ public static class ProvisionalSpaceSerializer
 
         SerializeParameters(inst, dict);
         return dict;
+    }
+    
+    // Erstellt einen ProvisionalSpaceNode aus dem Dictionary.
+    public static ProvisionalSpaceNode ToProvisionalSpaceNode(FamilyInstance inst)
+    {
+        var dict = ToNode(inst);
+        return new ProvisionalSpaceNode(
+            dict.TryGetValue("guid", out var gObj) ? gObj.ToString() ?? string.Empty : string.Empty,
+            dict.GetValueOrDefault("name", string.Empty).ToString() ?? string.Empty,
+            dict.GetValueOrDefault("familyName", string.Empty).ToString() ?? string.Empty,
+            dict.GetValueOrDefault("symbolName", string.Empty).ToString() ?? string.Empty,
+            Convert.ToDouble(dict.GetValueOrDefault("width", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("height", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("thickness", 0.0)),
+            dict.GetValueOrDefault("level", string.Empty).ToString() ?? string.Empty,
+            Convert.ToInt64(dict["levelId"]),
+            Convert.ToDouble(dict.GetValueOrDefault("x", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("y", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("z", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("rotation", 0.0)),
+            Convert.ToInt64(dict.GetValueOrDefault("hostId", -1L)),
+            Convert.ToInt32(dict.GetValueOrDefault("revitId", -1)),
+            dict.GetValueOrDefault("ifcType", string.Empty).ToString() ?? string.Empty,
+            dict.ContainsKey("category") ? dict["category"].ToString() : null,
+            Convert.ToInt32(dict.GetValueOrDefault("phaseCreated", -1)),
+            Convert.ToInt32(dict.GetValueOrDefault("phaseDemolished", -1)),
+            Convert.ToDouble(dict.GetValueOrDefault("bbMinX", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("bbMinY", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("bbMinZ", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("bbMaxX", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("bbMaxY", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("bbMaxZ", 0.0))
+        );
     }
 }

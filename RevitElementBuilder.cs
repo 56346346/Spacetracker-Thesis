@@ -158,7 +158,7 @@ public static class RevitElementBuilder
             Debug.WriteLine($"[BuildFromNode Error] {ex.Message}");
         }
     }
-
+    // Erstellt bzw. aktualisiert ein Rohr anhand eines Neo4j-Knotens.
     private static void BuildPipe(Document doc, INode node)
     {
         string uid = node.Properties.TryGetValue("uid", out var uidProp)
@@ -191,7 +191,7 @@ public static class RevitElementBuilder
             newPipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)?.Set(diam);
         }
     }
-
+   // Legt einen ProvisionalSpace im Modell an.
     private static void BuildProvisionalSpace(Document doc, INode node)
     {
         string guid = node.Properties.TryGetValue("guid", out var guidObj)

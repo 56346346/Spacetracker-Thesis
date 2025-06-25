@@ -217,6 +217,8 @@ namespace SpaceTracker
                 }
 
                 Debug.WriteLine("[Neo4j] Created ProvisionalSpace node: " + cyNode);
+                                Logger.LogToFile($"Created provisional space {inst.UniqueId} ({inst.Name})", "extractor.log");
+
             }
             catch (Exception ex)
             {
@@ -954,7 +956,7 @@ namespace SpaceTracker
 
 
         }
-
+        // Hilfsfunktion: findet Räume, die eine Wand schneiden.
         public static IList<Element> getRoomFromWall(Document doc, Wall wall)
         {
             BoundingBoxXYZ wall_bb = wall.get_BoundingBox(null);

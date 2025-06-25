@@ -49,4 +49,26 @@ public static class DoorSerializer
         SerializeParameters(door, dict);
         return dict;
     }
+    
+    // Erstellt einen DoorNode aus den übertragenen Attributen.
+    public static DoorNode ToDoorNode(FamilyInstance door)
+    {
+        var dict = ToNode(door);
+        return new DoorNode(
+            dict.TryGetValue("uid", out var uidObj) ? uidObj.ToString() ?? string.Empty : string.Empty,
+            Convert.ToInt64(dict["elementId"]),
+            Convert.ToInt64(dict["typeId"]),
+            dict.GetValueOrDefault("familyName", string.Empty).ToString() ?? string.Empty,
+            dict.GetValueOrDefault("symbolName", string.Empty).ToString() ?? string.Empty,
+            Convert.ToInt64(dict["levelId"]),
+            Convert.ToInt64(dict["hostId"]),
+            Convert.ToDouble(dict.GetValueOrDefault("x", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("y", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("z", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("rotation", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("width", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("height", 0.0)),
+            Convert.ToDouble(dict.GetValueOrDefault("thickness", 0.0))
+        );
+    }
 }

@@ -34,7 +34,7 @@ namespace SpaceTracker
             var doc = app.ActiveUIDocument?.Document;
             if (doc == null) return;
             List<ChangeData> processedChanges = new List<ChangeData>();
-
+            Logger.LogToFile("DatabaseUpdateHandler Execute start", "concurrency.log");
             try
             {
                 // 1. Prozessiere alle wartenden Changes
@@ -84,80 +84,88 @@ namespace SpaceTracker
                 // 3. Solibri REST API-Aufrufe asynchron verarbeiten
                 _ = Task.Run(async () =>
               {
-                    try
-                    {
-                         if (!await _solibriClient.PingAsync().ConfigureAwait(false))
-                        {
-                            Logger.LogToFile("Solibri REST API nicht erreichbar, überspringe Delta-Prüfung");
-                            return;
-                        }
+                  Logger.LogToFile("Solibri async task start", "concurrency.log");
+                  try
+                  {
+                      if (!await _solibriClient.PingAsync().ConfigureAwait(false))
+                      {
+                          Logger.LogToFile("Solibri REST API nicht erreichbar, überspringe Delta-Prüfung");
+                          return;
+                      }
 
-                        string modelId = SpaceTrackerClass.SolibriModelUUID;
-                        if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
-                        {
-                            SpaceTrackerClass.SolibriRulesetId = await _solibriClient
-                                .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
-                                .ConfigureAwait(false);
-                        }
-                        await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
-                        await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
-                        var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
-                        string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
- Debug.WriteLine($"[DatabaseUpdateHandler] BCF results stored at {bcfZip}");
-                        var severity = ProcessBcfAndWriteToNeo4j(bcfZip);
-                                                switch (severity)
+                      string modelId = SpaceTrackerClass.SolibriModelUUID;
+                      if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
+                      {
+                          SpaceTrackerClass.SolibriRulesetId = await _solibriClient
+                              .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
+                              .ConfigureAwait(false);
+                      }
+                      await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
+                      await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
+                      bool done = await _solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+                      if (!done)
+                      {
+                          Logger.LogToFile("Solibri Prüfung hat das Zeitlimit überschritten", "solibri.log");
+                          return;
+                      }
+                      var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
+                      string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
+                      Debug.WriteLine($"[DatabaseUpdateHandler] BCF results stored at {bcfZip}");
+                      var severity = ProcessBcfAndWriteToNeo4j(bcfZip);
+                      switch (severity)
                       {
                           case IssueSeverity.Error:
                               SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
-                                                            Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: error");
+                              Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: error");
 
                               break;
                           case IssueSeverity.Warning:
                               SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
-                                                            Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: warning");
+                              Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: warning");
 
                               break;
                           default:
                               SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
-                                                             Debug.WriteLine("[DatabaseUpdateHandler] No Solibri issues detected");
+                              Debug.WriteLine("[DatabaseUpdateHandler] No Solibri issues detected");
 
                               break;
                       }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogCrash("Solibri Delta-Prüfung", ex);
-                    }
-                    finally
-                    {
-                        if (_pushEvent != null && !_pushEvent.IsPending)
-                            _pushEvent.Raise();
-                    }
-                });
+                  }
+                  catch (Exception ex)
+                  {
+                      Logger.LogCrash("Solibri Delta-Prüfung", ex);
+                  }
+                  finally
+                  {
+                      if (_pushEvent != null && !_pushEvent.IsPending)
+                          _pushEvent.Raise();
+                      Logger.LogToFile("Solibri async task end", "concurrency.log");
+                  }
+              });
             }
 
             catch (Exception ex)
             {
                 Logger.LogCrash("Solibri Delta-Prüfung", ex);
             }
+            Logger.LogToFile("DatabaseUpdateHandler Execute finished", "concurrency.log");
         }
 
 
 
-         // Name des ExternalEvents.
+        // Name des ExternalEvents.
         public string GetName() => "SpaceTracker Real-Time Sync";
 
-                // Reicht eine Änderung zur späteren Verarbeitung ein und startet das Event.
-
-
+        // Reicht eine Änderung zur späteren Verarbeitung ein und startet das Event.
         public void EnqueueChange(ChangeData data)
         {
             _changeQueue.Enqueue(data);
             RaiseEvent();
         }
 
-         private enum IssueSeverity { None, Warning, Error }
-
+        private enum IssueSeverity { None, Warning, Error }
+        // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
+        // gibt die schwerste aufgetretene Stufe zurück.
         private static IssueSeverity ProcessBcfAndWriteToNeo4j(string bcfZipPath)
         {
             IssueSeverity worst = IssueSeverity.None;
@@ -214,17 +222,20 @@ namespace SpaceTracker
             return worst;
         }
 
-
+        // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
+        // gibt die schwerste aufgetretene Stufe zurück.
         public void Initialize()
         {
             _externalEvent = ExternalEvent.Create(this);
             _pushEvent = ExternalEvent.Create(_pushHandler);
         }
 
-         /// <summary>
+        /// <summary>
         /// Exposes the push event so other classes can trigger an immediate
         /// transfer of queued Cypher commands to Neo4j.
         /// </summary>
+        // Stößt einen sofortigen Push aller gesammelten Cypher-Befehle an.
+
         public void TriggerPush()
         {
             if (_pushEvent != null && !_pushEvent.IsPending)
@@ -233,6 +244,7 @@ namespace SpaceTracker
             }
         }
 
+        // Konstruktor, benötigt einen SpaceExtractor zur Graph-Aktualisierung.
 
         public DatabaseUpdateHandler(SpaceExtractor extractor)
         {
@@ -242,7 +254,7 @@ namespace SpaceTracker
             _pushEvent = ExternalEvent.Create(_pushHandler);
         }
 
-
+        // Hebt das ExternalEvent an, falls es nicht bereits aussteht
         private void RaiseEvent()
         {
             if (_externalEvent != null && !_externalEvent.IsPending)

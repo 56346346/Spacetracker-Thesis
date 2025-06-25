@@ -8,7 +8,7 @@ using SpaceTracker;
 using System.Linq;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-
+using System.Threading;
 using System.Runtime.Versioning;
 
 namespace SpaceTracker;
@@ -20,7 +20,7 @@ public class PushCommand : IExternalCommand
 
 {
 
-        // Lädt alle Wände des aktuellen Modells zu Neo4j hoch.
+    // Lädt alle Wände des aktuellen Modells zu Neo4j hoch.
 
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
 
@@ -34,30 +34,45 @@ public class PushCommand : IExternalCommand
         IList<Element> walls = new FilteredElementCollector(doc)
             .OfClass(typeof(Wall))
             .ToElements();
-        _ = Task.Run(async () =>
-    {
+        // Wanddaten auf dem Revit-Hauptthread sammeln
+        var wallData = new List<Dictionary<string, object>>();
         foreach (Wall w in walls)
+        {
+            var data = WallSerializer.ToNode(w);
+            data["modified"] = DateTime.UtcNow;
+            wallData.Add(data);
+        }
+        // Asynchron in Neo4j schreiben
+        _ = Task.Run(() => PushWallsAsync(wallData, connector));
+        return Result.Succeeded;
+    }
+    private static async Task PushWallsAsync(List<Dictionary<string, object>> wallData, Neo4jConnector connector)
+    {
+        Logger.LogToFile($"PushWallsAsync start ({wallData.Count} walls)", "concurrency.log");
+        var tasks = new List<Task>();
+        using var semaphore = new SemaphoreSlim(4); // limit parallel writes
 
-
-
+        foreach (var data in wallData)
 
         {
-
-            var data = WallSerializer.ToNode(w);
-            data["modified"] = System.DateTime.UtcNow;
-            try
+            await semaphore.WaitAsync();
+            tasks.Add(Task.Run(async () =>
             {
-                await connector.UpsertWallAsync(data).ConfigureAwait(false);
-
-            }
-            catch (Neo4j.Driver.Neo4jException ex)
-            {
-                Autodesk.Revit.UI.TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
-                return;
-            }
-
+                try
+                {
+                    await connector.UpsertWallAsync(data).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("PushWall", ex);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }));
         }
-    });
-        return Result.Succeeded;
+        await Task.WhenAll(tasks);
+        Logger.LogToFile("PushWallsAsync completed", "concurrency.log");
     }
 }

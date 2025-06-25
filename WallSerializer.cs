@@ -51,4 +51,30 @@ public static class WallSerializer
         SerializeParameters(wall, dict);
         return dict;
     }
+
+    // Erstellt ein WallNode-Objekt aus den gesammelten Eigenschaften.
+    public static WallNode ToWallNode(Wall wall)
+    {
+        var dict = ToNode(wall);
+        return new WallNode(
+            dict.TryGetValue("uid", out var uidObj) ? uidObj.ToString() ?? string.Empty : string.Empty,
+            Convert.ToInt64(dict["elementId"]),
+            Convert.ToInt64(dict["typeId"]),
+            dict.GetValueOrDefault("typeName", string.Empty).ToString() ?? string.Empty,
+            dict.GetValueOrDefault("familyName", string.Empty).ToString() ?? string.Empty,
+            Convert.ToInt64(dict["levelId"]),
+            Convert.ToDouble(dict["x1"]),
+            Convert.ToDouble(dict["y1"]),
+            Convert.ToDouble(dict["z1"]),
+            Convert.ToDouble(dict["x2"]),
+            Convert.ToDouble(dict["y2"]),
+            Convert.ToDouble(dict["z2"]),
+            Convert.ToDouble(dict["height_mm"]),
+            Convert.ToDouble(dict["thickness_mm"]),
+            Convert.ToBoolean(dict["structural"]),
+            dict.TryGetValue("flipped", out var flipObj) && Convert.ToBoolean(flipObj),
+            dict.TryGetValue("base_offset_mm", out var boObj) ? Convert.ToDouble(boObj) : 0.0,
+            dict.TryGetValue("location_line", out var llObj) ? Convert.ToInt32(llObj) : (int)WallLocationLine.WallCenterline
+        );
+    }
 }

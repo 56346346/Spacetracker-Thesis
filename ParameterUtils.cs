@@ -130,21 +130,24 @@ public static class ParameterUtils
 
     public static bool IsProvisionalSpace(Element elem)
     {
-        if (IsProvisionalSpaceName(elem.Name))
-            return true;
+                bool nameMatch = IsProvisionalSpaceName(elem.Name);
+                        bool familyMatch = false;
+
+
 
         if (elem is FamilyInstance fi)
         {
-            if (IsProvisionalSpaceName(fi.Symbol?.Name) ||
-                IsProvisionalSpaceName(fi.Symbol?.FamilyName))
-                return true;
+            familyMatch = IsProvisionalSpaceName(fi.Symbol?.Name) ||
+                          IsProvisionalSpaceName(fi.Symbol?.FamilyName);
         }
+         bool categoryMatch = elem.Category != null &&
+            elem.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel;
+
 
         string ifc = GetIfcEntity(elem);
-        if (!string.IsNullOrEmpty(ifc) &&
-            ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase))
-            return true;
+           bool ifcMatch = !string.IsNullOrEmpty(ifc) &&
+            ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase);
 
-        return false;
+        return nameMatch || familyMatch || categoryMatch || ifcMatch;
     }
 }

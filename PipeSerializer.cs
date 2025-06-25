@@ -9,9 +9,8 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class PipeSerializer
 {
-        // Serialisiert ein Rohr in ein Dictionary für Neo4j.
-
-        public static Dictionary<string, object> ToNode(MEPCurve pipe)
+    // Serialisiert ein Rohr in ein Dictionary für Neo4j.
+    public static Dictionary<string, object> ToNode(MEPCurve pipe)
     {
         var lc = pipe.Location as LocationCurve;
         var line = lc?.Curve as Line;
@@ -41,5 +40,25 @@ public static class PipeSerializer
 
         SerializeParameters(pipe, dict);
         return dict;
+    }
+    
+    // Erstellt einen PipeNode aus dem übergebenen Element.
+    public static PipeNode ToPipeNode(MEPCurve pipe)
+    {
+        var dict = ToNode(pipe);
+        return new PipeNode(
+            dict.TryGetValue("uid", out var uidObj) ? uidObj.ToString() ?? string.Empty : string.Empty,
+            Convert.ToInt64(dict["elementId"]),
+            Convert.ToInt64(dict["typeId"]),
+            Convert.ToInt64(dict.GetValueOrDefault("systemTypeId", -1L)),
+            Convert.ToInt64(dict["levelId"]),
+            Convert.ToDouble(dict["x1"]),
+            Convert.ToDouble(dict["y1"]),
+            Convert.ToDouble(dict["z1"]),
+            Convert.ToDouble(dict["x2"]),
+            Convert.ToDouble(dict["y2"]),
+            Convert.ToDouble(dict["z2"]),
+            Convert.ToDouble(dict.GetValueOrDefault("diameter", 0.0))
+        );
     }
 }
