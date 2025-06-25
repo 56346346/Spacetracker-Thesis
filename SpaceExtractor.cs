@@ -165,9 +165,8 @@ namespace SpaceTracker
         {
             try
             {
-                bool isProv = ParameterUtils.IsProvisionalSpaceName(inst.Name)
-                                  || ParameterUtils.IsProvisionalSpaceName(inst.Symbol?.Name)
-                                  || ParameterUtils.IsProvisionalSpaceName(inst.Symbol?.FamilyName);
+                bool isProv = ParameterUtils.IsProvisionalSpace(inst);
+
                 if (!isProv)
                     return;
                 var host = inst.Host as Wall;
@@ -255,9 +254,8 @@ namespace SpaceTracker
 
                 foreach (FamilyInstance ps in psCollector.Cast<FamilyInstance>())
                 {
-                    bool isProvPs = ParameterUtils.IsProvisionalSpaceName(ps.Name)
-                                        || ParameterUtils.IsProvisionalSpaceName(ps.Symbol?.Name)
-                                        || ParameterUtils.IsProvisionalSpaceName(ps.Symbol?.FamilyName);
+                    bool isProvPs = ParameterUtils.IsProvisionalSpace(ps);
+
                     if (!isProvPs)
                         continue;
                     var psLevel = doc.GetElement(ps.LevelId) as Level;

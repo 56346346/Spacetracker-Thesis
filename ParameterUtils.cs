@@ -120,4 +120,24 @@ public static class ParameterUtils
         return false;
 
     }
+    
+    public static bool IsProvisionalSpace(Element elem)
+    {
+        if (IsProvisionalSpaceName(elem.Name))
+            return true;
+
+        if (elem is FamilyInstance fi)
+        {
+            if (IsProvisionalSpaceName(fi.Symbol?.Name) ||
+                IsProvisionalSpaceName(fi.Symbol?.FamilyName))
+                return true;
+        }
+
+        string ifc = GetIfcEntity(elem);
+        if (!string.IsNullOrEmpty(ifc) &&
+            ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
 }
