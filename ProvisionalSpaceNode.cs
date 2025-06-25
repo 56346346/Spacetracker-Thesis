@@ -6,7 +6,7 @@ namespace SpaceTracker;
 public record ProvisionalSpaceNode(
     string Guid,
     string Name,
-     string FamilyName,
+    string FamilyName,
     string SymbolName,
     double Width,
     double Height,
@@ -19,7 +19,7 @@ public record ProvisionalSpaceNode(
     double Rotation,
     long HostId,
     int RevitId,
-     string IfcType,
+    string IfcType,
     string? Category,
     int PhaseCreated,
     int PhaseDemolished,

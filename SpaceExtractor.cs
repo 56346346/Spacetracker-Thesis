@@ -66,28 +66,39 @@ namespace SpaceTracker
             if (wall.LevelId == ElementId.InvalidElementId) return;
             try
             {
-                // 1. Neo4j Cypher-Query
-                WallType wallType = doc.GetElement(wall.GetTypeId()) as WallType;
-                string wallName = wallType?.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_NAME)?.AsString() ?? wallType?.Name ?? "Unbekannter Typ";
-                if (string.IsNullOrWhiteSpace(wallName)) wallName = wallType?.Name;
-                if (string.IsNullOrWhiteSpace(wallName)) wallName = wall.Name;
-                if (string.IsNullOrWhiteSpace(wallName)) wallName = "Unbenannt";
+                  Dictionary<string, object> data = WallSerializer.ToNode((Wall)wall);
+                var inv = CultureInfo.InvariantCulture;
+                var setParts = new List<string>
+                {
+                    $"w.uid = '{EscapeString(data["uid"].ToString())}'",
+                    $"w.elementId = {wall.Id.Value}",
+                    $"w.typeId = {data["typeId"]}",
+                    $"w.typeName = '{EscapeString(data["typeName"].ToString())}'",
+                    $"w.familyName = '{EscapeString(data["familyName"].ToString())}'",
+                    $"w.levelId = {data["levelId"]}",
+                    $"w.x1 = {((double)data["x1"]).ToString(inv)}",
+                    $"w.y1 = {((double)data["y1"]).ToString(inv)}",
+                    $"w.z1 = {((double)data["z1"]).ToString(inv)}",
+                    $"w.x2 = {((double)data["x2"]).ToString(inv)}",
+                    $"w.y2 = {((double)data["y2"]).ToString(inv)}",
+                    $"w.z2 = {((double)data["z2"]).ToString(inv)}",
+                    $"w.height_mm = {((double)data["height_mm"]).ToString(inv)}",
+                    $"w.thickness_mm = {((double)data["thickness_mm"]).ToString(inv)}",
+                    $"w.structural = {data["structural"]}",
+                    $"w.flipped = {data["flipped"]}",
+                    $"w.base_offset_mm = {((double)data["base_offset_mm"]).ToString(inv)}",
+                    $"w.location_line = {data["location_line"]}",
+                    $"w.user = '{EscapeString(data["user"].ToString())}'",
+                    $"w.created = datetime('{((DateTime)data["created"]).ToString("o")}')",
+                    $"w.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')"
+                };
 
-                Element levelElement = doc.GetElement(wall.LevelId);
-                string levelName = doc.GetElement(wall.LevelId)?.Name ?? "Unbekanntes Level";
-                int currentCount = Interlocked.Increment(ref _wallCounter);
-                string neo4jId = $"WALL-{currentCount:D4}";
-                string cy =
-   $"MERGE (w:Wall {{ElementId: {wall.Id.Value}}}) " +
-   $"SET w.Neo4jId = '{neo4jId}', w.Level = '{EscapeString(levelName)}', w.Type = '{EscapeString(wallName)}' " +
-   $"WITH w " +
-   $"MATCH (l:Level {{ElementId: {wall.LevelId.Value}}}) " +
-   $"MERGE (l)-[:CONTAINS]->(w)";
+                  string cy =
+                    $"MATCH (l:Level {{ElementId: {wall.LevelId.Value}}}) MERGE (w:Wall {{ElementId: {wall.Id.Value}}}) SET {string.Join(", ", setParts)} MERGE (l)-[:CONTAINS]->(w)";
 
 
                 _cmdManager.cypherCommands.Enqueue(cy);
-                Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
-
+Debug.WriteLine("[Neo4j] Created Wall node: " + cy);
 
             }
             catch (Exception ex)
@@ -105,36 +116,42 @@ namespace SpaceTracker
                 FamilyInstance doorInstance = door as FamilyInstance;
                 Element hostWall = doorInstance?.Host;
                 var sym = doc.GetElement(door.GetTypeId()) as FamilySymbol;
-                if (doorInstance != null)
-                    _ = DoorSerializer.ToNode(doorInstance);
-
-
-                string doorType = sym?.Name ?? (door as FamilyInstance)?.Symbol?.Name ?? "Unbekannter Typ";
-
-
-                if (hostWall != null)
+               Dictionary<string, object> data = doorInstance != null ? DoorSerializer.ToNode(doorInstance) : new();
+                var inv = CultureInfo.InvariantCulture;
+                var setParts = new List<string>
                 {
                     // 1) Tür mit Wand und Level verknüpfen
-                    string cy =
-                        $"MATCH (l:Level {{ElementId: {door.LevelId.Value}}}), " +
-                        $"      (w:Wall  {{ElementId: {hostWall.Id.Value}}}) " +
-                        $"MERGE (d:Door {{ElementId: {door.Id.Value}}}) " +
-                        $"SET d.Name = '{EscapeString(doorName)}', d.Type = '{EscapeString(doorType)}' " +
-                        $"MERGE (l)-[:CONTAINS]->(d)-[:CONTAINED_IN]->(w)";
-                    _cmdManager.cypherCommands.Enqueue(cy);
-                    Debug.WriteLine("[Neo4j] Cypher erzeugt (Door mit Level+Wall): " + cy);
-                }
+                   $"d.uid = '{EscapeString(data.GetValueOrDefault("uid", door.UniqueId).ToString())}'",
+                    $"d.elementId = {door.Id.Value}",
+                    $"d.typeId = {door.GetTypeId().Value}",
+                    $"d.familyName = '{EscapeString(data.GetValueOrDefault("familyName", string.Empty).ToString())}'",
+                    $"d.symbolName = '{EscapeString(data.GetValueOrDefault("symbolName", string.Empty).ToString())}'",
+                    $"d.levelId = {door.LevelId.Value}",
+                    $"d.hostId = {doorInstance?.Host?.Id.Value ?? -1}",
+                    $"d.x = {((double)data.GetValueOrDefault("x", 0.0)).ToString(inv)}",
+                    $"d.y = {((double)data.GetValueOrDefault("y", 0.0)).ToString(inv)}",
+                    $"d.z = {((double)data.GetValueOrDefault("z", 0.0)).ToString(inv)}",
+                    $"d.rotation = {((double)data.GetValueOrDefault("rotation", 0.0)).ToString(inv)}",
+                    $"d.width = {((double)data.GetValueOrDefault("width", 0.0)).ToString(inv)}",
+                    $"d.height = {((double)data.GetValueOrDefault("height", 0.0)).ToString(inv)}",
+                    $"d.thickness = {((double)data.GetValueOrDefault("thickness", 0.0)).ToString(inv)}",
+                    $"d.user = '{EscapeString(data.GetValueOrDefault("user", Environment.UserName).ToString())}'",
+                    $"d.created = datetime('{((DateTime)data.GetValueOrDefault("created", DateTime.UtcNow)).ToString("o")}')",
+                    $"d.modified = datetime('{((DateTime)data.GetValueOrDefault("modified", DateTime.UtcNow)).ToString("o")}')"
+                };
+
+                string cyBase = $"MATCH (l:Level {{ElementId: {door.LevelId.Value}}})";
+                if (hostWall != null)
+                    cyBase += $", (w:Wall {{ElementId: {hostWall.Id.Value}}})";
+                string cyNode =
+                    $"{cyBase} MERGE (d:Door {{ElementId: {door.Id.Value}}}) SET {string.Join(", ", setParts)}";
+                if (hostWall != null)
+                    cyNode += " MERGE (l)-[:CONTAINS]->(d)-[:CONTAINED_IN]->(w)";
                 else
-                {
-                    // 2) Kein Host-Wall → nur Door und Level
-                    string cy =
-                        $"MATCH (l:Level {{ElementId: {door.LevelId.Value}}}) " +
-                        $"MERGE (d:Door {{ElementId: {door.Id.Value}}}) " +
-                        $"SET d.Name = '{EscapeString(doorName)}', d.Type = '{EscapeString(doorType)}' " +
-                        $"MERGE (l)-[:CONTAINS]->(d)";
-                    _cmdManager.cypherCommands.Enqueue(cy);
-                    Debug.WriteLine("[Neo4j] Cypher erzeugt (Door nur mit Level): " + cy);
-                }
+                 cyNode += " MERGE (l)-[:CONTAINS]->(d)";
+
+                _cmdManager.cypherCommands.Enqueue(cyNode);
+                Debug.WriteLine("[Neo4j] Created Door node: " + cyNode);
 
 
             }
@@ -148,28 +165,51 @@ namespace SpaceTracker
         {
             try
             {
-                if (!inst.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase))
+bool isProv = inst.Name.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase)
+                    || (inst.Symbol?.Name?.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (inst.Symbol?.FamilyName?.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase) ?? false);
+                if (!isProv)
                     return;
                 var host = inst.Host as Wall;
                 var data = ProvisionalSpaceSerializer.ToNode(inst);
                 var inv = CultureInfo.InvariantCulture;
+                  var setParts = new List<string>
+                {
+                    $"p.name = '{EscapeString(data["name"].ToString())}'",
+                    $"p.width = {((double)data["width"]).ToString(inv)}",
+                    $"p.height = {((double)data["height"]).ToString(inv)}",
+                    $"p.thickness = {((double)data["thickness"]).ToString(inv)}",
+                    $"p.level = '{EscapeString(data["level"].ToString())}'",
+                    $"p.levelId = {data["levelId"]}",
+                    $"p.x = {((double)data["x"]).ToString(inv)}",
+                    $"p.y = {((double)data["y"]).ToString(inv)}",
+                    $"p.z = {((double)data["z"]).ToString(inv)}",
+                    $"p.rotation = {((double)data["rotation"]).ToString(inv)}",
+                    $"p.hostId = {data["hostId"]}",
+                    $"p.revitId = {data["revitId"]}",
+                    $"p.ifcType = '{EscapeString(data["ifcType"].ToString())}'",
+                    $"p.familyName = '{EscapeString(data.GetValueOrDefault("familyName", "").ToString())}'",
+                    $"p.symbolName = '{EscapeString(data.GetValueOrDefault("symbolName", "").ToString())}'",
+                    $"p.category = '{EscapeString(data.GetValueOrDefault("category", "").ToString())}'",
+                    $"p.phaseCreated = {data.GetValueOrDefault("phaseCreated", -1)}",
+                    $"p.phaseDemolished = {data.GetValueOrDefault("phaseDemolished", -1)}",
+                    $"p.bbMinX = {((double)data.GetValueOrDefault("bbMinX", 0.0)).ToString(inv)}",
+                    $"p.bbMinY = {((double)data.GetValueOrDefault("bbMinY", 0.0)).ToString(inv)}",
+                    $"p.bbMinZ = {((double)data.GetValueOrDefault("bbMinZ", 0.0)).ToString(inv)}",
+                    $"p.bbMaxX = {((double)data.GetValueOrDefault("bbMaxX", 0.0)).ToString(inv)}",
+                    $"p.bbMaxY = {((double)data.GetValueOrDefault("bbMaxY", 0.0)).ToString(inv)}",
+                    $"p.bbMaxZ = {((double)data.GetValueOrDefault("bbMaxZ", 0.0)).ToString(inv)}",
+                    $"p.uid = '{EscapeString(inst.UniqueId)}'",
+                    $"p.elementId = {inst.Id.Value}",
+                    $"p.typeId = {inst.GetTypeId().Value}",
+                    $"p.created = datetime('{((DateTime)data["created"]).ToString("o")}')",
+                    $"p.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')",
+                    $"p.user = '{EscapeString(data["user"].ToString())}'"
+                };
+
                 string cyNode =
                     $"MERGE (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
-                    $"SET p.name = '{EscapeString(data["name"].ToString())}', " +
-                       $"p.width = {((double)data["width"]).ToString(inv)}, p.height = {((double)data["height"]).ToString(inv)}, " +
-                    $"p.thickness = {((double)data["thickness"]).ToString(inv)}, " +
-                    $"p.level = '{EscapeString(data["level"].ToString())}', " +
-                      $"p.revitId = {data["revitId"]}, p.ifcType = 'IfcOpeningElement', " +
-                    $"p.category = '{EscapeString(data.GetValueOrDefault("category", "").ToString())}', " +
-                    $"p.familyName = '{EscapeString(data.GetValueOrDefault("familyName", "").ToString())}', " +
-                    $"p.phaseCreated = {data.GetValueOrDefault("phaseCreated", -1)}, " +
-                    $"p.phaseDemolished = {data.GetValueOrDefault("phaseDemolished", -1)}, " +
-                    $"p.bbMinX = {((double)data.GetValueOrDefault("bbMinX", 0.0)).ToString(inv)}, " +
-                    $"p.bbMinY = {((double)data.GetValueOrDefault("bbMinY", 0.0)).ToString(inv)}, " +
-                    $"p.bbMinZ = {((double)data.GetValueOrDefault("bbMinZ", 0.0)).ToString(inv)}, " +
-                    $"p.bbMaxX = {((double)data.GetValueOrDefault("bbMaxX", 0.0)).ToString(inv)}, " +
-                    $"p.bbMaxY = {((double)data.GetValueOrDefault("bbMaxY", 0.0)).ToString(inv)}, " +
-                    $"p.bbMaxZ = {((double)data.GetValueOrDefault("bbMaxZ", 0.0)).ToString(inv)}";
+                          $"SET {string.Join(", ", setParts)}";
                 _cmdManager.cypherCommands.Enqueue(cyNode);
                 if (host != null)
                 {
@@ -177,10 +217,10 @@ namespace SpaceTracker
                         $"MATCH (w:Wall {{ElementId:{host.Id.Value}}}), (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
                         "MERGE (w)-[:HAS_PROV_SPACE]->(p)";
                     _cmdManager.cypherCommands.Enqueue(cyRel);
-                    Debug.WriteLine("[Neo4j] Cypher erzeugt (ProvSpace Rel): " + cyRel);
+                    Debug.WriteLine("[Neo4j] Created ProvisionalSpace relation: " + cyRel);
                 }
 
-                Debug.WriteLine("[Neo4j] Cypher erzeugt (ProvSpace Node): " + cyNode);
+                Debug.WriteLine("[Neo4j] Created ProvisionalSpace node: " + cyNode);
             }
             catch (Exception ex)
             {
@@ -215,7 +255,10 @@ namespace SpaceTracker
 
                 foreach (FamilyInstance ps in psCollector.Cast<FamilyInstance>())
                 {
-                    if (!ps.Name.Contains("ProvSpaceVoid", StringComparison.OrdinalIgnoreCase))
+ bool isProvPs = ps.Name.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase)
+                        || (ps.Symbol?.Name?.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase) ?? false)
+                        || (ps.Symbol?.FamilyName?.Contains("ProvSpace", StringComparison.OrdinalIgnoreCase) ?? false);
+                    if (!isProvPs)
                         continue;
                     var psLevel = doc.GetElement(ps.LevelId) as Level;
                     if (psLevel != null && Math.Abs(psLevel.Elevation - bbPipe.Min.Z) > tol)
@@ -231,7 +274,7 @@ namespace SpaceTracker
                             $"MATCH (pi:Pipe {{uid:'{data["uid"]}'}}), (ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) " +
                             "MERGE (pi)-[:CONTAINED_IN]->(ps)";
                         _cmdManager.cypherCommands.Enqueue(cyRel);
-                        Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe->ProvSpace): " + cyRel);
+                        Debug.WriteLine("[Neo4j] Linked Pipe to ProvisionalSpace: " + cyRel);
 
                     }
                 }

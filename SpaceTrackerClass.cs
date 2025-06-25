@@ -229,7 +229,7 @@ namespace SpaceTracker
                     }
                 }
             }
-            
+
             // Nach der Prüfung in Neo4j zusätzlich den Solibri-Check ausführen
             // und die Status-Ampel entsprechend der höchsten gefundenen
             // Fehlerstufe setzen
@@ -238,11 +238,32 @@ namespace SpaceTracker
                 var errs = SolibriRulesetValidator.Validate(doc);
                 var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                 UpdateConsistencyCheckerButton(sev);
+                 var mappingIssues = ValidateElementMappings(doc, connector);
+                if (mappingIssues.Count > 0 && showDialogs)
+                {
+                    Autodesk.Revit.UI.TaskDialog.Show(
+                        "Consistency Check",
+                        "Nicht zugeordnete Datensätze gefunden:\n" + string.Join("\n", mappingIssues));
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ConsistencyCheck] Solibri validation failed: {ex.Message}");
             }
+        }
+private static List<string> ValidateElementMappings(Document doc, Neo4jConnector connector)
+        {
+            const string cypher = "MATCH (n) WHERE exists(n.elementId) RETURN labels(n) AS labels, n.elementId AS id";
+            var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
+            var issues = new List<string>();
+            foreach (var r in records)
+            {
+                long id = r["id"].As<long>();
+                var labels = string.Join(',', r["labels"].As<List<object>>());
+                if (doc.GetElement(new ElementId((int)id)) == null)
+                    issues.Add($"Missing element {id} for node [{labels}]");
+            }
+            return issues;
         }
 
 
@@ -629,7 +650,7 @@ namespace SpaceTracker
             foreach (var element in addedElements.Concat(modifiedElements))
             {
                 var el = element;
-                if (!_elementCache.ContainsKey(el.Id))
+                if (!_elementCache.TryGetValue(el.Id, out _))
                 {
                     _elementCache[el.Id] = new ElementMetadata
                     {

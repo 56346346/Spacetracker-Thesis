@@ -69,7 +69,7 @@ namespace SpaceTracker
         public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName, Autodesk.Revit.DB.Document currentDocument = null)
         {
             // 1) Asynchrone Neo4j-Session öffnen
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
 
             try
             {
@@ -197,7 +197,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task<bool> AreAllUsersConsistentAsync()
         {
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             try
             {
                 var minRes = await session.RunAsync("MATCH (s:Session) RETURN min(s.lastSync) AS minSync").ConfigureAwait(false);
@@ -224,7 +224,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         public async Task<List<SessionStatus>> GetSessionStatusesAsync()
         {
             var result = new List<SessionStatus>();
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             try
             {
                 var lastChangeRes = await session.RunAsync("MATCH (cl:ChangeLog) RETURN max(cl.timestamp) AS lastChange").ConfigureAwait(false);
@@ -252,7 +252,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task DeleteAllSessionsAndLogsAsync()
         {
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             try
             {
                 await session.ExecuteWriteAsync(async tx =>
@@ -279,7 +279,7 @@ ORDER BY c.timestamp";
 
         public async Task AcknowledgeAllAsync(string currentSession)
         {
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             try
             {
                 await session.ExecuteWriteAsync(async tx =>
@@ -297,7 +297,7 @@ SET c.acknowledged = true", new { session = currentSession }).ConfigureAwait(fal
 
         public async Task AcknowledgeSelectedAsync(string currentSession, IEnumerable<long> elementIds)
         {
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             try
             {
                 await session.ExecuteWriteAsync(async tx =>
@@ -338,7 +338,7 @@ SET c.acknowledged = true",
 
         public async Task CleanupObsoleteChangeLogsAsync()
         {
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             try
             {
                 // Alte Sessions bereinigen, damit die Mindestberechnung korrekt bleibt
@@ -368,7 +368,7 @@ SET c.acknowledged = true",
 
         public async Task RemoveStaleSessionsAsync(TimeSpan maxAge)
         {
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             try
             {
                 await session.ExecuteWriteAsync(async tx =>
@@ -389,7 +389,7 @@ SET c.acknowledged = true",
 
         public async Task UpdateSessionLastSyncAsync(string sessionId, DateTime syncTime)
         {
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             try
             {
                 await session.ExecuteWriteAsync(async tx =>
@@ -406,6 +406,28 @@ SET c.acknowledged = true",
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+
+           public async Task UpsertDoorAsync(Dictionary<string, object> args)
+        {
+            var setParts = new List<string>();
+            foreach (var kvp in args)
+            {
+                if (kvp.Key is "uid" or "user" or "created" or "modified")
+                    continue;
+                setParts.Add($"d.{kvp.Key} = ${kvp.Key}");
+            }
+            setParts.Add("d.createdBy = coalesce(d.createdBy,$user)");
+            setParts.Add("d.createdAt = coalesce(d.createdAt,$created)");
+            setParts.Add("d.lastModifiedUtc = datetime($modified)");
+            string cypher = $"MERGE (d:Door {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN d";
+
+            await using var session = _driver.AsyncSession();
+            await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
+            _logger.LogInformation("Door {Uid} upserted", args["uid"]);
+        }
+
 
 
         public async Task ExportToNeo4j()
@@ -503,17 +525,17 @@ SET c.acknowledged = true",
 
         public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)
         {
-              var setParts = props.Keys
-                .Where(k => k != "guid")
-                .Select(k => $"p.{k} = ${k}")
-                .ToList();
+            var setParts = props.Keys
+              .Where(k => k != "guid")
+              .Select(k => $"p.{k} = ${k}")
+              .ToList();
             string cypher = $"MERGE (p:ProvisionalSpace {{guid:$guid}}) SET {string.Join(", ", setParts)}";
             props["guid"] = guid;
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
             await tx.RunAsync(cypher, props).ConfigureAwait(false);
-           await tx.CommitAsync().ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("ProvisionalSpace {Guid} upserted", guid);
         }
 
@@ -546,12 +568,12 @@ RETURN w";
                 var node = r["w"].As<INode>();
                 return new WallNode
                 (
-                    node.Properties.ContainsKey("elementId") ? (long)node.Properties["elementId"].As<long>() : -1,
-                    node.Properties["uid"].As<long>(),
-                    (long)node.Properties["typeId"].As<long>(),
-                    node.Properties.ContainsKey("typeName") ? node.Properties["typeName"].As<string>() : string.Empty,
-                    node.Properties.ContainsKey("familyName") ? node.Properties["familyName"].As<string>() : string.Empty,
-                    (long)node.Properties["levelId"].As<long>(),
+                    node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty,
+                    node.Properties.TryGetValue("elementId", out var elemId) ? elemId.As<long>() : -1,
+                    node.Properties["typeId"].As<long>(),
+                    node.Properties.TryGetValue("typeName", out var typeName) ? typeName.As<string>() : string.Empty,
+                    node.Properties.TryGetValue("familyName", out var familyName) ? familyName.As<string>() : string.Empty,
+                    node.Properties["levelId"].As<long>(),
                     node.Properties["x1"].As<double>(),
                     node.Properties["y1"].As<double>(),
                     node.Properties["z1"].As<double>(),
@@ -560,11 +582,11 @@ RETURN w";
                     node.Properties["z2"].As<double>(),
                     node.Properties["height_mm"].As<double>(),
                     node.Properties["thickness_mm"].As<double>(),
-                     node.Properties["structural"].As<bool>(),
-                    node.Properties.ContainsKey("flipped") ? node.Properties["flipped"].As<bool>() : false,
-                    node.Properties.ContainsKey("base_offset_mm") ? node.Properties["base_offset_mm"].As<double>() : 0.0,
-                    node.Properties.ContainsKey("location_line") ? node.Properties["location_line"].As<int>() : (int)WallLocationLine.WallCenterline
-                );
+                    node.Properties["structural"].As<bool>(),
+                    node.Properties.TryGetValue("flipped", out var flipped) && flipped.As<bool>(),
+                    node.Properties.TryGetValue("base_offset_mm", out var baseOffset) ? baseOffset.As<double>() : 0.0,
+                    node.Properties.TryGetValue("location_line", out var locLine) ? locLine.As<int>() : (int)WallLocationLine.WallCenterline
+                    );
             }).ConfigureAwait(false);
             _logger.LogInformation("Pulled {Count} walls", list.Count);
             return list;
@@ -585,7 +607,7 @@ CALL {
 } IN TRANSACTIONS OF 1000 ROWS
 RETURN count(*) AS updated";
 
-            var session = _driver.AsyncSession();
+            await using var session = _driver.AsyncSession();
             var sw = Stopwatch.StartNew();
             try
             {

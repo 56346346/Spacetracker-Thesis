@@ -41,11 +41,13 @@ public static class RevitElementBuilder
         Line line = Line.CreateBound(s, e);
         ElementId typeId = new ElementId(Convert.ToInt32(node["typeId"]));
         ElementId levelId = new ElementId(Convert.ToInt32(node["levelId"]));
-            double height = UnitConversion.ToFt(Convert.ToDouble(node["height_mm"]));
-        double offset = node.ContainsKey("base_offset_mm") ? UnitConversion.ToFt(Convert.ToDouble(node["base_offset_mm"])) : 0;
-        bool flip = node.ContainsKey("flipped") && Convert.ToBoolean(node["flipped"]);
-        bool structural = node.ContainsKey("structural") && Convert.ToBoolean(node["structural"]);
- Wall wall = Wall.Create(doc, line, typeId, levelId, height, offset, flip, structural);
+        double height = UnitConversion.ToFt(Convert.ToDouble(node["height_mm"]));
+        double offset = node.TryGetValue("base_offset_mm", out var offObj)
+          ? UnitConversion.ToFt(Convert.ToDouble(offObj))
+          : 0;
+        bool flip = node.TryGetValue("flipped", out var flipObj) && Convert.ToBoolean(flipObj);
+        bool structural = node.TryGetValue("structural", out var structObj) && Convert.ToBoolean(structObj);
+        Wall wall = Wall.Create(doc, line, typeId, levelId, height, offset, flip, structural);
         if (node.TryGetValue("location_line", out var ll))
             wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(Convert.ToInt32(ll));
         ParameterUtils.ApplyParameters(wall, node);
@@ -61,7 +63,9 @@ public static class RevitElementBuilder
                         UnitConversion.ToFt(Convert.ToDouble(node["y2"])),
                         UnitConversion.ToFt(Convert.ToDouble(node["z2"])));
         ElementId pipeTypeId = new ElementId(Convert.ToInt32(node["typeId"]));
-        ElementId systemTypeId = node.ContainsKey("systemTypeId") ? new ElementId(Convert.ToInt32(node["systemTypeId"])) : ElementId.InvalidElementId;
+        ElementId systemTypeId = node.TryGetValue("systemTypeId", out var sysObj)
+                   ? new ElementId(Convert.ToInt32(sysObj))
+                   : ElementId.InvalidElementId;
         ElementId levelId = new ElementId(Convert.ToInt32(node["levelId"]));
         Pipe pipe = Pipe.Create(doc, systemTypeId, pipeTypeId, levelId, s, e);
         if (node.TryGetValue("diameter", out var d))
@@ -91,7 +95,9 @@ public static class RevitElementBuilder
     }
     private static void BuildWall(Document doc, INode node)
     {
-        string uid = node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty;
+        string uid = node.Properties.TryGetValue("uid", out var uidObj)
+                    ? uidObj.As<string>()
+                    : string.Empty;
         Element? existing = !string.IsNullOrEmpty(uid) ? doc.GetElement(uid) : null;
         XYZ s = new XYZ(UnitConversion.ToFt(node.Properties["x1"].As<double>()),
                         UnitConversion.ToFt(node.Properties["y1"].As<double>()),
@@ -112,12 +118,12 @@ public static class RevitElementBuilder
                 new ElementId((long)node.Properties["typeId"].As<long>()),
                 new ElementId((long)node.Properties["levelId"].As<long>()),
                 UnitConversion.ToFt(node.Properties["height_mm"].As<double>()),
-                UnitConversion.ToFt(node.Properties["base_offset_mm"].As<double>()),
-                node.Properties.ContainsKey("flipped") && node.Properties["flipped"].As<bool>(),
-                node.Properties.ContainsKey("structural") && node.Properties["structural"].As<bool>());
+               UnitConversion.ToFt(node.Properties.TryGetValue("base_offset_mm", out var bo) ? bo.As<double>() : 0.0),
+                node.Properties.TryGetValue("flipped", out var fl) && fl.As<bool>(),
+                node.Properties.TryGetValue("structural", out var st) && st.As<bool>());
             Parameter llp = newWall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM);
-            if (llp != null && !llp.IsReadOnly && node.Properties.ContainsKey("location_line"))
-                llp.Set(node.Properties["location_line"].As<int>());
+            if (llp != null && !llp.IsReadOnly && node.Properties.TryGetValue("location_line", out var llv))
+                llp.Set(llv.As<int>());
         }
     }
     public static void BuildFromNodes(Document doc, INode node)
@@ -150,7 +156,9 @@ public static class RevitElementBuilder
 
     private static void BuildPipe(Document doc, INode node)
     {
-        string uid = node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty;
+        string uid = node.Properties.TryGetValue("uid", out var uidProp)
+                  ? uidProp.As<string>()
+                  : string.Empty;
         Element? existing = !string.IsNullOrEmpty(uid) ? doc.GetElement(uid) : null;
         XYZ s = new XYZ(UnitConversion.ToFt(node.Properties["x1"].As<double>()),
                         UnitConversion.ToFt(node.Properties["y1"].As<double>()),
@@ -166,8 +174,7 @@ public static class RevitElementBuilder
         }
         else
         {
-            double diam = UnitConversion.ToFt(node.Properties["diameter"].As<double>());
-            var line = Line.CreateBound(s, e);
+            double diam = UnitConversion.ToFt(node.Properties.TryGetValue("diameter", out var dval) ? dval.As<double>() : 0.0); var line = Line.CreateBound(s, e);
             ElementId systemTypeId = node.Properties.ContainsKey("systemTypeId")
                 ? new ElementId((long)node.Properties["systemTypeId"].As<long>())
                 : ElementId.InvalidElementId;
@@ -179,19 +186,23 @@ public static class RevitElementBuilder
             newPipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)?.Set(diam);
         }
     }
-    
+
     private static void BuildProvisionalSpace(Document doc, INode node)
     {
-        string guid = node.Properties.ContainsKey("guid") ? node.Properties["guid"].As<string>() : string.Empty;
+        string guid = node.Properties.TryGetValue("guid", out var guidObj)
+                   ? guidObj.As<string>()
+                   : string.Empty;
         Element? existing = !string.IsNullOrEmpty(guid) ? doc.GetElement(guid) : null;
         if (existing != null)
             return;
 
-        string familyName = node.Properties.ContainsKey("familyName") ? node.Properties["familyName"].As<string>() : string.Empty;
+        string familyName = node.Properties.TryGetValue("familyName", out var famObj)
+                   ? famObj.As<string>()
+                   : string.Empty;
         FamilySymbol? symbol = new FilteredElementCollector(doc)
-            .OfClass(typeof(FamilySymbol))
-            .Cast<FamilySymbol>()
-            .FirstOrDefault(fs => fs.FamilyName.Equals(familyName, StringComparison.OrdinalIgnoreCase));
+.OfClass(typeof(FamilySymbol))
+.Cast<FamilySymbol>()
+.FirstOrDefault(fs => fs.FamilyName.Equals(familyName, StringComparison.OrdinalIgnoreCase));
         if (symbol == null)
         {
             Debug.WriteLine($"FamilySymbol '{familyName}' not found.");
@@ -200,26 +211,22 @@ public static class RevitElementBuilder
         if (!symbol.IsActive)
             symbol.Activate();
 
-        double minX = node.Properties.ContainsKey("bbMinX") ? node.Properties["bbMinX"].As<double>() : 0.0;
-        double minY = node.Properties.ContainsKey("bbMinY") ? node.Properties["bbMinY"].As<double>() : 0.0;
-        double minZ = node.Properties.ContainsKey("bbMinZ") ? node.Properties["bbMinZ"].As<double>() : 0.0;
-        double maxX = node.Properties.ContainsKey("bbMaxX") ? node.Properties["bbMaxX"].As<double>() : 0.0;
-        double maxY = node.Properties.ContainsKey("bbMaxY") ? node.Properties["bbMaxY"].As<double>() : 0.0;
-        double maxZ = node.Properties.ContainsKey("bbMaxZ") ? node.Properties["bbMaxZ"].As<double>() : 0.0;
-
+        double minX = node.Properties.TryGetValue("bbMinX", out var bbMinX) ? bbMinX.As<double>() : 0.0;
+        double minY = node.Properties.TryGetValue("bbMinY", out var bbMinY) ? bbMinY.As<double>() : 0.0;
+        double minZ = node.Properties.TryGetValue("bbMinZ", out var bbMinZ) ? bbMinZ.As<double>() : 0.0;
+        double maxX = node.Properties.TryGetValue("bbMaxX", out var bbMaxX) ? bbMaxX.As<double>() : 0.0;
+        double maxY = node.Properties.TryGetValue("bbMaxY", out var bbMaxY) ? bbMaxY.As<double>() : 0.0;
+        double maxZ = node.Properties.TryGetValue("bbMaxZ", out var bbMaxZ) ? bbMaxZ.As<double>() : 0.0;
         XYZ center = new XYZ(
             UnitConversion.ToFt((minX + maxX) / 2),
             UnitConversion.ToFt((minY + maxY) / 2),
             UnitConversion.ToFt((minZ + maxZ) / 2));
 
-        ElementId levelId = node.Properties.ContainsKey("levelId") ? new ElementId((long)node.Properties["levelId"].As<long>()) : ElementId.InvalidElementId;
-        Level? level = levelId != ElementId.InvalidElementId ? doc.GetElement(levelId) as Level : null;
+        ElementId levelId = node.Properties.TryGetValue("levelId", out var lvl) ? new ElementId((long)lvl.As<long>()) : ElementId.InvalidElementId; Level? level = levelId != ElementId.InvalidElementId ? doc.GetElement(levelId) as Level : null;
 
         FamilyInstance inst = doc.Create.NewFamilyInstance(center, symbol, level, StructuralType.NonStructural);
-
-        int phaseCreated = node.Properties.ContainsKey("phaseCreated") ? node.Properties["phaseCreated"].As<int>() : -1;
-        int phaseDemolished = node.Properties.ContainsKey("phaseDemolished") ? node.Properties["phaseDemolished"].As<int>() : -1;
-
+        int phaseCreated = node.Properties.TryGetValue("phaseCreated", out var pc) ? pc.As<int>() : -1;
+        int phaseDemolished = node.Properties.TryGetValue("phaseDemolished", out var pd) ? pd.As<int>() : -1;
         inst.get_Parameter(BuiltInParameter.PHASE_CREATED)?.Set(phaseCreated);
         inst.get_Parameter(BuiltInParameter.PHASE_DEMOLISHED)?.Set(phaseDemolished);
 

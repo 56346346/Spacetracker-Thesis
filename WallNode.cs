@@ -8,7 +8,7 @@ public record WallNode(
     string Uid,
     long ElementId,
     long TypeId,
-     string TypeName,
+    string TypeName,
     string FamilyName,
     long LevelId,
     double X1,
@@ -19,8 +19,7 @@ public record WallNode(
     double Z2,
     double HeightMm,
     double ThicknessMm,
-     bool Structural,
-       bool Structural,
+    bool Structural,
     bool Flipped,
     double BaseOffsetMm,
     int LocationLine
