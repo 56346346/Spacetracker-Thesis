@@ -2,6 +2,22 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using System.Net.Http;
+using SpaceTracker;
+
+namespace SpaceTracker
+{
+    // Minimal stubs to avoid referencing external packages
+    public interface INeo4jConnector
+    {
+        Task RunWriteQueryAsync(string query, object parameters = null);
+    }
+
+    public interface IHttpClientFactory
+    {
+        HttpClient CreateClient(string name);
+    }
+}
 
 namespace SpaceTracker.Tests
 {
@@ -32,7 +48,8 @@ namespace SpaceTracker.Tests
                           "<Issue guid='3'><Severity>Warning</Severity></Issue>" +
                           "</Issues>";
             var connector = new MockConnector();
-            var checker = new SolibriChecker(new DummyFactory(), connector);
+            SolibriChecker.Initialize(new DummyFactory(), connector);
+            var checker = SolibriChecker.Instance!;
             await checker.UpdateLogStatusAsync(xml, CancellationToken.None);
             Assert.Contains(connector.Calls, c => ((dynamic)c.parameters).status.Equals("RED"));
         }

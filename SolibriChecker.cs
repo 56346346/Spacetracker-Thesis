@@ -35,11 +35,6 @@ namespace SpaceTracker
         {
             Instance = new SolibriChecker(factory, connector);
         }
-        public static Task CheckElementAsync(ElementId id, Document doc)
-        {
-            // Compatibility stub for legacy calls
-            return Task.CompletedTask;
-        }
 
         private SolibriChecker(IHttpClientFactory factory, INeo4jConnector connector)
         {
