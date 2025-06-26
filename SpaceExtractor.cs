@@ -183,7 +183,6 @@ $"d.hostUid = '{ParameterUtils.EscapeForCypher(doorInstance?.Host?.UniqueId ?? s
                     $"p.width = {((double)data["width"]).ToString(inv)}",
                     $"p.height = {((double)data["height"]).ToString(inv)}",
                     $"p.thickness = {((double)data["thickness"]).ToString(inv)}",
-                    $"p.level = '{EscapeString(data["level"].ToString())}'",
   $"p.level = '{ParameterUtils.EscapeForCypher(data["level"].ToString())}'",
                     $"p.x = {((double)data["x"]).ToString(inv)}",
                     $"p.y = {((double)data["y"]).ToString(inv)}",
@@ -377,12 +376,12 @@ $"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
                         Debug.WriteLine($"[WARN] Raum {room.Id} hat kein gültiges Level – wird übersprungen.");
                         continue;
                     }
-                    string escapedRoomName = EscapeString(room.Name);
+                    string escapedRoomName = ParameterUtils.EscapeForCypher(room.Name);
                     Debug.WriteLine($"Room: {escapedRoomName}, ID: {room.Id}");
 
                     cy = $"MERGE (r:Room {{ElementId: {room.Id.Value}}}) " +
-            $"SET r.Name = '{EscapeString(room.Name)}', r.Level = '{EscapeString(levelName)}' " +
-            $"WITH r MATCH (l:Level {{ElementId: {room.LevelId.Value}}}) " +
+   $"SET r.Name = '{ParameterUtils.EscapeForCypher(room.Name)}', r.Level = '{ParameterUtils.EscapeForCypher(levelName)}' " +
+               $"WITH r MATCH (l:Level {{ElementId: {room.LevelId.Value}}}) " +
             $"MERGE (l)-[:CONTAINS]->(r)";
 
                     _cmdManager.cypherCommands.Enqueue(cy);
@@ -408,7 +407,7 @@ $"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
                             {
                                 string wallName = wall.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM)?.AsString()
                                                   ?? wall.Name ?? "Unbenannt";
-                                string escapedWallName = EscapeString(wallName);
+                                string escapedWallName = ParameterUtils.EscapeForCypher(wallName);
 
                                 Debug.WriteLine($"\tNeighbor Type: Wall - ID: {wall.Id}, Name: {escapedWallName}");
 
@@ -596,7 +595,7 @@ $"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
             // 4) Cypher-Statement: Node MERGE + Beziehungen
             string cy =
                 $"MERGE (s:Stair {{ElementId: {stairElem.Id.Value}}}) " +
-                $"SET s.Name = '{EscapeString(stairName)}' " +
+  $"SET s.Name = '{ParameterUtils.EscapeForCypher(stairName)}' " +
                 $"WITH s " +
                 $"MATCH (b:Level {{ElementId: {baseLevelId.Value}}}), (t:Level {{ElementId: {topLevelId.Value}}}) " +
                 $"MERGE (b)-[:CONNECTS_TO]->(s) " +
@@ -706,24 +705,24 @@ $"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
                     var sym = doc.GetElement(fi.GetTypeId()) as FamilySymbol;
                     string doorType = sym?.Name ?? "Unbekannter Typ";
                     cy = $"MATCH (d:Door {{ElementId: {intId}}}) " +
-                         $"SET d.Name = '{EscapeString(e.Name)}', d.Type = '{EscapeString(doorType)}'";
+   $"SET d.Name = '{ParameterUtils.EscapeForCypher(e.Name)}', d.Type = '{ParameterUtils.EscapeForCypher(doorType)}'";
                 }
                 else if (e is Room)
                 {
                     // Raum-Name aktualisieren
                     cy = $"MATCH (r:Room {{ElementId: {intId}}}) " +
-                         $"SET r.Name = '{EscapeString(e.Name)}'";
+ $"SET r.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
                 }
                 else if (e is Wall)
                 {
                     // Wand-Name aktualisieren
                     cy = $"MATCH (w:Wall {{ElementId: {intId}}}) " +
-                         $"SET w.Name = '{EscapeString(e.Name)}'";
+ $"SET w.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
                 }
                 else if (e is Level)
                 {
                     cy = $"MATCH (l:Level {{ElementId: {intId}}}) " +
-                         $"SET l.Name = '{EscapeString(e.Name)}'";
+ $"SET l.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
                 }
                 else
                 {
@@ -770,7 +769,7 @@ $"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
                                     Debug.WriteLine($"[WARN] Wall {wall.Id} has invalid LevelId.");
                                     continue; // Überspringen
                                 }
-                                string escapedWallName = EscapeString(wall.Name);
+                                string escapedWallName = ParameterUtils.EscapeForCypher(wall.Name);
                                 cy = "MATCH (r:Room{ElementId: " + room.Id + "})" +
         " MATCH (w:Wall{ElementId: " + wall.Id + "})" +
         " MATCH (l:Level{ElementId: " + wall.LevelId.Value + "})" +
