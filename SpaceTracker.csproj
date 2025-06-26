@@ -13,7 +13,6 @@
     <OutputPath>bin\Debug\</OutputPath>
     <Platforms>x64</Platforms>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-      <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
      <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
