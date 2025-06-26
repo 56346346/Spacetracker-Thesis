@@ -21,10 +21,6 @@ namespace SpaceTracker
         private readonly IDriver _driver;
         private readonly Microsoft.Extensions.Logging.ILogger<Neo4jConnector> _logger;
         private const string CommandLogFile = "neo4j_commands.log";
-
-        private ConcurrentQueue<string> cypherCommands = new ConcurrentQueue<string>();
-
-
         private readonly string _cypherFilePath = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
     "SpaceTracker",
@@ -447,8 +443,8 @@ SET c.acknowledged = true",
                     return;
                 }
 
-                var commands = await Task.Run(() => File.ReadAllLines(_cypherFilePath)).ConfigureAwait(false);
-
+ // Read all Cypher commands asynchronously to avoid blocking the UI thread
+                var commands = await File.ReadAllLinesAsync(_cypherFilePath).ConfigureAwait(false);
                 await using var session = _driver.AsyncSession();
                 foreach (var cmd in commands)
                 {

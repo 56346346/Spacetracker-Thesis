@@ -10,11 +10,15 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class ParameterUtils
 {
-        // Ersetzt problematische Zeichen in Parameternamen durch Unterstriche.
+    // Ersetzt problematische Zeichen in Parameternamen durch Unterstriche.
 
     private static string Sanitize(string name)
     {
-        return name.Replace(" ", "_").Replace("-", "_").Replace(".", "_").Replace(":", "_");
+        return name
+                  .Replace(" ", "_")
+                  .Replace("-", "_")
+                  .Replace(".", "_")
+                  .Replace(":", "_");
     }
     // Schreibt alle Parameter eines Elements in das Dictionary.
 
@@ -126,12 +130,19 @@ public static class ParameterUtils
         return false;
 
     }
-        // Erkennt ProvisionalSpaces anhand mehrerer Kriterien.
+    // Erkennt ProvisionalSpaces anhand mehrerer Kriterien.
+    /// <summary>
+    /// Determines whether the given element represents a provisional space.
+    /// The main indicator is the IFC export type (parameter
+    /// <see cref="BuiltInParameter.IFC_EXPORT_ELEMENT"/>), which must contain
+    /// "ProvSpace". In addition the name and family are checked for the same
+    /// keyword and the category must be GenericModel.
+    /// </summary>
 
     public static bool IsProvisionalSpace(Element elem)
     {
-                bool nameMatch = IsProvisionalSpaceName(elem.Name);
-                        bool familyMatch = false;
+        bool nameMatch = IsProvisionalSpaceName(elem.Name);
+        bool familyMatch = false;
 
 
 
@@ -140,14 +151,37 @@ public static class ParameterUtils
             familyMatch = IsProvisionalSpaceName(fi.Symbol?.Name) ||
                           IsProvisionalSpaceName(fi.Symbol?.FamilyName);
         }
-         bool categoryMatch = elem.Category != null &&
-            elem.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel;
+        bool categoryMatch = elem.Category != null &&
+           elem.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel;
 
 
         string ifc = GetIfcEntity(elem);
-           bool ifcMatch = !string.IsNullOrEmpty(ifc) &&
-            ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase);
+        bool ifcMatch = !string.IsNullOrEmpty(ifc) &&
+         ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase);
 
         return nameMatch || familyMatch || categoryMatch || ifcMatch;
+    }
+
+    /// <summary>
+    /// Variant of <see cref="IsProvisionalSpace(Element)"/> that works on a
+    /// property dictionary as retrieved from Neo4j. The dictionary must contain
+    /// the property <c>ifcType</c> used to flag provisional spaces.
+    /// </summary>
+    public static bool IsProvisionalSpace(IDictionary<string, object> props)
+    {
+        if (props == null)
+            return false;
+
+        if (props.TryGetValue("ifcType", out var ifcObj) &&
+            ifcObj is string ifcStr &&
+            ifcStr.Contains("provspace", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (props.TryGetValue("name", out var nameObj) &&
+            nameObj is string name &&
+            IsProvisionalSpaceName(name))
+            return true;
+
+        return false;
     }
 }

@@ -23,7 +23,9 @@ namespace SpaceTracker
         }
 
         // Validates the given document against the current Solibri ruleset.
-        // In production this would call the Solibri API and return the found issues.
+        // Diese Methode muss im Revit API-Kontext ausgeführt werden (z.B. aus
+        // einem ExternalCommand oder ExternalEvent). Nur dann dürfen
+        // Transaktionen gestartet werden.
         // Exportiert das Modell, prüft es mit Solibri und liefert gefundene Fehler.
 
         public static List<ValidationError> Validate(Document doc)
@@ -49,24 +51,23 @@ namespace SpaceTracker
 
                 if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
                 {
-                    SpaceTrackerClass.SolibriRulesetId = Task.Run(() =>
-                        client.ImportRulesetAsync(
-                            "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset"))
-                        .Result;
+                    SpaceTrackerClass.SolibriRulesetId = client
+                      .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
+                      .GetAwaiter().GetResult();
                 }
 
-                Task.Run(() => client.PartialUpdateAsync(modelId, ifcPath)).Wait();
-                Task.Run(() => client.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId)).Wait();
-                bool done = Task.Run(() => client.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5))).Result;
+                client.PartialUpdateAsync(modelId, ifcPath).GetAwaiter().GetResult();
+                client.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).GetAwaiter().GetResult();
+                bool done = client.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5)).GetAwaiter().GetResult();
                 if (!done)
                 {
                     Logger.LogToFile("Solibri Prüfung hat das Zeitlimit überschritten", "solibri.log");
                     return errors;
                 }
                 var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
-                string bcfZip = Task.Run(() => client.ExportBcfAsync(modelId, bcfDir)).Result;
+                string bcfZip = client.ExportBcfAsync(modelId, bcfDir).GetAwaiter().GetResult();
                 errors = ParseBcfResults(bcfZip);
-                   foreach (var err in errors)
+                foreach (var err in errors)
                     Logger.LogToFile($"Solibri Issue: {err.Severity} - {err.Message}", "solibri.log");
             }
             catch (Exception ex)

@@ -50,7 +50,8 @@ public class PullCommand : IExternalCommand
             pipes = connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime)
                 .GetAwaiter().GetResult();
             provisionalSpaces = connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime)
-                .GetAwaiter().GetResult();        }
+                .GetAwaiter().GetResult();
+        }
         catch (Neo4j.Driver.Neo4jException ex)
         {
             TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
@@ -98,7 +99,7 @@ public class PullCommand : IExternalCommand
                 fi.get_Parameter(BuiltInParameter.DOOR_WIDTH)?.Set(UnitConversion.ToFt(d.Width));
                 fi.get_Parameter(BuiltInParameter.DOOR_HEIGHT)?.Set(UnitConversion.ToFt(d.Height));
             }
-            
+
             foreach (var p in pipes)
             {
                 if (!string.IsNullOrEmpty(p.Uid) && doc.GetElement(p.Uid) != null)
@@ -148,8 +149,11 @@ public class PullCommand : IExternalCommand
         cmdMgr.PersistSyncTime();
 
         if (showDialog)
-TaskDialog.Show("Neo4j", $"{walls.Count} Wände, {doors.Count} Türen, {pipes.Count} Rohre und {provisionalSpaces.Count} Provisional Spaces importiert.");        return Result.Succeeded;
+        {
+            TaskDialog.Show("Neo4j", $"{walls.Count} Wände, {doors.Count} Türen, {pipes.Count} Rohre und {provisionalSpaces.Count} Provisional Spaces importiert.");
+        }
 
+        return Result.Succeeded;
     }
 
     // Importiert neue oder geänderte Wände aus Neo4j in das aktuelle Modell.

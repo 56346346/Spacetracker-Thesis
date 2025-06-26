@@ -17,16 +17,28 @@ namespace SpaceTracker
     public class SolibriApiClient
     {
         private readonly string _baseUrl;
-        private static readonly HttpClient Http = new HttpClient();
+ // Static HttpClient instance to avoid socket exhaustion. Timeout is set
+        // once in the static constructor before any requests are sent.
+        private static readonly HttpClient Http;
 
+        static SolibriApiClient()
+        {
+            Http = new HttpClient
+            {
+                Timeout = TimeSpan.FromMinutes(5)
+            };
+        }
         // Initialisiert den Client mit dem REST-Port von Solibri.
         public SolibriApiClient(int port)
         {
             // Die REST-API von Solibri hängt unter dem Pfad "/solibri/v1".
             // Ohne diesen Zusatz würden die Requests ein 404 zurückliefern.
             _baseUrl = $"http://localhost:{port}/solibri/v1";
-            Http.Timeout = TimeSpan.FromMinutes(5);
-            Debug.WriteLine($"[SolibriApiClient] Base URL set to {_baseUrl}");
+ if (Http.BaseAddress == null)
+            {
+                // Set the base address only once before the first request.
+                Http.BaseAddress = new Uri(_baseUrl);
+            }            Debug.WriteLine($"[SolibriApiClient] Base URL set to {_baseUrl}");
 
         }
         // Importiert eine IFC-Datei in Solibri und liefert die Modell-ID zurück.

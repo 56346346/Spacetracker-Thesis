@@ -24,7 +24,11 @@ namespace SpaceTracker
                 elementId,
                 timestampUtc = DateTime.UtcNow
             };
- string file = Path.Combine(CacheDir, $"change_{DateTime.UtcNow:yyyyMMddHHmmssfff}_{elementId}.json");            File.WriteAllText(file, JsonSerializer.Serialize(payload));
+
+            string file = Path.Combine(CacheDir,
+                $"change_{DateTime.UtcNow:yyyyMMddHHmmssfff}_{elementId}.json");
+
+            File.WriteAllText(file, JsonSerializer.Serialize(payload));
             return file;
         }
 
@@ -67,8 +71,8 @@ namespace SpaceTracker
             var match = Regex.Match(cmd, @"ElementId\D+(\d+)", RegexOptions.IgnoreCase);
             return match.Success && long.TryParse(match.Groups[1].Value, out var id) ? id : -1;
         }
-        
-         public class ChangePayload
+
+        public class ChangePayload
         {
             public string cypher { get; set; }
             public long elementId { get; set; }

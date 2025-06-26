@@ -346,6 +346,16 @@ public static class RevitElementBuilder
         inst.LookupParameter("Width")?.Set(widthFt);
         inst.LookupParameter("Depth")?.Set(depthFt);
         inst.LookupParameter("Height")?.Set(heightFt);
+
+        if (node.Properties.TryGetValue("ifcType", out var ifcObj))
+        {
+            var p = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT);
+            if (p != null && !p.IsReadOnly)
+                p.Set(ifcObj.As<string>());
+        }
+
+        var paramDict = node.Properties.ToDictionary(k => k.Key, k => (object)k.Value);
+        ParameterUtils.ApplyParameters(inst, paramDict);
         Logger.LogToFile($"Finished BuildProvisionalSpace {guid}", ProvLog);
 
     }
