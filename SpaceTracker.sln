@@ -4,8 +4,7 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceTracker", "SpaceTracker.csproj", "{1BC78D17-BBFE-BC16-3B32-FF767864CF3D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolibriChecker.Tests", "SolibriChecker.Tests\SolibriChecker.Tests.csproj", "{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}"
-EndProject
+
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -22,14 +21,6 @@ Global
 		{1BC78D17-BBFE-BC16-3B32-FF767864CF3D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1BC78D17-BBFE-BC16-3B32-FF767864CF3D}.Release|x64.ActiveCfg = Release|x64
 		{1BC78D17-BBFE-BC16-3B32-FF767864CF3D}.Release|x64.Build.0 = Release|x64
-		{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}.Debug|x64.Build.0 = Debug|Any CPU
-		{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}.Release|x64.ActiveCfg = Release|Any CPU
-		{B9D2B682-7A62-41F9-852E-9491ACE0B3AA}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
