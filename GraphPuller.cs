@@ -86,10 +86,4 @@ public class GraphPuller : IExternalEventHandler
         cmdMgr.PersistSyncTime();
         await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
     }
-    // Kleine Hilfsfunktion für Cypher-Sicherheit.
-
-    private static string EscapeString(string input)
-    {
-        return string.IsNullOrEmpty(input) ? string.Empty : input.Replace("\\", string.Empty).Replace("'", "''").Replace("\"", "'");
-    }
 }

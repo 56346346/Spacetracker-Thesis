@@ -11,6 +11,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Analysis;
 using Microsoft.Extensions.Logging;
 using Autodesk.Revit.DB.Events;
+using Microsoft.Extensions.DependencyInjection;
 using Autodesk.Revit.Exceptions;
 using Autodesk.Revit.UI;
 using System.Reflection;
@@ -173,6 +174,12 @@ namespace SpaceTracker
                 _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
 
                 CommandManager.Initialize(_neo4jConnector);
+                
+                var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+                services.AddHttpClient("solibri", c => c.BaseAddress = new Uri("http://localhost:10876/solibri/v1/"));
+                var provider = services.BuildServiceProvider();
+                var factory = provider.GetRequiredService<IHttpClientFactory>();
+                SolibriChecker.Initialize(factory, _neo4jConnector);
                 _extractor = new SpaceExtractor(CommandManager.Instance);
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
                 _graphPuller = new GraphPuller(_neo4jConnector);

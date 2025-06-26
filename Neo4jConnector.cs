@@ -16,7 +16,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace SpaceTracker
 {
-    public class Neo4jConnector : IDisposable
+    public interface INeo4jConnector
+    {
+        Task RunWriteQueryAsync(string query, object parameters = null);
+    }
+
+
+    public class Neo4jConnector : IDisposable, INeo4jConnector
     {
         private readonly IDriver _driver;
         private readonly Microsoft.Extensions.Logging.ILogger<Neo4jConnector> _logger;
@@ -335,6 +341,24 @@ SET c.acknowledged = true",
                 throw;
             }
         }
+
+
+
+        public async Task RunWriteQueryAsync(string query, object parameters = null)
+        {
+            await using var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    await tx.RunAsync(query, parameters).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
         // Löscht alte ChangeLogs anhand des kleinsten Session-Zeitstempels.
 
         public async Task CleanupObsoleteChangeLogsAsync()
@@ -443,7 +467,7 @@ SET c.acknowledged = true",
                     return;
                 }
 
- // Read all Cypher commands asynchronously to avoid blocking the UI thread
+                // Read all Cypher commands asynchronously to avoid blocking the UI thread
                 var commands = await File.ReadAllLinesAsync(_cypherFilePath).ConfigureAwait(false);
                 await using var session = _driver.AsyncSession();
                 foreach (var cmd in commands)

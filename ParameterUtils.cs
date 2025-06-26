@@ -130,7 +130,8 @@ public static class ParameterUtils
         {
             "ProvSpace",
             "ProvisionalSpace",
-            "Provisional Space"
+            "Provisional Space",
+            "ProvSpaceVoid"
         };
 
         foreach (var pat in patterns)
@@ -154,8 +155,8 @@ public static class ParameterUtils
     public static bool IsProvisionalSpace(Element elem)
     {
         bool categoryMatch = elem.Category != null &&
-                             elem.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel;
-        bool nameMatch = IsProvisionalSpaceName(elem.Name);
+(elem.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel ||
+                              elem.Category.Parent?.Id.Value == (int)BuiltInCategory.OST_GenericModel); bool nameMatch = IsProvisionalSpaceName(elem.Name);
         bool familyMatch = false;
         if (elem is FamilyInstance fi)
         {
@@ -164,8 +165,8 @@ public static class ParameterUtils
         }
         string ifc = GetIfcEntity(elem);
         bool ifcMatch = !string.IsNullOrEmpty(ifc) &&
-  ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase);
-
+(ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase) ||
+             ifc.Equals("IfcBuildingElementProxyType", StringComparison.OrdinalIgnoreCase));
         bool paramMatch = false;
         Parameter? flag = elem.LookupParameter("IsProvisionalSpace") ?? elem.LookupParameter("ProvisionalSpace");
         if (flag != null)
@@ -192,12 +193,12 @@ public static class ParameterUtils
 
         bool categoryMatch = props.TryGetValue("category", out var catObj) &&
                             catObj is string cat &&
-                            cat.Equals("Generic Models", StringComparison.OrdinalIgnoreCase);
-
+(cat.Equals("Generic Models", StringComparison.OrdinalIgnoreCase) ||
+                             cat.Equals("Allgemeines Modell", StringComparison.OrdinalIgnoreCase));
         bool ifcMatch = props.TryGetValue("ifcType", out var ifcObj) &&
                        ifcObj is string ifcStr &&
-                       ifcStr.Contains("provspace", StringComparison.OrdinalIgnoreCase);
-
+ (ifcStr.Contains("provspace", StringComparison.OrdinalIgnoreCase) ||
+                        ifcStr.Equals("IfcBuildingElementProxyType", StringComparison.OrdinalIgnoreCase));
         bool nameMatch = props.TryGetValue("name", out var nameObj) &&
                                  nameObj is string name &&
                                  IsProvisionalSpaceName(name);

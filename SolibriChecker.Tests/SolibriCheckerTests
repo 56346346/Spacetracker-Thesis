@@ -1,0 +1,40 @@
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Xunit;
+
+namespace SpaceTracker.Tests
+{
+    public class MockConnector : INeo4jConnector
+    {
+        public List<(string query, object parameters)> Calls { get; } = new();
+        public Task RunWriteQueryAsync(string query, object parameters = null)
+        {
+            Calls.Add((query, parameters));
+            return Task.CompletedTask;
+        }
+    }
+
+    public class DummyFactory : IHttpClientFactory
+    {
+        private readonly HttpClient _client = new();
+        public HttpClient CreateClient(string name) => _client;
+    }
+
+    public class SolibriCheckerTests
+    {
+        [Fact]
+        public async Task UpdateLogStatusAsync_SetsRedStatus()
+        {
+            string xml = "<Issues>" +
+                          "<Issue guid='1'><Severity>Warning</Severity></Issue>" +
+                          "<Issue guid='2'><Severity>Error</Severity></Issue>" +
+                          "<Issue guid='3'><Severity>Warning</Severity></Issue>" +
+                          "</Issues>";
+            var connector = new MockConnector();
+            var checker = new SolibriChecker(new DummyFactory(), connector);
+            await checker.UpdateLogStatusAsync(xml, CancellationToken.None);
+            Assert.Contains(connector.Calls, c => ((dynamic)c.parameters).status.Equals("RED"));
+        }
+    }
+}

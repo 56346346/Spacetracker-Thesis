@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.5.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Include="RichardSzalay.MockHttp" Version="7.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\SolibriChecker.cs" Link="SolibriChecker.cs" />
+  </ItemGroup>
+</Project>

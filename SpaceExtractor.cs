@@ -68,10 +68,10 @@ namespace SpaceTracker
                 var inv = CultureInfo.InvariantCulture;
                 var setParts = new List<string>
                 {
-  $"w.uid = '{ParameterUtils.EscapeForCypher(data["uid"].ToString())}'",
+                    $"w.uid = '{ParameterUtils.EscapeForCypher(data["uid"].ToString())}'",
                     $"w.elementId = {wall.Id.Value}",
                     $"w.typeId = {data["typeId"]}",
-                       $"w.typeName = '{ParameterUtils.EscapeForCypher(data["typeName"].ToString())}'",
+                    $"w.typeName = '{ParameterUtils.EscapeForCypher(data["typeName"].ToString())}'",
                     $"w.familyName = '{ParameterUtils.EscapeForCypher(data["familyName"].ToString())}'",
                     $"w.levelId = {data["levelId"]}",
                     $"w.x1 = {((double)data["x1"]).ToString(inv)}",
@@ -86,7 +86,7 @@ namespace SpaceTracker
                     $"w.flipped = {data["flipped"]}",
                     $"w.base_offset_mm = {((double)data["base_offset_mm"]).ToString(inv)}",
                     $"w.location_line = {data["location_line"]}",
- $"w.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'",
+                    $"w.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'",
                     $"w.created = datetime('{((DateTime)data["created"]).ToString("o")}')",
                     $"w.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')"
                 };
@@ -119,14 +119,14 @@ namespace SpaceTracker
                 var setParts = new List<string>
                 {
                     // 1) Tür mit Wand und Level verknüpfen
-      $"d.uid = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("uid", door.UniqueId).ToString())}'",
-               $"d.elementId = {door.Id.Value}",
+                    $"d.uid = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("uid", door.UniqueId).ToString())}'",
+                    $"d.elementId = {door.Id.Value}",
                     $"d.typeId = {door.GetTypeId().Value}",
-              $"d.familyName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("familyName", string.Empty).ToString())}'",
+                    $"d.familyName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("familyName", string.Empty).ToString())}'",
                     $"d.symbolName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("symbolName", string.Empty).ToString())}'",
                     $"d.levelId = {door.LevelId.Value}",
                     $"d.hostId = {doorInstance?.Host?.Id.Value ?? -1}",
-$"d.hostUid = '{ParameterUtils.EscapeForCypher(doorInstance?.Host?.UniqueId ?? string.Empty)}'",
+                    $"d.hostUid = '{ParameterUtils.EscapeForCypher(doorInstance?.Host?.UniqueId ?? string.Empty)}'",
                     $"d.x = {((double)data.GetValueOrDefault("x", 0.0)).ToString(inv)}",
                     $"d.y = {((double)data.GetValueOrDefault("y", 0.0)).ToString(inv)}",
                     $"d.z = {((double)data.GetValueOrDefault("z", 0.0)).ToString(inv)}",
@@ -134,7 +134,7 @@ $"d.hostUid = '{ParameterUtils.EscapeForCypher(doorInstance?.Host?.UniqueId ?? s
                     $"d.width = {((double)data.GetValueOrDefault("width", 0.0)).ToString(inv)}",
                     $"d.height = {((double)data.GetValueOrDefault("height", 0.0)).ToString(inv)}",
                     $"d.thickness = {((double)data.GetValueOrDefault("thickness", 0.0)).ToString(inv)}",
-  $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Environment.UserName).ToString())}'",
+                    $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Environment.UserName).ToString())}'",
                     $"d.created = datetime('{((DateTime)data.GetValueOrDefault("created", DateTime.UtcNow)).ToString("o")}')",
                     $"d.modified = datetime('{((DateTime)data.GetValueOrDefault("modified", DateTime.UtcNow)).ToString("o")}')"
                 };
@@ -179,18 +179,18 @@ $"d.hostUid = '{ParameterUtils.EscapeForCypher(doorInstance?.Host?.UniqueId ?? s
                 var inv = CultureInfo.InvariantCulture;
                 var setParts = new List<string>
                 {
-  $"p.name = '{ParameterUtils.EscapeForCypher(data["name"].ToString())}'",
+                    $"p.name = '{ParameterUtils.EscapeForCypher(data["name"].ToString())}'",
                     $"p.width = {((double)data["width"]).ToString(inv)}",
                     $"p.height = {((double)data["height"]).ToString(inv)}",
                     $"p.thickness = {((double)data["thickness"]).ToString(inv)}",
-  $"p.level = '{ParameterUtils.EscapeForCypher(data["level"].ToString())}'",
+                    $"p.level = '{ParameterUtils.EscapeForCypher(data["level"].ToString())}'",
                     $"p.x = {((double)data["x"]).ToString(inv)}",
                     $"p.y = {((double)data["y"]).ToString(inv)}",
                     $"p.z = {((double)data["z"]).ToString(inv)}",
                     $"p.rotation = {((double)data["rotation"]).ToString(inv)}",
                     $"p.hostId = {data["hostId"]}",
                     $"p.revitId = {data["revitId"]}",
-                   $"p.ifcType = '{ParameterUtils.EscapeForCypher(data["ifcType"].ToString())}'",
+                    $"p.ifcType = '{ParameterUtils.EscapeForCypher(data["ifcType"].ToString())}'",
                     $"p.familyName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("familyName", "").ToString())}'",
                     $"p.symbolName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("symbolName", "").ToString())}'",
                     $"p.category = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("category", "").ToString())}'",
@@ -202,12 +202,12 @@ $"d.hostUid = '{ParameterUtils.EscapeForCypher(doorInstance?.Host?.UniqueId ?? s
                     $"p.bbMaxX = {((double)data.GetValueOrDefault("bbMaxX", 0.0)).ToString(inv)}",
                     $"p.bbMaxY = {((double)data.GetValueOrDefault("bbMaxY", 0.0)).ToString(inv)}",
                     $"p.bbMaxZ = {((double)data.GetValueOrDefault("bbMaxZ", 0.0)).ToString(inv)}",
- $"p.uid = '{ParameterUtils.EscapeForCypher(inst.UniqueId)}'",
+                    $"p.uid = '{ParameterUtils.EscapeForCypher(inst.UniqueId)}'",
                     $"p.elementId = {inst.Id.Value}",
                     $"p.typeId = {inst.GetTypeId().Value}",
                     $"p.created = datetime('{((DateTime)data["created"]).ToString("o")}')",
                     $"p.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')",
-$"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
+                    $"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
                 };
 
                 string cyNode =
@@ -380,9 +380,9 @@ $"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
                     Debug.WriteLine($"Room: {escapedRoomName}, ID: {room.Id}");
 
                     cy = $"MERGE (r:Room {{ElementId: {room.Id.Value}}}) " +
-   $"SET r.Name = '{ParameterUtils.EscapeForCypher(room.Name)}', r.Level = '{ParameterUtils.EscapeForCypher(levelName)}' " +
-               $"WITH r MATCH (l:Level {{ElementId: {room.LevelId.Value}}}) " +
-            $"MERGE (l)-[:CONTAINS]->(r)";
+                         $"SET r.Name = '{ParameterUtils.EscapeForCypher(room.Name)}', r.Level = '{ParameterUtils.EscapeForCypher(levelName)}' " +
+                         $"WITH r MATCH (l:Level {{ElementId: {room.LevelId.Value}}}) " +
+                         $"MERGE (l)-[:CONTAINS]->(r)";
 
                     _cmdManager.cypherCommands.Enqueue(cy);
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);

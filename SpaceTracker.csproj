@@ -65,6 +65,8 @@
     <PackageReference Include="System.IO.Compression" Version="4.3.0" />
       <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
+       <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="System.IO.Pipelines" Version="9.0.5" />
     <PackageReference Include="System.Memory" Version="4.5.5" />
     <PackageReference Include="System.Numerics.Vectors" Version="4.6.1" />
