@@ -15,6 +15,7 @@ using System.Text.RegularExpressions;
 using Autodesk.Revit.DB.Structure;
 using SpaceTracker;
 using TaskDialog = Autodesk.Revit.UI.TaskDialog;
+using Autodesk.Revit.DB.Plumbing;
 
 
 
@@ -37,14 +38,19 @@ public class PullCommand : IExternalCommand
 
         List<WallNode> walls;
         List<DoorNode> doors;
+        List<PipeNode> pipes;
+        List<ProvisionalSpaceNode> provisionalSpaces;
         try
         {
             // Daten direkt laden (kein Hintergrund-Thread, um Revit API sicher zu nutzen)
             walls = connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime)
                 .GetAwaiter().GetResult();
             doors = connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime)
-           .GetAwaiter().GetResult();
-        }
+     .GetAwaiter().GetResult();
+            pipes = connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime)
+                .GetAwaiter().GetResult();
+            provisionalSpaces = connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime)
+                .GetAwaiter().GetResult();        }
         catch (Neo4j.Driver.Neo4jException ex)
         {
             TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
@@ -92,6 +98,49 @@ public class PullCommand : IExternalCommand
                 fi.get_Parameter(BuiltInParameter.DOOR_WIDTH)?.Set(UnitConversion.ToFt(d.Width));
                 fi.get_Parameter(BuiltInParameter.DOOR_HEIGHT)?.Set(UnitConversion.ToFt(d.Height));
             }
+            
+            foreach (var p in pipes)
+            {
+                if (!string.IsNullOrEmpty(p.Uid) && doc.GetElement(p.Uid) != null)
+                    continue;
+                XYZ s = new XYZ(UnitConversion.ToFt(p.X1), UnitConversion.ToFt(p.Y1), UnitConversion.ToFt(p.Z1));
+                XYZ e = new XYZ(UnitConversion.ToFt(p.X2), UnitConversion.ToFt(p.Y2), UnitConversion.ToFt(p.Z2));
+                ElementId sysId = p.SystemTypeId > 0 ? new ElementId((int)p.SystemTypeId) : ElementId.InvalidElementId;
+                Pipe newPipe = Pipe.Create(doc, sysId, new ElementId((int)p.TypeId), new ElementId((int)p.LevelId), s, e);
+                if (p.Diameter > 0)
+                    newPipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)?.Set(UnitConversion.ToFt(p.Diameter));
+            }
+
+            foreach (var ps in provisionalSpaces)
+            {
+                if (!string.IsNullOrEmpty(ps.Guid) && doc.GetElement(ps.Guid) != null)
+                    continue;
+                FamilySymbol symbol = new FilteredElementCollector(doc)
+                    .OfClass(typeof(FamilySymbol))
+                    .Cast<FamilySymbol>()
+                    .FirstOrDefault(fs => fs.FamilyName.Equals(ps.FamilyName, StringComparison.OrdinalIgnoreCase));
+                if (symbol == null)
+                    continue;
+                if (!symbol.IsActive)
+                    symbol.Activate();
+
+                double cX = (ps.BbMinX + ps.BbMaxX) / 2;
+                double cY = (ps.BbMinY + ps.BbMaxY) / 2;
+                double cZ = (ps.BbMinZ + ps.BbMaxZ) / 2;
+                XYZ center = new XYZ(UnitConversion.ToFt(cX), UnitConversion.ToFt(cY), UnitConversion.ToFt(cZ));
+                Level level = doc.GetElement(new ElementId((int)ps.LevelId)) as Level;
+                FamilyInstance inst = doc.Create.NewFamilyInstance(center, symbol, level, StructuralType.NonStructural);
+                inst.get_Parameter(BuiltInParameter.PHASE_CREATED)?.Set(ps.PhaseCreated);
+                inst.get_Parameter(BuiltInParameter.PHASE_DEMOLISHED)?.Set(ps.PhaseDemolished);
+
+                double widthFt = UnitConversion.ToFt(ps.BbMaxX - ps.BbMinX);
+                double depthFt = UnitConversion.ToFt(ps.BbMaxY - ps.BbMinY);
+                double heightFt = UnitConversion.ToFt(ps.BbMaxZ - ps.BbMinZ);
+
+                inst.LookupParameter("Width")?.Set(widthFt);
+                inst.LookupParameter("Depth")?.Set(depthFt);
+                inst.LookupParameter("Height")?.Set(heightFt);
+            }
             revitTx.Commit();
         }
 
@@ -99,8 +148,7 @@ public class PullCommand : IExternalCommand
         cmdMgr.PersistSyncTime();
 
         if (showDialog)
-            TaskDialog.Show("Neo4j", $"{walls.Count} Wände und {doors.Count} Türen importiert.");
-        return Result.Succeeded;
+TaskDialog.Show("Neo4j", $"{walls.Count} Wände, {doors.Count} Türen, {pipes.Count} Rohre und {provisionalSpaces.Count} Provisional Spaces importiert.");        return Result.Succeeded;
 
     }
 

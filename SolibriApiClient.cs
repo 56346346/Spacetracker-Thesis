@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using System.Net;
 using SpaceTracker;
 using System.Diagnostics;
 using System.Net.Sockets;
@@ -88,7 +89,13 @@ namespace SpaceTracker
                 using var fs = File.OpenRead(csetFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+              
                 var response = await Http.PostAsync($"{_baseUrl}/rulesets", content).ConfigureAwait(false);
+               if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // Fallback für ältere Solibri-Versionen mit abweichender API
+                    response = await Http.PostAsync($"{_baseUrl}/rulesets/import", content).ConfigureAwait(false);
+                }
                 response.EnsureSuccessStatusCode();
 
                 if (response.Headers.Location == null)

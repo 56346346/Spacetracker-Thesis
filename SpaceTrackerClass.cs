@@ -664,14 +664,14 @@ namespace SpaceTracker
             }
         }
 
-        private async void documentOpened(object sender, DocumentOpenedEventArgs e)
+        private void documentOpened(object sender, DocumentOpenedEventArgs e)
         {
             Document doc = e.Document;
             try
             {
                 // Prüfen, ob der Neo4j-Graph bereits Daten enthält (z.B. Building-Knoten)
                 const string checkQuery = "MATCH (n) RETURN count(n) AS nodeCount";
-                var records = await _neo4jConnector.RunReadQueryAsync(checkQuery);
+                var records = _neo4jConnector.RunReadQueryAsync(checkQuery).GetAwaiter().GetResult();
                 long nodeCount = records.FirstOrDefault()?["nodeCount"].As<long>() ?? 0;
                 if (nodeCount == 0)
                 {
@@ -693,13 +693,13 @@ namespace SpaceTracker
                                 string cache = ChangeCacheHelper.WriteChange(c);
                                 changes.Add((c, cache));
                             }
-                            await _neo4jConnector.PushChangesAsync(
+                            _neo4jConnector.PushChangesAsync(
                                 changes,
                                 CommandManager.Instance.SessionId,
-                                Environment.UserName, doc);
+                                Environment.UserName, doc).GetAwaiter().GetResult();
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
-                            await _neo4jConnector.CleanupObsoleteChangeLogsAsync();
+                            _neo4jConnector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
 
                             // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
                             var errs = SolibriRulesetValidator.Validate(doc);

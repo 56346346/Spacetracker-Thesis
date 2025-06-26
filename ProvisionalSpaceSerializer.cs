@@ -93,7 +93,7 @@ public static class ProvisionalSpaceSerializer
     {
         Logger.LogToFile($"[Serializer] ToProvisionalSpaceNode {inst.UniqueId}", LogFile);
         var dict = ToNode(inst);
-        return new ProvisionalSpaceNode(
+        var node = new ProvisionalSpaceNode(
             dict.TryGetValue("guid", out var gObj) ? gObj.ToString() ?? string.Empty : string.Empty,
             dict.GetValueOrDefault("name", string.Empty).ToString() ?? string.Empty,
             dict.GetValueOrDefault("familyName", string.Empty).ToString() ?? string.Empty,
@@ -121,5 +121,7 @@ public static class ProvisionalSpaceSerializer
             Convert.ToDouble(dict.GetValueOrDefault("bbMaxZ", 0.0))
         );
         Logger.LogToFile($"[Serializer] Node created for {inst.UniqueId}", LogFile);
+                return node;
+
     }
 }

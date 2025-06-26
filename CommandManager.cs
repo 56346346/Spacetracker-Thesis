@@ -101,7 +101,7 @@ namespace SpaceTracker
                 Logger.LogToFile($"Processing {cypherCommands.Count} cypher commands", "concurrency.log");
                 var changes = new List<(string Command, string Path)>();
                 var ids = new HashSet<long>();
-                var idRegex = new Regex(@"ElementId\D+(\d+)");
+                var idRegex = new Regex(@"ElementId\D+(\d+)", RegexOptions.IgnoreCase);
                 while (cypherCommands.TryDequeue(out string cyCommand))
                 {
                     string cache = ChangeCacheHelper.WriteChange(cyCommand);

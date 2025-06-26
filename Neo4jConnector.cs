@@ -20,6 +20,7 @@ namespace SpaceTracker
     {
         private readonly IDriver _driver;
         private readonly Microsoft.Extensions.Logging.ILogger<Neo4jConnector> _logger;
+        private const string CommandLogFile = "neo4j_commands.log";
 
         private ConcurrentQueue<string> cypherCommands = new ConcurrentQueue<string>();
 
@@ -68,7 +69,7 @@ namespace SpaceTracker
         {
             // 1) Asynchrone Neo4j-Session öffnen
             await using var session = _driver.AsyncSession();
-
+            Logger.LogToFile($"BEGIN push {changes.Count()} commands", CommandLogFile);
             try
             {
                 // 2) Transaction starten
@@ -89,17 +90,24 @@ namespace SpaceTracker
               ).ConfigureAwait(false);
 
                 // 3) Regex zum Extrahieren der ElementId aus dem Cypher-String
-                var idRegex = new Regex(@"ElementId\D+(\d+)");
-
+                var idRegex = new Regex(@"ElementId\D+(\d+)", RegexOptions.IgnoreCase);
                 // 4) Alle Commands durchlaufen
                 foreach (var change in changes)
                 {
                     string cmd = change.Command;
                     string cachePath = change.CachePath;
 
-                    // 4.1) Änderungsbefehl ausführen – jetzt mit $session-Parameter
-                    await tx.RunAsync(cmd, new { session = sessionId }).ConfigureAwait(false);
-
+                    Logger.LogToFile($"RUN {cmd}", CommandLogFile);
+                    try
+                    {
+                        // 4.1) Änderungsbefehl ausführen – jetzt mit $session-Parameter
+                        await tx.RunAsync(cmd, new { session = sessionId }).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogToFile($"ERROR {ex.Message} for {cmd}", CommandLogFile);
+                        throw;
+                    }
                     // 4.2) Änderungstyp bestimmen (Insert/Modify/Delete)
                     string changeType;
                     if (cmd.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
@@ -164,12 +172,15 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
                 // 5) Transaction committen
                 await tx.CommitAsync().ConfigureAwait(false);
+                Logger.LogToFile($"COMMIT {changes.Count()} commands", CommandLogFile);
                 Debug.WriteLine($"[Neo4j] PushChanges: {changes.Count()} Änderungen übertragen und protokolliert.");
 
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Neo4j Push Fehler] {ex.Message}");
+                Logger.LogToFile($"FAIL {ex.Message}", CommandLogFile);
+
                 // 6) Bei Fehler: Rollback
                 try
                 {
@@ -623,6 +634,77 @@ node.Properties.TryGetValue("hostUid", out var hostUid) ? hostUid.As<string>() :
                 );
             }).ConfigureAwait(false);
             _logger.LogInformation("Pulled {Count} doors", list.Count);
+            return list;
+        }
+
+        // Holt alle seit einem Zeitpunkt geänderten Rohre.
+        public async Task<List<PipeNode>> GetUpdatedPipesAsync(DateTime sinceUtc)
+        {
+            const string cypher = @"MATCH (p:Pipe)
+WHERE  p.lastModifiedUtc > datetime($since)
+RETURN p";
+            _logger.LogDebug("GetUpdatedPipes since {Time}", sinceUtc);
+            var list = await RunQueryAsync(cypher, new { since = sinceUtc.ToString("o") }, r =>
+            {
+                var node = r["p"].As<INode>();
+                return new PipeNode(
+                    node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty,
+                    node.Properties.TryGetValue("elementId", out var elemId) ? elemId.As<long>() : -1,
+                    node.Properties["typeId"].As<long>(),
+                    node.Properties.TryGetValue("systemTypeId", out var sysId) ? sysId.As<long>() : -1,
+                    node.Properties["levelId"].As<long>(),
+                    node.Properties["x1"].As<double>(),
+                    node.Properties["y1"].As<double>(),
+                    node.Properties["z1"].As<double>(),
+                    node.Properties["x2"].As<double>(),
+                    node.Properties["y2"].As<double>(),
+                    node.Properties["z2"].As<double>(),
+                    node.Properties.TryGetValue("diameter", out var dia) ? dia.As<double>() : 0.0
+                );
+            }).ConfigureAwait(false);
+            _logger.LogInformation("Pulled {Count} pipes", list.Count);
+            return list;
+        }
+
+        // Holt alle seit einem Zeitpunkt geänderten ProvisionalSpaces.
+        public async Task<List<ProvisionalSpaceNode>> GetUpdatedProvisionalSpacesAsync(DateTime sinceUtc)
+        {
+            const string cypher = @"MATCH (ps:ProvisionalSpace)
+WHERE  ps.lastModifiedUtc > datetime($since)
+RETURN ps";
+            _logger.LogDebug("GetUpdatedProvisionalSpaces since {Time}", sinceUtc);
+            var list = await RunQueryAsync(cypher, new { since = sinceUtc.ToString("o") }, r =>
+            {
+                var node = r["ps"].As<INode>();
+                return new ProvisionalSpaceNode(
+                    node.Properties.TryGetValue("guid", out var guid) ? guid.As<string>() : string.Empty,
+                    node.Properties.TryGetValue("name", out var name) ? name.As<string>() : string.Empty,
+                    node.Properties.TryGetValue("familyName", out var famName) ? famName.As<string>() : string.Empty,
+                    node.Properties.TryGetValue("symbolName", out var symName) ? symName.As<string>() : string.Empty,
+                    node.Properties.TryGetValue("width", out var width) ? width.As<double>() : 0.0,
+                    node.Properties.TryGetValue("height", out var height) ? height.As<double>() : 0.0,
+                    node.Properties.TryGetValue("thickness", out var thick) ? thick.As<double>() : 0.0,
+                    node.Properties.TryGetValue("level", out var lvlName) ? lvlName.As<string>() : string.Empty,
+                    node.Properties.TryGetValue("levelId", out var lvlId) ? lvlId.As<long>() : -1,
+                    node.Properties.TryGetValue("x", out var x) ? x.As<double>() : 0.0,
+                    node.Properties.TryGetValue("y", out var y) ? y.As<double>() : 0.0,
+                    node.Properties.TryGetValue("z", out var z) ? z.As<double>() : 0.0,
+                    node.Properties.TryGetValue("rotation", out var rot) ? rot.As<double>() : 0.0,
+                    node.Properties.TryGetValue("hostId", out var hostId) ? hostId.As<long>() : -1,
+                    node.Properties.TryGetValue("revitId", out var revId) ? (int)revId.As<int>() : -1,
+                    node.Properties.TryGetValue("ifcType", out var ifc) ? ifc.As<string>() : string.Empty,
+                    node.Properties.TryGetValue("category", out var cat) ? cat.As<string>() : null,
+                    node.Properties.TryGetValue("phaseCreated", out var pc) ? pc.As<int>() : -1,
+                    node.Properties.TryGetValue("phaseDemolished", out var pd) ? pd.As<int>() : -1,
+                    node.Properties.TryGetValue("bbMinX", out var bbMinX) ? bbMinX.As<double>() : 0.0,
+                    node.Properties.TryGetValue("bbMinY", out var bbMinY) ? bbMinY.As<double>() : 0.0,
+                    node.Properties.TryGetValue("bbMinZ", out var bbMinZ) ? bbMinZ.As<double>() : 0.0,
+                    node.Properties.TryGetValue("bbMaxX", out var bbMaxX) ? bbMaxX.As<double>() : 0.0,
+                    node.Properties.TryGetValue("bbMaxY", out var bbMaxY) ? bbMaxY.As<double>() : 0.0,
+                    node.Properties.TryGetValue("bbMaxZ", out var bbMaxZ) ? bbMaxZ.As<double>() : 0.0
+                );
+            }).ConfigureAwait(false);
+            _logger.LogInformation("Pulled {Count} provisional spaces", list.Count);
             return list;
         }
         // Setzt LogChanges auf "acknowledged" sobald alle Online-Nutzer sie empfangen haben.

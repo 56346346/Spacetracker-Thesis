@@ -64,7 +64,7 @@ namespace SpaceTracker
 
         private static long ExtractElementId(string cmd)
         {
-            var match = Regex.Match(cmd, @"ElementId\D+(\d+)");
+            var match = Regex.Match(cmd, @"ElementId\D+(\d+)", RegexOptions.IgnoreCase);
             return match.Success && long.TryParse(match.Groups[1].Value, out var id) ? id : -1;
         }
         
