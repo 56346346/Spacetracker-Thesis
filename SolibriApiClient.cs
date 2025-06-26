@@ -17,7 +17,7 @@ namespace SpaceTracker
     public class SolibriApiClient
     {
         private readonly string _baseUrl;
- // Static HttpClient instance to avoid socket exhaustion. Timeout is set
+        // Static HttpClient instance to avoid socket exhaustion. Timeout is set
         // once in the static constructor before any requests are sent.
         private static readonly HttpClient Http;
 
@@ -34,12 +34,11 @@ namespace SpaceTracker
             // Die REST-API von Solibri hängt unter dem Pfad "/solibri/v1".
             // Ohne diesen Zusatz würden die Requests ein 404 zurückliefern.
             _baseUrl = $"http://localhost:{port}/solibri/v1";
- if (Http.BaseAddress == null)
+            if (Http.BaseAddress == null || Http.BaseAddress.ToString() != _baseUrl)
             {
-                // Set the base address only once before the first request.
                 Http.BaseAddress = new Uri(_baseUrl);
-            }            Debug.WriteLine($"[SolibriApiClient] Base URL set to {_baseUrl}");
-
+            }
+            Debug.WriteLine($"[SolibriApiClient] Base URL set to {_baseUrl}");
         }
         // Importiert eine IFC-Datei in Solibri und liefert die Modell-ID zurück.
         public async Task<string> ImportIfcAsync(string ifcFilePath)
@@ -101,9 +100,9 @@ namespace SpaceTracker
                 using var fs = File.OpenRead(csetFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-              
+
                 var response = await Http.PostAsync($"{_baseUrl}/rulesets", content).ConfigureAwait(false);
-               if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
                     // Fallback für ältere Solibri-Versionen mit abweichender API
                     response = await Http.PostAsync($"{_baseUrl}/rulesets/import", content).ConfigureAwait(false);
@@ -300,7 +299,7 @@ namespace SpaceTracker
                 throw new Exception($"Fehler beim Abrufen des Serverstatus: {ex.Message}", ex);
             }
         }
-        
+
         // Pollt die REST-API bis die laufende Prüfung abgeschlossen ist.
         public async Task<bool> WaitForCheckCompletionAsync(TimeSpan pollInterval, TimeSpan timeout)
         {

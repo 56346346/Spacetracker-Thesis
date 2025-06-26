@@ -10,6 +10,18 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class ParameterUtils
 {
+    /// <summary>
+    /// Escapes a string for safe usage inside Cypher queries.
+    /// Removes backslashes and doubles single quotes.
+    /// </summary>
+    public static string EscapeForCypher(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return string.Empty;
+        return input.Replace("\\", string.Empty)
+                    .Replace("'", "''")
+                    .Replace("\"", "'");
+    }
     // Ersetzt problematische Zeichen in Parameternamen durch Unterstriche.
 
     private static string Sanitize(string name)
@@ -141,25 +153,31 @@ public static class ParameterUtils
 
     public static bool IsProvisionalSpace(Element elem)
     {
+        bool categoryMatch = elem.Category != null &&
+                             elem.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel;
         bool nameMatch = IsProvisionalSpaceName(elem.Name);
         bool familyMatch = false;
-
-
-
         if (elem is FamilyInstance fi)
         {
             familyMatch = IsProvisionalSpaceName(fi.Symbol?.Name) ||
                           IsProvisionalSpaceName(fi.Symbol?.FamilyName);
         }
-        bool categoryMatch = elem.Category != null &&
-           elem.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel;
-
-
         string ifc = GetIfcEntity(elem);
         bool ifcMatch = !string.IsNullOrEmpty(ifc) &&
-         ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase);
+  ifc.Contains("provspace", StringComparison.OrdinalIgnoreCase);
 
-        return nameMatch || familyMatch || categoryMatch || ifcMatch;
+        bool paramMatch = false;
+        Parameter? flag = elem.LookupParameter("IsProvisionalSpace") ?? elem.LookupParameter("ProvisionalSpace");
+        if (flag != null)
+        {
+            paramMatch = flag.StorageType switch
+            {
+                StorageType.Integer => flag.AsInteger() == 1,
+                StorageType.String => flag.AsString()?.Equals("Yes", StringComparison.OrdinalIgnoreCase) == true,
+                _ => false
+            };
+        }
+        return categoryMatch && (ifcMatch || nameMatch || familyMatch || paramMatch);
     }
 
     /// <summary>
@@ -172,16 +190,18 @@ public static class ParameterUtils
         if (props == null)
             return false;
 
-        if (props.TryGetValue("ifcType", out var ifcObj) &&
-            ifcObj is string ifcStr &&
-            ifcStr.Contains("provspace", StringComparison.OrdinalIgnoreCase))
-            return true;
+        bool categoryMatch = props.TryGetValue("category", out var catObj) &&
+                            catObj is string cat &&
+                            cat.Equals("Generic Models", StringComparison.OrdinalIgnoreCase);
 
-        if (props.TryGetValue("name", out var nameObj) &&
-            nameObj is string name &&
-            IsProvisionalSpaceName(name))
-            return true;
+        bool ifcMatch = props.TryGetValue("ifcType", out var ifcObj) &&
+                       ifcObj is string ifcStr &&
+                       ifcStr.Contains("provspace", StringComparison.OrdinalIgnoreCase);
 
-        return false;
+        bool nameMatch = props.TryGetValue("name", out var nameObj) &&
+                                 nameObj is string name &&
+                                 IsProvisionalSpaceName(name);
+
+        return categoryMatch && (ifcMatch || nameMatch);
     }
 }

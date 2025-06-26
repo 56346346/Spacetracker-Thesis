@@ -68,11 +68,11 @@ namespace SpaceTracker
                 var inv = CultureInfo.InvariantCulture;
                 var setParts = new List<string>
                 {
-                    $"w.uid = '{EscapeString(data["uid"].ToString())}'",
+  $"w.uid = '{ParameterUtils.EscapeForCypher(data["uid"].ToString())}'",
                     $"w.elementId = {wall.Id.Value}",
                     $"w.typeId = {data["typeId"]}",
-                    $"w.typeName = '{EscapeString(data["typeName"].ToString())}'",
-                    $"w.familyName = '{EscapeString(data["familyName"].ToString())}'",
+                       $"w.typeName = '{ParameterUtils.EscapeForCypher(data["typeName"].ToString())}'",
+                    $"w.familyName = '{ParameterUtils.EscapeForCypher(data["familyName"].ToString())}'",
                     $"w.levelId = {data["levelId"]}",
                     $"w.x1 = {((double)data["x1"]).ToString(inv)}",
                     $"w.y1 = {((double)data["y1"]).ToString(inv)}",
@@ -86,7 +86,7 @@ namespace SpaceTracker
                     $"w.flipped = {data["flipped"]}",
                     $"w.base_offset_mm = {((double)data["base_offset_mm"]).ToString(inv)}",
                     $"w.location_line = {data["location_line"]}",
-                    $"w.user = '{EscapeString(data["user"].ToString())}'",
+ $"w.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'",
                     $"w.created = datetime('{((DateTime)data["created"]).ToString("o")}')",
                     $"w.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')"
                 };
@@ -119,14 +119,14 @@ namespace SpaceTracker
                 var setParts = new List<string>
                 {
                     // 1) Tür mit Wand und Level verknüpfen
-                   $"d.uid = '{EscapeString(data.GetValueOrDefault("uid", door.UniqueId).ToString())}'",
-                    $"d.elementId = {door.Id.Value}",
+      $"d.uid = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("uid", door.UniqueId).ToString())}'",
+               $"d.elementId = {door.Id.Value}",
                     $"d.typeId = {door.GetTypeId().Value}",
-                    $"d.familyName = '{EscapeString(data.GetValueOrDefault("familyName", string.Empty).ToString())}'",
-                    $"d.symbolName = '{EscapeString(data.GetValueOrDefault("symbolName", string.Empty).ToString())}'",
+              $"d.familyName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("familyName", string.Empty).ToString())}'",
+                    $"d.symbolName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("symbolName", string.Empty).ToString())}'",
                     $"d.levelId = {door.LevelId.Value}",
                     $"d.hostId = {doorInstance?.Host?.Id.Value ?? -1}",
-                    $"d.hostUid = '{EscapeString(doorInstance?.Host?.UniqueId ?? string.Empty)}'",
+$"d.hostUid = '{ParameterUtils.EscapeForCypher(doorInstance?.Host?.UniqueId ?? string.Empty)}'",
                     $"d.x = {((double)data.GetValueOrDefault("x", 0.0)).ToString(inv)}",
                     $"d.y = {((double)data.GetValueOrDefault("y", 0.0)).ToString(inv)}",
                     $"d.z = {((double)data.GetValueOrDefault("z", 0.0)).ToString(inv)}",
@@ -134,7 +134,7 @@ namespace SpaceTracker
                     $"d.width = {((double)data.GetValueOrDefault("width", 0.0)).ToString(inv)}",
                     $"d.height = {((double)data.GetValueOrDefault("height", 0.0)).ToString(inv)}",
                     $"d.thickness = {((double)data.GetValueOrDefault("thickness", 0.0)).ToString(inv)}",
-                    $"d.user = '{EscapeString(data.GetValueOrDefault("user", Environment.UserName).ToString())}'",
+  $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Environment.UserName).ToString())}'",
                     $"d.created = datetime('{((DateTime)data.GetValueOrDefault("created", DateTime.UtcNow)).ToString("o")}')",
                     $"d.modified = datetime('{((DateTime)data.GetValueOrDefault("modified", DateTime.UtcNow)).ToString("o")}')"
                 };
@@ -179,22 +179,22 @@ namespace SpaceTracker
                 var inv = CultureInfo.InvariantCulture;
                 var setParts = new List<string>
                 {
-                    $"p.name = '{EscapeString(data["name"].ToString())}'",
+  $"p.name = '{ParameterUtils.EscapeForCypher(data["name"].ToString())}'",
                     $"p.width = {((double)data["width"]).ToString(inv)}",
                     $"p.height = {((double)data["height"]).ToString(inv)}",
                     $"p.thickness = {((double)data["thickness"]).ToString(inv)}",
                     $"p.level = '{EscapeString(data["level"].ToString())}'",
-                    $"p.levelId = {data["levelId"]}",
+  $"p.level = '{ParameterUtils.EscapeForCypher(data["level"].ToString())}'",
                     $"p.x = {((double)data["x"]).ToString(inv)}",
                     $"p.y = {((double)data["y"]).ToString(inv)}",
                     $"p.z = {((double)data["z"]).ToString(inv)}",
                     $"p.rotation = {((double)data["rotation"]).ToString(inv)}",
                     $"p.hostId = {data["hostId"]}",
                     $"p.revitId = {data["revitId"]}",
-                    $"p.ifcType = '{EscapeString(data["ifcType"].ToString())}'",
-                    $"p.familyName = '{EscapeString(data.GetValueOrDefault("familyName", "").ToString())}'",
-                    $"p.symbolName = '{EscapeString(data.GetValueOrDefault("symbolName", "").ToString())}'",
-                    $"p.category = '{EscapeString(data.GetValueOrDefault("category", "").ToString())}'",
+                   $"p.ifcType = '{ParameterUtils.EscapeForCypher(data["ifcType"].ToString())}'",
+                    $"p.familyName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("familyName", "").ToString())}'",
+                    $"p.symbolName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("symbolName", "").ToString())}'",
+                    $"p.category = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("category", "").ToString())}'",
                     $"p.phaseCreated = {data.GetValueOrDefault("phaseCreated", -1)}",
                     $"p.phaseDemolished = {data.GetValueOrDefault("phaseDemolished", -1)}",
                     $"p.bbMinX = {((double)data.GetValueOrDefault("bbMinX", 0.0)).ToString(inv)}",
@@ -203,12 +203,12 @@ namespace SpaceTracker
                     $"p.bbMaxX = {((double)data.GetValueOrDefault("bbMaxX", 0.0)).ToString(inv)}",
                     $"p.bbMaxY = {((double)data.GetValueOrDefault("bbMaxY", 0.0)).ToString(inv)}",
                     $"p.bbMaxZ = {((double)data.GetValueOrDefault("bbMaxZ", 0.0)).ToString(inv)}",
-                    $"p.uid = '{EscapeString(inst.UniqueId)}'",
+ $"p.uid = '{ParameterUtils.EscapeForCypher(inst.UniqueId)}'",
                     $"p.elementId = {inst.Id.Value}",
                     $"p.typeId = {inst.GetTypeId().Value}",
                     $"p.created = datetime('{((DateTime)data["created"]).ToString("o")}')",
                     $"p.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')",
-                    $"p.user = '{EscapeString(data["user"].ToString())}'"
+$"p.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'"
                 };
 
                 string cyNode =
@@ -305,8 +305,7 @@ namespace SpaceTracker
                 string roomName = string.IsNullOrWhiteSpace(room_Name) ? $"Unnamed_{room.Id}" : room_Name;
                 string levelName = doc.GetElement(room.LevelId)?.Name ?? "Unbekannt";
 
-                string cy = $"MERGE (r:Room {{ElementId: {room.Id.Value}}}) SET r.Name = '{EscapeString(roomName)}', r.Level = '{EscapeString(levelName)}' WITH r MATCH (l:Level {{ElementId: {room.LevelId.Value}}}) MERGE (l)-[:CONTAINS]->(r)";
-
+                string cy = $"MERGE (r:Room {{ElementId: {room.Id.Value}}}) SET r.Name = '{ParameterUtils.EscapeForCypher(roomName)}', r.Level = '{ParameterUtils.EscapeForCypher(levelName)}' WITH r MATCH (l:Level {{ElementId: {room.LevelId.Value}}}) MERGE (l)-[:CONTAINS]->(r)";
 
                 _cmdManager.cypherCommands.Enqueue(cy);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
@@ -317,18 +316,6 @@ namespace SpaceTracker
                 Debug.WriteLine($"[Room Processing Error] {ex.Message}");
             }
         }
-
-
-
-        private static string EscapeString(string input)
-        {
-            if (string.IsNullOrEmpty(input)) return "";
-            return input
-                .Replace("\\", "")        // Backslash entfernen
-                .Replace("'", "''")
-                .Replace("\"", "'");      // für Cypher (doppelte Anführungszeichen → einfach)
-        }
-
         private static string GetIfcExportClass(Element elem)
         {
             return ParameterUtils.GetIfcEntity(elem);
@@ -344,7 +331,7 @@ namespace SpaceTracker
             Debug.WriteLine("#--------#\nTimer started.\n#--------#");
 
             string buildingName = "Teststraße 21";
-            string buildingNameEsc = EscapeString(buildingName);
+            string buildingNameEsc = ParameterUtils.EscapeForCypher(buildingName);
             string cyBuilding = $"MERGE (b:Building {{Name: \"{buildingNameEsc}\"}})";
             _cmdManager.cypherCommands.Enqueue(cyBuilding);
             Debug.WriteLine("[Neo4j] Cypher erzeugt (Building): " + cyBuilding);
@@ -360,7 +347,7 @@ namespace SpaceTracker
             foreach (Level lvl in levels)
             {
                 Debug.WriteLine($"Level: {lvl.Name}, ID: {lvl.Id}");
-                string levelName = EscapeString(lvl.Name);
+                string levelName = ParameterUtils.EscapeForCypher(lvl.Name);
                 string cy = $"MERGE (l:Level{{Name: \"{levelName}\", ElementId: {lvl.Id}}})";
                 _cmdManager.cypherCommands.Enqueue(cy);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
