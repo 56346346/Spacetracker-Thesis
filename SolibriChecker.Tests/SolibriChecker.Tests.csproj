@@ -11,5 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\SolibriChecker.cs" Link="SolibriChecker.cs" />
+        <ProjectReference Include="..\SpaceTracker.csproj" />
   </ItemGroup>
 </Project>
