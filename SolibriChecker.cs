@@ -36,6 +36,34 @@ namespace SpaceTracker
             Instance = new SolibriChecker(factory, connector);
         }
 
+          /// <summary>
+        /// Exports the given element as IFC, runs a Solibri validation and updates
+        /// related log entries in Neo4j.
+        /// </summary>
+        /// <param name="id">The element to check.</param>
+        /// <param name="doc">The Revit document containing the element.</param>
+        public static async Task CheckElementAsync(ElementId id, Document doc)
+        {
+            if (Instance == null)
+                return;
+            try
+            {
+                var extractor = new SpaceExtractor(CommandManager.Instance);
+                string ifcPath = extractor.ExportIfcSubset(doc, new List<ElementId> { id });
+                if (string.IsNullOrEmpty(ifcPath) || !File.Exists(ifcPath))
+                    return;
+
+                using var fs = File.OpenRead(ifcPath);
+                await Instance.ValidateChangesAsync(fs, Enumerable.Empty<string>(), Path.GetFileName(ifcPath), CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Solibri Element Check", ex);
+            }
+        }
+
+
         private SolibriChecker(IHttpClientFactory factory, INeo4jConnector connector)
         {
             _client = factory.CreateClient("solibri");
