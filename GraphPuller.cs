@@ -67,19 +67,31 @@ public class GraphPuller : IExternalEventHandler
         var doors = await _connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
         var pipes = await _connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
         var provisionalSpaces = await _connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+      Debug.WriteLine($"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces");
 
         using var tx = new Transaction(doc, "Auto Sync");
         tx.Start();
-
-        foreach (var w in walls)
+ 
+             foreach (var w in walls)
+            {
+            Debug.WriteLine($"Build wall {w.ElementId}");
             RevitElementBuilder.BuildFromNode(doc, w.ToDictionary());
+        }
         foreach (var d in doors)
+        {
+            Debug.WriteLine($"Build door {d.ElementId}");
             RevitElementBuilder.BuildFromNode(doc, d.ToDictionary());
+        }
         foreach (var p in pipes)
+        {
+            Debug.WriteLine($"Build pipe {p.ElementId}");
             RevitElementBuilder.BuildFromNode(doc, p.ToDictionary());
+        }
         foreach (var ps in provisionalSpaces)
+        {
+            Debug.WriteLine($"Build provisional space {ps.Guid}");
             RevitElementBuilder.BuildFromNode(doc, ps.ToDictionary());
-
+        }
         tx.Commit();
 
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;

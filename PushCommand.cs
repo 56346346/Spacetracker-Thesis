@@ -36,10 +36,14 @@ public class PushCommand : IExternalCommand
             .ToElements();
 
         IList<Element> doors = new FilteredElementCollector(doc)
-            .OfCategory(BuiltInCategory.OST_Doors)
-            .OfClass(typeof(FamilyInstance))
-            .ToElements();
-
+  .WherePasses(new LogicalOrFilter(new List<ElementFilter>
+            {
+                new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
+                new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments)
+            })).OfClass(typeof(FamilyInstance))
+.ToElements()
+            .Where(e => e.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT) != null)
+            .ToList();
         IList<Element> pipes = new FilteredElementCollector(doc)
             .OfCategory(BuiltInCategory.OST_PipeCurves)
             .OfClass(typeof(MEPCurve))

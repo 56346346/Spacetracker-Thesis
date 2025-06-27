@@ -147,12 +147,22 @@ namespace SpaceTracker
         }
         private static List<string> ValidateElementMappings(Document doc, Neo4jConnector connector)
         {
-            const string cypher = "MATCH (n) WHERE n.elementId IS NOT NULL RETURN labels(n) AS labels, n.elementId AS id"; var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
-            var issues = new List<string>();
+ const string cypher =
+                "MATCH (n) WHERE n.elementId IS NOT NULL AND n.elementId >= 0 " +
+                "RETURN labels(n) AS labels, n.elementId AS id";
+
+            var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
+                        var issues = new List<string>();
+                                    var seen = new HashSet<string>();
+
             foreach (var r in records)
             {
                 long id = r["id"].As<long>();
                 var labels = string.Join(',', r["labels"].As<List<object>>());
+                string key = $"{id}:{labels}";
+
+                if (!seen.Add(key))
+                    continue; // avoid duplicate messages for the same node
                 if (doc.GetElement(new ElementId((int)id)) == null)
                     issues.Add($"Missing element {id} for node [{labels}]");
             }
@@ -509,6 +519,8 @@ namespace SpaceTracker
     new ElementCategoryFilter(BuiltInCategory.OST_Rooms),
     new ElementCategoryFilter(BuiltInCategory.OST_Levels),
     new ElementCategoryFilter(BuiltInCategory.OST_Doors),
+      new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
+    new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments),
     new ElementCategoryFilter(BuiltInCategory.OST_Stairs),
     new ElementCategoryFilter(BuiltInCategory.OST_GenericModel)
 
@@ -600,6 +612,8 @@ namespace SpaceTracker
     new ElementCategoryFilter(BuiltInCategory.OST_Walls),
     new ElementCategoryFilter(BuiltInCategory.OST_Rooms),
     new ElementCategoryFilter(BuiltInCategory.OST_Doors),
+     new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
+    new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments),
     new ElementCategoryFilter(BuiltInCategory.OST_Levels),
     new ElementCategoryFilter(BuiltInCategory.OST_Stairs),
     new ElementCategoryFilter(BuiltInCategory.OST_GenericModel)
@@ -644,6 +658,44 @@ namespace SpaceTracker
                 _graphPuller?.RequestPull(doc, Environment.UserName);
                 _pullEventHandler?.RequestPull(doc);
                 _changeMonitor?.UpdateDocument(doc);
+
+                
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        string user = Environment.UserName;
+                        string session = CommandManager.Instance.SessionId;
+                        foreach (var el in addedElements)
+                        {
+                            await _neo4jConnector.UpsertNodeAsync(el).ConfigureAwait(false);
+                            await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, session, user).ConfigureAwait(false);
+                        }
+                        foreach (var el in modifiedElements)
+                        {
+                            await _neo4jConnector.UpsertNodeAsync(el).ConfigureAwait(false);
+                            await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, session, user).ConfigureAwait(false);
+                        }
+                        foreach (var id in deletedIds)
+                        {
+                            await _neo4jConnector.DeleteNodeAsync(id).ConfigureAwait(false);
+                            await _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, session, user).ConfigureAwait(false);
+                        }
+
+                        foreach (var s in SessionManager.OpenSessions.Values)
+                        {
+                            await s.Puller.PullRemoteChanges(s.Document, user).ConfigureAwait(false);
+                        }
+
+                        var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
+                        foreach (var cid in ids)
+                            await SolibriChecker.CheckElementAsync(cid, doc).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogCrash("RealtimeSync", ex);
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -664,6 +716,8 @@ namespace SpaceTracker
                 _databaseUpdateHandler.TriggerPush();
                 _pullEventHandler?.RequestPull(e.Document);
                 _changeMonitor?.Start(e.Document, CommandManager.Instance.SessionId);
+                  string key = e.Document.PathName ?? e.Document.Title;
+                SessionManager.AddSession(key, new Session(e.Document, _graphPuller));
             }
             catch (Exception ex)
             {
@@ -727,6 +781,8 @@ namespace SpaceTracker
                     _graphPuller?.RequestPull(doc, Environment.UserName);
                     _pullEventHandler?.RequestPull(doc);
                     _changeMonitor?.Start(doc, CommandManager.Instance.SessionId);
+                      string key = doc.PathName ?? doc.Title;
+                    SessionManager.AddSession(key, new Session(doc, _graphPuller));
                 }
             }
             catch (Exception ex)

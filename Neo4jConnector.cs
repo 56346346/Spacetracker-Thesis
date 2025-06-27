@@ -432,6 +432,52 @@ SET c.acknowledged = true",
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+        public async Task UpsertNodeAsync(Element element)
+        {
+            switch (element)
+            {
+                case Wall w:
+                    var wallData = WallSerializer.ToNode(w);
+                    wallData["modified"] = DateTime.UtcNow;
+                    await UpsertWallAsync(wallData).ConfigureAwait(false);
+                    break;
+                case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
+                    var doorData = DoorSerializer.ToNode(fi);
+                    doorData["modified"] = DateTime.UtcNow;
+                    await UpsertDoorAsync(doorData).ConfigureAwait(false);
+                    break;
+                case MEPCurve pipe:
+                    var pipeData = PipeSerializer.ToNode(pipe);
+                    pipeData["modified"] = DateTime.UtcNow;
+                    await UpsertPipeAsync(pipeData).ConfigureAwait(false);
+                    break;
+                case FamilyInstance ps when ParameterUtils.IsProvisionalSpace(ps):
+                    _ = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(ps, out var data);
+                    data["modified"] = DateTime.UtcNow;
+                    await UpsertProvisionalSpaceAsync(data["guid"].ToString(), data).ConfigureAwait(false);
+                    break;
+            }
+        }
+
+        public async Task DeleteNodeAsync(ElementId id)
+        {
+            await RunWriteQueryAsync("MATCH (n {elementId:$id}) DETACH DELETE n", new { id = id.Value }).ConfigureAwait(false);
+        }
+
+        public async Task CreateLogChangeAsync(long elementId, ChangeType type, string sessionId, string user)
+        {
+            const string cypher = @"MERGE (s:Session { id:$session })
+CREATE (cl:ChangeLog {
+    sessionId:$session,
+    user:$user,
+    timestamp: datetime(),
+    type:$type,
+    elementId:$eid,
+    acknowledged:false
+})
+MERGE (s)-[:HAS_LOG]->(cl)";
+            await RunWriteQueryAsync(cypher, new { session = sessionId, user, type = type.ToString(), eid = elementId }).ConfigureAwait(false);
+        }
         // Schreibt eine Tür in Neo4j (INSERT/UPDATE).
 
         public async Task UpsertDoorAsync(Dictionary<string, object> args)
@@ -559,6 +605,9 @@ SET c.acknowledged = true",
               .Where(k => k != "guid")
               .Select(k => $"p.{k} = ${k}")
               .ToList();
+                setParts.Add("p.createdBy = coalesce(p.createdBy,$user)");
+            setParts.Add("p.createdAt = coalesce(p.createdAt,$created)");
+            setParts.Add("p.lastModifiedUtc = datetime($modified)");
             string cypher = $"MERGE (p:ProvisionalSpace {{guid:$guid}}) SET {string.Join(", ", setParts)}";
             props["guid"] = guid;
 
