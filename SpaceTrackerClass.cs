@@ -53,6 +53,7 @@ namespace SpaceTracker
 
 
         public const string SolibriModelUUID = "441081f9-7562-4a10-8d2e-7dd3add07eee";
+          public const string SolibriRulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
         public static string SolibriRulesetId;
 
         public static PushButton StatusIndicatorButton;
@@ -198,8 +199,7 @@ namespace SpaceTracker
                 {
                     SolibriProcessManager.EnsureStarted();
                     var client = new SolibriApiClient(SolibriApiPort);
-                    string rulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
-                    SolibriRulesetId = await client.ImportRulesetAsync(rulesetPath).ConfigureAwait(false);
+                  SolibriRulesetId = await client.ImportRulesetAsync(SolibriRulesetPath).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {

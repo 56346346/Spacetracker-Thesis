@@ -52,7 +52,7 @@ namespace SpaceTracker
                 if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
                 {
                     SpaceTrackerClass.SolibriRulesetId = client
-                      .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
+                      .ImportRulesetAsync(SpaceTrackerClass.SolibriRulesetPath)
                       .GetAwaiter().GetResult();
                 }
 

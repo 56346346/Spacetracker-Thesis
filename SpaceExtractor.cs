@@ -173,7 +173,7 @@ namespace SpaceTracker
                     return;
                 }
                 var host = inst.Host as Wall;
-                var data = ProvisionalSpaceSerializer.ToNode(inst);
+                var node = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(inst, out var data);
                 Logger.LogToFile($"Serialized data for {inst.UniqueId}", ProvLog);
 
                 var inv = CultureInfo.InvariantCulture;

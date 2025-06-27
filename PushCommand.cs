@@ -78,7 +78,7 @@ public class PushCommand : IExternalCommand
         var provData = new List<Dictionary<string, object>>();
         foreach (FamilyInstance ps in provSpaces.Cast<FamilyInstance>())
         {
-            var data = ProvisionalSpaceSerializer.ToNode(ps);
+            _ = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(ps, out var data);
             data["modified"] = DateTime.UtcNow;
             provData.Add(data);
         }

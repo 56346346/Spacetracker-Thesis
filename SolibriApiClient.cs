@@ -84,7 +84,7 @@ namespace SpaceTracker
                 throw;
             }
         }
-        // Lädt ein Ruleset hoch und gibt dessen ID zurück.
+        // Installiert ein Ruleset lokal und gibt dessen Dateinamen zurück.
         public async Task<string> ImportRulesetAsync(string csetFilePath)
         {
             if (string.IsNullOrWhiteSpace(csetFilePath))
@@ -95,46 +95,15 @@ namespace SpaceTracker
 
             try
             {
-                Logger.LogToFile($"Importiere Ruleset '{csetFilePath}'");
-
-                using var fs = File.OpenRead(csetFilePath);
-                var content = new StreamContent(fs);
-                content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-
-                var response = await Http.PostAsync($"{_baseUrl}/rulesets", content).ConfigureAwait(false);
-                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    // Fallback für ältere Solibri-Versionen mit abweichender API
-                    response = await Http.PostAsync($"{_baseUrl}/rulesets/import", content).ConfigureAwait(false);
-                }
-                response.EnsureSuccessStatusCode();
-
-                if (response.Headers.Location == null)
-                    throw new Exception("Ruleset-URI fehlt!");
-
-                var rulesetUri = response.Headers.Location.ToString();
-                if (string.IsNullOrEmpty(rulesetUri))
-                    throw new Exception("Ruleset-URI fehlt!");
-
-                var parts = rulesetUri.Split('/');
-                var rulesetId = parts[parts.Length - 1];
-                return rulesetId;
-            }
-            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
-            {
-                Logger.LogCrash("Solibri Import Ruleset", ex);
-                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
-            }
-            catch (HttpRequestException ex)
-            {
-                Logger.LogCrash("Solibri Import Ruleset", ex);
-
-                throw new Exception($"Fehler beim Hochladen der Ruleset-Datei: {ex.Message}", ex);
+                Logger.LogToFile($"Installiere Ruleset '{csetFilePath}' lokal");
+                var installed = InstallRulesetLocally(csetFilePath);
+                // Sicherstellen, dass Solibri den neuen Ruleset liest
+                await GetStatusAsync().ConfigureAwait(false);
+                return Path.GetFileNameWithoutExtension(installed);
             }
             catch (Exception ex)
             {
-                Logger.LogCrash("Solibri Import Ruleset", ex);
-
+                Logger.LogCrash("Solibri Install Ruleset", ex);
                 throw;
             }
         }
@@ -339,6 +308,26 @@ namespace SpaceTracker
 
             Logger.LogToFile("Timeout beim Warten auf das Ende der Solibri Prüfung", "solibri.log");
             return false;
+
+        }
+        
+        // Kopiert die angegebene Ruleset-Datei in den lokalen Solibri-Ordner.
+        public string InstallRulesetLocally(string csetFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(csetFilePath))
+                throw new ArgumentException("Pfad zur Ruleset-Datei darf nicht leer sein.", nameof(csetFilePath));
+
+            var programData = Environment.GetEnvironmentVariable("ProgramData");
+            if (string.IsNullOrEmpty(programData))
+                programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            if (string.IsNullOrEmpty(programData))
+                programData = Path.GetTempPath();
+
+            string destDir = Path.Combine(programData, "Autodesk", "Solibri", "Rulesets Open");
+            Directory.CreateDirectory(destDir);
+            string destPath = Path.Combine(destDir, Path.GetFileName(csetFilePath));
+            File.Copy(csetFilePath, destPath, true);
+            return destPath;
         }
     }
 }

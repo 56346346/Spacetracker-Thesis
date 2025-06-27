@@ -88,11 +88,14 @@ public static class ProvisionalSpaceSerializer
         return dict;
     }
 
-    // Erstellt einen ProvisionalSpaceNode aus dem Dictionary.
-    public static ProvisionalSpaceNode ToProvisionalSpaceNode(FamilyInstance inst)
+    // Erstellt einen ProvisionalSpaceNode und liefert zugleich das Dictionary
+    // mit allen serialisierten Eigenschaften zur weiteren Verwendung.
+    public static ProvisionalSpaceNode ToProvisionalSpaceNode(
+        FamilyInstance inst,
+        out Dictionary<string, object> dict)
     {
         Logger.LogToFile($"[Serializer] ToProvisionalSpaceNode {inst.UniqueId}", LogFile);
-        var dict = ToNode(inst);
+        dict = ToNode(inst);
         var node = new ProvisionalSpaceNode(
             dict.TryGetValue("guid", out var gObj) ? gObj.ToString() ?? string.Empty : string.Empty,
             dict.GetValueOrDefault("name", string.Empty).ToString() ?? string.Empty,
@@ -121,7 +124,7 @@ public static class ProvisionalSpaceSerializer
             Convert.ToDouble(dict.GetValueOrDefault("bbMaxZ", 0.0))
         );
         Logger.LogToFile($"[Serializer] Node created for {inst.UniqueId}", LogFile);
-                return node;
+        return node;
 
     }
 }

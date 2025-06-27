@@ -36,7 +36,7 @@ namespace SpaceTracker
             Instance = new SolibriChecker(factory, connector);
         }
 
-          /// <summary>
+        /// <summary>
         /// Exports the given element as IFC, runs a Solibri validation and updates
         /// related log entries in Neo4j.
         /// </summary>
@@ -109,11 +109,19 @@ namespace SpaceTracker
         public async Task ValidateChangesAsync(Stream ifcStream, IEnumerable<string> removedGuids, string name, CancellationToken ct)
         {
             await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
+
             string id = await UploadIfcAsync(ifcStream, name, _modelUuid != null, ct).ConfigureAwait(false);
+            await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
             if (removedGuids.Any())
+            {
                 await DeleteComponentsAsync(id, removedGuids, ct).ConfigureAwait(false);
-            string bcf = await GetBcfAsync(id, ct: ct).ConfigureAwait(false);
+                await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
+            }
+            string bcf = await GetBcfAsync(id, version: "two", scope: "all", ct: ct).ConfigureAwait(false);
             await UpdateLogStatusAsync(bcf, ct).ConfigureAwait(false);
+            var api = new SolibriApiClient(_client.BaseAddress?.Port ?? SolibriProcessManager.Port);
+            api.InstallRulesetLocally(SpaceTrackerClass.SolibriRulesetPath);
+            await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
         }
 
         public async Task UpdateLogStatusAsync(string bcfXml, CancellationToken ct)
