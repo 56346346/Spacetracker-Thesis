@@ -337,6 +337,16 @@ namespace SpaceTracker
         private static void RegisterGlobalExceptionHandlers()
         {
             SolibriProcessManager.Port = SolibriApiPort;
+             AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+            {
+                if (e.ExceptionObject is Exception ex)
+                    Logger.LogCrash("Unhandled", ex);
+            };
+            TaskScheduler.UnobservedTaskException += (s, e) =>
+            {
+                Logger.LogCrash("UnobservedTask", e.Exception);
+                e.SetObserved();
+            };
             _ = Task.Run(() =>
             {
                 try
