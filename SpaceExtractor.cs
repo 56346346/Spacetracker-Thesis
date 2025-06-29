@@ -250,7 +250,7 @@ namespace SpaceTracker
                     $"SET p.elementId = {data["elementId"]}, p.levelId = {data["levelId"]}, " +
                      $"p.x1 = {((double)data["x1"]).ToString(inv)}, p.y1 = {((double)data["y1"]).ToString(inv)}, p.z1 = {((double)data["z1"]).ToString(inv)}, " +
                     $"p.x2 = {((double)data["x2"]).ToString(inv)}, p.y2 = {((double)data["y2"]).ToString(inv)}, p.z2 = {((double)data["z2"]).ToString(inv)}, " +
-                    $"p.diameter_mm = {((double)data["diameter"]).ToString(inv)}";
+                    $"p.diameter = {((double)data["diameter"]).ToString(inv)}";
                 _cmdManager.cypherCommands.Enqueue(cyNode);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe Node): " + cyNode);
 
