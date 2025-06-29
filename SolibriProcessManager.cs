@@ -11,22 +11,43 @@ namespace SpaceTracker
 {
     public static class SolibriProcessManager
     {
-        public const int DefaultPort = 10876;
-                public static int Port { get; set; } = DefaultPort;
+          public static int Port { get; set; } = Port;
+        // Optional path to the Solibri executable. If set, the process will be
+        // started automatically when the REST API cannot be reached.
+        public static string? SolibriExePath { get; set; } =
+            Environment.GetEnvironmentVariable("SOLIBRI_EXE");
 
-                 // Prüft lediglich, ob Solibri bereits läuft. Die Applikation startet
-        // Solibri bewusst nicht selbst, da ein manueller Start empfohlen ist.
-        // Öffnen Sie Solibri also vor der Validierung und lassen Sie es im
-        // Hintergrund geöffnet.
-
+        /// <summary>
+        /// Ensures that the Solibri REST API is available. If the API is not
+        /// reachable and <see cref="SolibriExePath"/> is specified, the process
+        /// will be started automatically.
+        /// </summary>
         public static void EnsureStarted()
         {
-            // Only verify that the REST API is reachable. The user is responsible
-            // for starting Solibri externally.
-            WaitForApi();
+            if (WaitForApi())
+                return;
+
+            if (!string.IsNullOrEmpty(SolibriExePath) && File.Exists(SolibriExePath))
+            {
+                try
+                {
+                    Process.Start(SolibriExePath);
+                    Thread.Sleep(5000); // give the process some time to start
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("Start Solibri", ex);
+                }
+                if (WaitForApi())
+                    return;
+            }
+
+            var err = "Solibri REST API not reachable. Please start Solibri.";
+            Logger.LogToFile(err);
+            throw new Exception(err);
         }
-  // Wartet maximal einige Sekunden bis die REST-API erreichbar ist.
-        private static void WaitForApi()
+        // Wartet maximal einige Sekunden bis die REST-API erreichbar ist.
+        private static bool WaitForApi()
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
             for (int i = 0; i < 30; i++)
@@ -37,7 +58,7 @@ namespace SpaceTracker
                     if (resp.IsSuccessStatusCode)
                     {
                         Logger.LogToFile($"Solibri REST API reachable on port {Port}");
-                        return;
+                        return true;
                     }
                 }
                 catch
@@ -49,7 +70,8 @@ namespace SpaceTracker
 
             var err = "Solibri REST API not reachable. Please start Solibri.";
             Logger.LogToFile(err);
-            throw new Exception(err);
+                        return false;
+
         }
     }
 }
