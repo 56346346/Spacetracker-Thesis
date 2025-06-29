@@ -53,7 +53,7 @@ namespace SpaceTracker
 
 
         public const string SolibriModelUUID = "441081f9-7562-4a10-8d2e-7dd3add07eee";
-        public const string SolibriRulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
+          public const string SolibriRulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
         public static string SolibriRulesetId;
 
         public static PushButton StatusIndicatorButton;
@@ -147,13 +147,13 @@ namespace SpaceTracker
         }
         private static List<string> ValidateElementMappings(Document doc, Neo4jConnector connector)
         {
-            const string cypher =
-                           "MATCH (n) WHERE n.elementId IS NOT NULL AND n.elementId >= 0 " +
-                           "RETURN labels(n) AS labels, n.elementId AS id";
+ const string cypher =
+                "MATCH (n) WHERE n.elementId IS NOT NULL AND n.elementId >= 0 " +
+                "RETURN labels(n) AS labels, n.elementId AS id";
 
             var records = Task.Run(() => connector.RunReadQueryAsync(cypher)).Result;
-            var issues = new List<string>();
-            var seen = new HashSet<string>();
+                        var issues = new List<string>();
+                                    var seen = new HashSet<string>();
 
             foreach (var r in records)
             {
@@ -185,11 +185,10 @@ namespace SpaceTracker
                 _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
 
                 CommandManager.Initialize(_neo4jConnector);
-
+                
                 var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
-                services.AddHttpClient("solibri", c => c.BaseAddress = new Uri("http://localhost:10876/solibri/v1/"))
-                                   // avoid handler disposal messages by keeping handler alive
-                                   .SetHandlerLifetime(Timeout.InfiniteTimeSpan); var provider = services.BuildServiceProvider();
+                services.AddHttpClient("solibri", c => c.BaseAddress = new Uri("http://localhost:10876/solibri/v1/"));
+                var provider = services.BuildServiceProvider();
                 var factory = provider.GetRequiredService<IHttpClientFactory>();
                 SolibriChecker.Initialize(factory, _neo4jConnector);
                 _extractor = new SpaceExtractor(CommandManager.Instance);
@@ -210,7 +209,7 @@ namespace SpaceTracker
                 {
                     SolibriProcessManager.EnsureStarted();
                     var client = new SolibriApiClient(SolibriApiPort);
-                    SolibriRulesetId = await client.ImportRulesetAsync(SolibriRulesetPath).ConfigureAwait(false);
+                  SolibriRulesetId = await client.ImportRulesetAsync(SolibriRulesetPath).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -660,7 +659,7 @@ namespace SpaceTracker
                 _pullEventHandler?.RequestPull(doc);
                 _changeMonitor?.UpdateDocument(doc);
 
-
+                
                 _ = Task.Run(async () =>
                 {
                     try
@@ -717,7 +716,7 @@ namespace SpaceTracker
                 _databaseUpdateHandler.TriggerPush();
                 _pullEventHandler?.RequestPull(e.Document);
                 _changeMonitor?.Start(e.Document, CommandManager.Instance.SessionId);
-                string key = e.Document.PathName ?? e.Document.Title;
+                  string key = e.Document.PathName ?? e.Document.Title;
                 SessionManager.AddSession(key, new Session(e.Document, _graphPuller));
             }
             catch (Exception ex)
@@ -782,7 +781,7 @@ namespace SpaceTracker
                     _graphPuller?.RequestPull(doc, Environment.UserName);
                     _pullEventHandler?.RequestPull(doc);
                     _changeMonitor?.Start(doc, CommandManager.Instance.SessionId);
-                    string key = doc.PathName ?? doc.Title;
+                      string key = doc.PathName ?? doc.Title;
                     SessionManager.AddSession(key, new Session(doc, _graphPuller));
                 }
             }
