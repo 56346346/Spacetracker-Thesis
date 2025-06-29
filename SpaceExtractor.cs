@@ -107,6 +107,8 @@ namespace SpaceTracker
 
         private void ProcessDoor(Element door, Document doc)
         {
+            if (door.Category?.Id.Value != (int)BuiltInCategory.OST_Doors)
+                return;
             try
             {
                 // 1. Neo4j Cypher-Query
@@ -248,7 +250,7 @@ namespace SpaceTracker
                     $"SET p.elementId = {data["elementId"]}, p.levelId = {data["levelId"]}, " +
                      $"p.x1 = {((double)data["x1"]).ToString(inv)}, p.y1 = {((double)data["y1"]).ToString(inv)}, p.z1 = {((double)data["z1"]).ToString(inv)}, " +
                     $"p.x2 = {((double)data["x2"]).ToString(inv)}, p.y2 = {((double)data["y2"]).ToString(inv)}, p.z2 = {((double)data["z2"]).ToString(inv)}, " +
-                    $"p.diameter_mm = {((double)data["diameter"]).ToString(inv)}";
+                    $"p.diameter = {((double)data["diameter"]).ToString(inv)}";
                 _cmdManager.cypherCommands.Enqueue(cyNode);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe Node): " + cyNode);
 
@@ -555,15 +557,22 @@ namespace SpaceTracker
 
         private void ProcessPipes(Document doc, Level level)
         {
-            var filter = new ElementLevelFilter(level.Id);
-            var collector = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_PipeCurves)
-                .OfClass(typeof(MEPCurve))
-                .WherePasses(filter);
-
-            foreach (MEPCurve pipe in collector)
+            var levelFilter = new ElementLevelFilter(level.Id);
+            var catFilter = new LogicalOrFilter(new List<ElementFilter>
             {
-                ProcessPipe(pipe, doc);
+                new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
+                new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments)
+            });
+            var collector = new FilteredElementCollector(doc)
+                  .WherePasses(levelFilter)
+                .WherePasses(catFilter)
+                .OfClass(typeof(MEPCurve));
+
+            foreach (MEPCurve pipe in collector.Cast<MEPCurve>())
+            {
+                var ifcType = pipe.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
+                if (!string.IsNullOrEmpty(ifcType))
+                    ProcessPipe(pipe, doc);
             }
         }
 

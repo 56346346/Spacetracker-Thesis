@@ -2,6 +2,7 @@ using Autodesk.Revit.DB;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
+using System.Diagnostics;
 using static SpaceTracker.ParameterUtils;
 
 namespace SpaceTracker;
@@ -64,7 +65,7 @@ public static class ProvisionalSpaceSerializer
             ["rotation"] = loc?.Rotation ?? 0,
             ["hostId"] = inst.Host?.Id.Value ?? -1,
             ["revitId"] = inst.Id.Value,
-            ["ifcType"] = GetIfcEntity(inst),
+            ["ifcType"] = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString() ?? string.Empty,
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
             ["user"] = Environment.UserName
@@ -123,6 +124,7 @@ public static class ProvisionalSpaceSerializer
             Convert.ToDouble(dict.GetValueOrDefault("bbMaxY", 0.0)),
             Convert.ToDouble(dict.GetValueOrDefault("bbMaxZ", 0.0))
         );
+                Debug.WriteLine($"[ProvisionalSpaceSerializer] Created node for {inst.UniqueId}");
         Logger.LogToFile($"[Serializer] Node created for {inst.UniqueId}", LogFile);
         return node;
 

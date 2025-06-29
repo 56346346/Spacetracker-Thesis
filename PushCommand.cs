@@ -36,10 +36,9 @@ public class PushCommand : IExternalCommand
             .ToElements();
 
         IList<Element> doors = new FilteredElementCollector(doc)
-            .OfCategory(BuiltInCategory.OST_Doors)
+     .OfCategory(BuiltInCategory.OST_Doors)
             .OfClass(typeof(FamilyInstance))
             .ToElements();
-
         IList<Element> pipes = new FilteredElementCollector(doc)
             .OfCategory(BuiltInCategory.OST_PipeCurves)
             .OfClass(typeof(MEPCurve))
