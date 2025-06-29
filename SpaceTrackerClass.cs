@@ -43,6 +43,8 @@ namespace SpaceTracker
         private GraphPuller _graphPuller;
         private PullEventHandler _pullEventHandler;
         private ChangeMonitor _changeMonitor;
+        private SolibriCheckHandler _solibriCheckHandler;
+        internal static SolibriCheckHandler SolibriCheck;
         public const int SolibriApiPort = 10876;
 
 
@@ -185,7 +187,7 @@ namespace SpaceTracker
                 _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
 
                 CommandManager.Initialize(_neo4jConnector);
-                
+
                 var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
                 services.AddHttpClient("solibri", c => c.BaseAddress = new Uri("http://localhost:10876/solibri/v1/"));
                 var provider = services.BuildServiceProvider();
@@ -197,6 +199,8 @@ namespace SpaceTracker
                 _cmdManager = CommandManager.Instance;
                 _pullEventHandler = new PullEventHandler();
                 _changeMonitor = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
+                  _solibriCheckHandler = new SolibriCheckHandler();
+                SolibriCheck = _solibriCheckHandler;
             }
             catch (Exception ex)
             {
@@ -684,12 +688,12 @@ namespace SpaceTracker
 
                         foreach (var s in SessionManager.OpenSessions.Values)
                         {
-                            await s.Puller.PullRemoteChanges(s.Document, user).ConfigureAwait(false);
+                            s.Puller.RequestPull(s.Document, user);
                         }
 
                         var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
                         foreach (var cid in ids)
-                            await SolibriChecker.CheckElementAsync(cid, doc).ConfigureAwait(false);
+                            SpaceTrackerClass.SolibriCheck.ScheduleCheck(doc, cid);
                     }
                     catch (Exception ex)
                     {
