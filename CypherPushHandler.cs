@@ -10,12 +10,12 @@ namespace SpaceTracker
 {
     public class CypherPushHandler : IExternalEventHandler
     {
-        public void Execute(UIApplication app)
+        public async void Execute(UIApplication app)
         {
             try
             {
                 var doc = app.ActiveUIDocument?.Document;
- CommandManager.Instance.ProcessCypherQueueAsync(doc).GetAwaiter().GetResult();
+ await CommandManager.Instance.ProcessCypherQueueAsync(doc);
                 // Nach dem Push sofort die Solibri-Regeln validieren und die Ampel anpassen
 
                 if (doc != null)

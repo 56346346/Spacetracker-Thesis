@@ -12,7 +12,6 @@ using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Serilog;
 
 
 namespace SpaceTracker
@@ -51,8 +50,7 @@ namespace SpaceTracker
 
         public async Task<List<IRecord>> RunReadQueryAsync(string query, object parameters = null)
         {
-            await using var session = _driver.AsyncSession(o =>
-                           o.WithDefaultAccessMode(AccessMode.Write));
+            await using var session = _driver.AsyncSession();
             try
             {
                 var resultCursor = parameters == null
@@ -72,8 +70,7 @@ namespace SpaceTracker
         public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName, Autodesk.Revit.DB.Document currentDocument = null)
         {
             // 1) Asynchrone Neo4j-Session öffnen
-            await using var session = _driver.AsyncSession(o =>
-                          o.WithDefaultAccessMode(AccessMode.Write));
+            await using var session = _driver.AsyncSession();
             Logger.LogToFile($"BEGIN push {changes.Count()} commands", CommandLogFile);
             try
             {
@@ -203,8 +200,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         // Prüft, ob alle aktiven Sessions den gleichen Synchronisationsstand haben.
         public async Task<bool> AreAllUsersConsistentAsync()
         {
-            await using var session = _driver.AsyncSession(o =>
-                           o.WithDefaultAccessMode(AccessMode.Write));
+            await using var session = _driver.AsyncSession();
             try
             {
                 var minRes = await session.RunAsync("MATCH (s:Session) RETURN min(s.lastSync) AS minSync").ConfigureAwait(false);
@@ -233,9 +229,8 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         public async Task<List<SessionStatus>> GetSessionStatusesAsync()
         {
             var result = new List<SessionStatus>();
-   await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-                            try
+            await using var session = _driver.AsyncSession();
+            try
             {
                 var lastChangeRes = await session.RunAsync("MATCH (cl:ChangeLog) RETURN max(cl.timestamp) AS lastChange").ConfigureAwait(false);
                 var lastChangeRec = await lastChangeRes.SingleAsync().ConfigureAwait(false);
@@ -262,9 +257,8 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         // Entfernt sämtliche Session- und ChangeLog-Knoten aus der Datenbank.
         public async Task DeleteAllSessionsAndLogsAsync()
         {
-  await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-                            try
+            await using var session = _driver.AsyncSession();
+            try
             {
                 await session.ExecuteWriteAsync(async tx =>
                 {
@@ -289,9 +283,8 @@ ORDER BY c.timestamp";
         // Markiert alle fremden ChangeLogs als gelesen.
         public async Task AcknowledgeAllAsync(string currentSession)
         {
- await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-                            try
+            await using var session = _driver.AsyncSession();
+            try
             {
                 await session.ExecuteWriteAsync(async tx =>
                 {
@@ -309,9 +302,8 @@ SET c.acknowledged = true", new { session = currentSession }).ConfigureAwait(fal
 
         public async Task AcknowledgeSelectedAsync(string currentSession, IEnumerable<long> elementIds)
         {
-  await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-                            try
+            await using var session = _driver.AsyncSession();
+            try
             {
                 await session.ExecuteWriteAsync(async tx =>
                 {
@@ -335,8 +327,8 @@ SET c.acknowledged = true",
 
         public async Task RunCypherQuery(string query)
         {
-   await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
+            await using var session = _driver.AsyncSession();
+
             try
             {
                 var result = await session.RunAsync(query).ConfigureAwait(false);
@@ -354,9 +346,8 @@ SET c.acknowledged = true",
 
         public async Task RunWriteQueryAsync(string query, object parameters = null)
         {
-    await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-                            try
+            await using var session = _driver.AsyncSession();
+            try
             {
                 await session.ExecuteWriteAsync(async tx =>
                 {
@@ -372,9 +363,8 @@ SET c.acknowledged = true",
 
         public async Task CleanupObsoleteChangeLogsAsync()
         {
-     await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-                            try
+            await using var session = _driver.AsyncSession();
+            try
             {
                 // Alte Sessions bereinigen, damit die Mindestberechnung korrekt bleibt
                 await RemoveStaleSessionsAsync(TimeSpan.FromDays(1)).ConfigureAwait(false);
@@ -404,9 +394,8 @@ SET c.acknowledged = true",
 
         public async Task RemoveStaleSessionsAsync(TimeSpan maxAge)
         {
-   await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-                            try
+            await using var session = _driver.AsyncSession();
+            try
             {
                 await session.ExecuteWriteAsync(async tx =>
                 {
@@ -426,9 +415,8 @@ SET c.acknowledged = true",
         // Aktualisiert das lastSync-Datum einer Session in Neo4j.
         public async Task UpdateSessionLastSyncAsync(string sessionId, DateTime syncTime)
         {
-await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-                            try
+            await using var session = _driver.AsyncSession();
+            try
             {
                 await session.ExecuteWriteAsync(async tx =>
                 {
@@ -446,38 +434,28 @@ await using var session = _driver.AsyncSession(o =>
         }
         public async Task UpsertNodeAsync(Element element)
         {
-              Log.Information("Upsert node for element {Id}", element.Id);
-            try
+            switch (element)
             {
-                switch (element)
-                {
-                    case Wall w:
-                        var wallData = WallSerializer.ToNode(w);
-                        wallData["modified"] = DateTime.UtcNow;
-                        await UpsertWallAsync(wallData).ConfigureAwait(false);
-                        break;
-                    case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
-                        var doorData = DoorSerializer.ToNode(fi);
-                        doorData["modified"] = DateTime.UtcNow;
-                        await UpsertDoorAsync(doorData).ConfigureAwait(false);
-                        break;
-                    case MEPCurve pipe:
-                        var pipeData = PipeSerializer.ToNode(pipe);
-                        pipeData["modified"] = DateTime.UtcNow;
-                        await UpsertPipeAsync(pipeData).ConfigureAwait(false);
-                        break;
-                    case FamilyInstance ps when ParameterUtils.IsProvisionalSpace(ps):
-                        _ = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(ps, out var data);
-                        data["modified"] = DateTime.UtcNow;
-                        await UpsertProvisionalSpaceAsync(data["guid"].ToString(), data).ConfigureAwait(false);
-                        break;
-                }
-                Log.Information("Upsert node for element {Id} completed", element.Id);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to upsert element {Id}", element.Id);
-                throw;
+                case Wall w:
+                    var wallData = WallSerializer.ToNode(w);
+                    wallData["modified"] = DateTime.UtcNow;
+                    await UpsertWallAsync(wallData).ConfigureAwait(false);
+                    break;
+                case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
+                    var doorData = DoorSerializer.ToNode(fi);
+                    doorData["modified"] = DateTime.UtcNow;
+                    await UpsertDoorAsync(doorData).ConfigureAwait(false);
+                    break;
+                case MEPCurve pipe:
+                    var pipeData = PipeSerializer.ToNode(pipe);
+                    pipeData["modified"] = DateTime.UtcNow;
+                    await UpsertPipeAsync(pipeData).ConfigureAwait(false);
+                    break;
+                case FamilyInstance ps when ParameterUtils.IsProvisionalSpace(ps):
+                    _ = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(ps, out var data);
+                    data["modified"] = DateTime.UtcNow;
+                    await UpsertProvisionalSpaceAsync(data["guid"].ToString(), data).ConfigureAwait(false);
+                    break;
             }
         }
 
@@ -516,20 +494,11 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("d.lastModifiedUtc = datetime($modified)");
             string cypher = $"MERGE (d:Door {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN d";
 
-            await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-            try
-            {
-                await session.ExecuteWriteAsync(async tx =>
-                {
-                    await tx.RunAsync(cypher, args).ConfigureAwait(false);
-                }).ConfigureAwait(false);
-                _logger.LogInformation("Door {Uid} upserted", args["uid"]);
-            }
-            finally
-            {
-                await session.CloseAsync().ConfigureAwait(false);
-            }
+            await using var session = _driver.AsyncSession();
+            await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
+            _logger.LogInformation("Door {Uid} upserted", args["uid"]);
         }
 
 
@@ -600,20 +569,11 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("w.createdAt = coalesce(w.createdAt,$created)");
             setParts.Add("w.lastModifiedUtc = datetime($modified)");
             string cypher = $"MERGE (w:Wall {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN w";
-              await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-            try
-            {
-                await session.ExecuteWriteAsync(async tx =>
-                {
-                    await tx.RunAsync(cypher, args).ConfigureAwait(false);
-                }).ConfigureAwait(false);
-                _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
-            }
-            finally
-            {
-                await session.CloseAsync().ConfigureAwait(false);
-            }
+            await using var session = _driver.AsyncSession();
+            await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
+            _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
         }
         // Erstellt oder aktualisiert ein Rohr in Neo4j.
 
@@ -631,20 +591,11 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("p.lastModifiedUtc = datetime($modified)");
             string cypher = $"MERGE (p:Pipe {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN p";
 
-           await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-            try
-            {
-                await session.ExecuteWriteAsync(async tx =>
-                {
-                    await tx.RunAsync(cypher, args).ConfigureAwait(false);
-                }).ConfigureAwait(false);
-                _logger.LogInformation("Pipe {Uid} upserted", args["uid"]);
-            }
-            finally
-            {
-                await session.CloseAsync().ConfigureAwait(false);
-            }
+            await using var session = _driver.AsyncSession();
+            await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
+            _logger.LogInformation("Pipe {Uid} upserted", args["uid"]);
         }
         // Erstellt oder aktualisiert einen ProvisionalSpace-Knoten.
 
@@ -654,26 +605,17 @@ MERGE (s)-[:HAS_LOG]->(cl)";
               .Where(k => k != "guid")
               .Select(k => $"p.{k} = ${k}")
               .ToList();
-            setParts.Add("p.createdBy = coalesce(p.createdBy,$user)");
+                setParts.Add("p.createdBy = coalesce(p.createdBy,$user)");
             setParts.Add("p.createdAt = coalesce(p.createdAt,$created)");
             setParts.Add("p.lastModifiedUtc = datetime($modified)");
             string cypher = $"MERGE (p:ProvisionalSpace {{guid:$guid}}) SET {string.Join(", ", setParts)}";
             props["guid"] = guid;
 
-             await using var session = _driver.AsyncSession(o =>
-                o.WithDefaultAccessMode(AccessMode.Write));
-            try
-            {
-                await session.ExecuteWriteAsync(async tx =>
-                {
-                    await tx.RunAsync(cypher, props).ConfigureAwait(false);
-                }).ConfigureAwait(false);
-                _logger.LogInformation("ProvisionalSpace {Guid} upserted", guid);
-            }
-            finally
-            {
-                await session.CloseAsync().ConfigureAwait(false);
-            }
+            await using var session = _driver.AsyncSession();
+            await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
+            await tx.RunAsync(cypher, props).ConfigureAwait(false);
+            await tx.CommitAsync().ConfigureAwait(false);
+            _logger.LogInformation("ProvisionalSpace {Guid} upserted", guid);
         }
         // Verbindet einen ProvisionalSpace mit einer Wand.
         public async Task LinkProvisionalSpaceToWallAsync(string guid, long wallId)

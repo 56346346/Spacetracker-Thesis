@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Neo4j.Driver;
-using Serilog;
 
 
 namespace SpaceTracker;
@@ -64,45 +63,39 @@ public class GraphPuller : IExternalEventHandler
     {
         var cmdMgr = CommandManager.Instance;
 
+        var walls = await _connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+        var doors = await _connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+        var pipes = await _connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+        var provisionalSpaces = await _connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+      Debug.WriteLine($"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces");
 
-        Log.Information("Start PullRemoteChanges for user {User}", currentUserId);
-        try
-        {
-            var walls = await _connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-            var doors = await _connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-            var pipes = await _connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-            var provisionalSpaces = await _connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-            Log.Information("Pulled {WallCount} walls, {DoorCount} doors, {PipeCount} pipes, {ProvCount} provisional spaces", walls.Count, doors.Count, pipes.Count, provisionalSpaces.Count);
-            using var tx = new Transaction(doc, "Auto Sync");
-            tx.Start();
-            foreach (var w in walls)
+        using var tx = new Transaction(doc, "Auto Sync");
+        tx.Start();
+ 
+             foreach (var w in walls)
             {
-                RevitElementBuilder.BuildFromNode(doc, w.ToDictionary());
-            }
-            foreach (var d in doors)
-            {
-                RevitElementBuilder.BuildFromNode(doc, d.ToDictionary());
-            }
-            foreach (var p in pipes)
-            {
-                RevitElementBuilder.BuildFromNode(doc, p.ToDictionary());
-            }
-            foreach (var ps in provisionalSpaces)
-            {
-                RevitElementBuilder.BuildFromNode(doc, ps.ToDictionary());
-            }
-            tx.Commit();
-
-            cmdMgr.LastSyncTime = System.DateTime.UtcNow;
-            cmdMgr.PersistSyncTime();
-            await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
-
-            Log.Information("PullRemoteChanges finished for user {User}", currentUserId);
+            Debug.WriteLine($"Build wall {w.ElementId}");
+            RevitElementBuilder.BuildFromNode(doc, w.ToDictionary());
         }
-        catch (Exception ex)
+        foreach (var d in doors)
         {
-            Log.Error(ex, "Error during PullRemoteChanges for user {User}", currentUserId);
-            throw;
+            Debug.WriteLine($"Build door {d.ElementId}");
+            RevitElementBuilder.BuildFromNode(doc, d.ToDictionary());
         }
+        foreach (var p in pipes)
+        {
+            Debug.WriteLine($"Build pipe {p.ElementId}");
+            RevitElementBuilder.BuildFromNode(doc, p.ToDictionary());
+        }
+        foreach (var ps in provisionalSpaces)
+        {
+            Debug.WriteLine($"Build provisional space {ps.Guid}");
+            RevitElementBuilder.BuildFromNode(doc, ps.ToDictionary());
+        }
+        tx.Commit();
+
+        cmdMgr.LastSyncTime = System.DateTime.UtcNow;
+        cmdMgr.PersistSyncTime();
+        await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
     }
 }
