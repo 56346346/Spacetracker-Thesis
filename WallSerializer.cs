@@ -25,7 +25,7 @@ public static class WallSerializer
         var dict = new Dictionary<string, object>
         {
             ["rvtClass"] = "Wall",
-            ["uid"] = wall.UniqueId,
+            ["uid"] = GetNeo4jUid(wall),
             ["elementId"] = wall.Id.Value,
             ["typeId"] = wall.GetTypeId().Value,
             ["typeName"] = wall.WallType.Name,

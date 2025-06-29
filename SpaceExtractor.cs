@@ -247,11 +247,16 @@ namespace SpaceTracker
 
                 string cyNode =
                     $"MERGE (p:Pipe {{uid:'{data["uid"]}'}}) " +
-                    $"SET p.elementId = {data["elementId"]}, p.levelId = {data["levelId"]}, " +
-                     $"p.x1 = {((double)data["x1"]).ToString(inv)}, p.y1 = {((double)data["y1"]).ToString(inv)}, p.z1 = {((double)data["z1"]).ToString(inv)}, " +
+                    $"SET p.elementId = {data["elementId"]}, " +
+                    $"p.typeId = {data["typeId"]}, " +
+                    $"p.systemTypeId = {data["systemTypeId"]}, " +
+                    $"p.levelId = {data["levelId"]}, " +
+                    $"p.x1 = {((double)data["x1"]).ToString(inv)}, p.y1 = {((double)data["y1"]).ToString(inv)}, p.z1 = {((double)data["z1"]).ToString(inv)}, " +
                     $"p.x2 = {((double)data["x2"]).ToString(inv)}, p.y2 = {((double)data["y2"]).ToString(inv)}, p.z2 = {((double)data["z2"]).ToString(inv)}, " +
-                    $"p.diameter = {((double)data["diameter"]).ToString(inv)}";
-                _cmdManager.cypherCommands.Enqueue(cyNode);
+  $"p.diameter = {((double)data["diameter"]).ToString(inv)}, " +
+                    $"p.createdBy = coalesce(p.createdBy,'{ParameterUtils.EscapeForCypher(data["user"].ToString())}'), " +
+                    $"p.createdAt = coalesce(p.createdAt, datetime('{((DateTime)data["created"]).ToString("o")}')), " +
+                    $"p.lastModifiedUtc = datetime('{((DateTime)data["modified"]).ToString("o")}')";                _cmdManager.cypherCommands.Enqueue(cyNode);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe Node): " + cyNode);
 
 
@@ -570,9 +575,8 @@ namespace SpaceTracker
 
             foreach (MEPCurve pipe in collector.Cast<MEPCurve>())
             {
-                var ifcType = pipe.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString();
-                if (!string.IsNullOrEmpty(ifcType))
-                    ProcessPipe(pipe, doc);
+                                ProcessPipe(pipe, doc);
+
             }
         }
 

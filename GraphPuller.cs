@@ -77,6 +77,7 @@ public class GraphPuller : IExternalEventHandler
             Debug.WriteLine($"Build wall {w.ElementId}");
             RevitElementBuilder.BuildFromNode(doc, w.ToDictionary());
         }
+                doc.Regenerate();
         foreach (var d in doors)
         {
             Debug.WriteLine($"Build door {d.ElementId}");

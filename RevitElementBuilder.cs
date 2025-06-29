@@ -19,17 +19,31 @@ public static class RevitElementBuilder
     private const string ProvLog = "provisional_spaces.log";
     private static Wall? FindHostWall(Document doc, XYZ point, double tol = 1.0)
     {
+           Wall? bestWall = null;
+        double bestDist = double.MaxValue;
         var collector = new FilteredElementCollector(doc)
             .OfClass(typeof(Wall));
         foreach (Wall w in collector.Cast<Wall>())
         {
             BoundingBoxXYZ? bb = w.get_BoundingBox(null);
             if (bb == null) continue;
-            if (point.X >= bb.Min.X - tol && point.X <= bb.Max.X + tol &&
-                point.Y >= bb.Min.Y - tol && point.Y <= bb.Max.Y + tol)
-                return w;
+             bool inside =
+                point.X >= bb.Min.X - tol && point.X <= bb.Max.X + tol &&
+                point.Y >= bb.Min.Y - tol && point.Y <= bb.Max.Y + tol &&
+                point.Z >= bb.Min.Z - tol && point.Z <= bb.Max.Z + tol;
+
+            if (!inside)
+                continue;
+
+            XYZ center = (bb.Min + bb.Max) * 0.5;
+            double dist = center.DistanceTo(point);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestWall = w;
+            }
         }
-        return null;
+        return bestWall;
     }
 
 
@@ -72,6 +86,8 @@ public static class RevitElementBuilder
         if (node.TryGetValue("location_line", out var ll))
             wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(Convert.ToInt32(ll));
         ParameterUtils.ApplyParameters(wall, node);
+        if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid)
+            ParameterUtils.SetNeo4jUid(wall, uid);
         return wall;
     }
     // Baut ein Rohr nach.
@@ -162,6 +178,8 @@ public static class RevitElementBuilder
             var lc = wall.Location as LocationCurve;
             if (lc != null)
                 lc.Curve = Line.CreateBound(s, e);
+            ParameterUtils.SetNeo4jUid(wall, uid);
+
         }
         else
         {
@@ -176,6 +194,8 @@ public static class RevitElementBuilder
             Parameter llp = newWall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM);
             if (llp != null && !llp.IsReadOnly && node.Properties.TryGetValue("location_line", out var llv))
                 llp.Set(llv.As<int>());
+                            ParameterUtils.SetNeo4jUid(newWall, uid);
+
         }
     }
     // Erkennt den Knotentyp und ruft den passenden Builder auf.

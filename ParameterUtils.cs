@@ -10,6 +10,29 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class ParameterUtils
 {
+       /// <summary>
+    /// Name of the shared parameter used to store the Neo4j UID on elements.
+    /// </summary>
+    public const string Neo4jUidParam = "Neo4jUid";
+
+    /// <summary>
+    /// Returns the Neo4j UID for the given element. If the custom parameter is
+    /// not present, falls back to <see cref="Element.UniqueId"/>.
+    /// </summary>
+    public static string GetNeo4jUid(Element elem)
+    {
+        return elem.LookupParameter(Neo4jUidParam)?.AsString() ?? elem.UniqueId;
+    }
+
+    /// <summary>
+    /// Writes the Neo4j UID to the element parameter if available.
+    /// </summary>
+    public static void SetNeo4jUid(Element elem, string uid)
+    {
+        var p = elem.LookupParameter(Neo4jUidParam);
+        if (p != null && !p.IsReadOnly)
+            p.Set(uid);
+    }
     /// <summary>
     /// Escapes a string for safe usage inside Cypher queries.
     /// Removes backslashes and doubles single quotes.

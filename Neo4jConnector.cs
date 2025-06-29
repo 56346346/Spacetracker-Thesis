@@ -45,6 +45,33 @@ namespace SpaceTracker
                             o => o.WithConnectionTimeout(TimeSpan.FromSeconds(15))
                                   .WithMaxConnectionPoolSize(50)
                         );
+                        // Ensure uniqueness constraints exist so elements are not duplicated
+            // when multiple users push the same wall.
+            try
+            {
+                EnsureConstraintsAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to ensure constraints");
+            }
+        }
+
+        
+        private async Task EnsureConstraintsAsync()
+        {
+            const string c1 = "CREATE CONSTRAINT wall_uid IF NOT EXISTS FOR (w:Wall) REQUIRE w.uid IS UNIQUE";
+            const string c2 = "CREATE CONSTRAINT door_uid IF NOT EXISTS FOR (d:Door) REQUIRE d.uid IS UNIQUE";
+            const string c3 = "CREATE CONSTRAINT pipe_uid IF NOT EXISTS FOR (p:Pipe) REQUIRE p.uid IS UNIQUE";
+            const string c4 = "CREATE CONSTRAINT ps_guid IF NOT EXISTS FOR (ps:ProvisionalSpace) REQUIRE ps.guid IS UNIQUE";
+            await using var session = _driver.AsyncSession();
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                await tx.RunAsync(c1).ConfigureAwait(false);
+                await tx.RunAsync(c2).ConfigureAwait(false);
+                await tx.RunAsync(c3).ConfigureAwait(false);
+                await tx.RunAsync(c4).ConfigureAwait(false);
+            }).ConfigureAwait(false);
         }
         // Führt eine Leseabfrage aus und gibt die Ergebnismenge zurück.
 
