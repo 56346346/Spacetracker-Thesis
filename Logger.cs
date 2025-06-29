@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Serilog;
+using SpaceTracker;
 
 namespace SpaceTracker
 {
@@ -10,16 +10,11 @@ namespace SpaceTracker
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SpaceTracker"
         );
-        // Legt das Log-Verzeichnis an und initialisiert den Serilog-Logger
+// Legt das Log-Verzeichnis an, falls es noch nicht existiert
         static Logger()
         {
             if (!Directory.Exists(LogDir))
                 Directory.CreateDirectory(LogDir);
-                
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
-                .WriteTo.File(Path.Combine(LogDir, "main.log"), shared: true)
-                .CreateLogger();
         }
 
         // Interne Helferfunktion, stellt das Log-Verzeichnis sicher.
@@ -28,27 +23,15 @@ namespace SpaceTracker
             if (!Directory.Exists(LogDir))
                 Directory.CreateDirectory(LogDir);
         }
-         // Hilfsmethode zum Schreiben mit gemeinsamem Dateizugriff
-        private static void AppendLine(string path, string message)
-        {
-            using var stream = new FileStream(
-                path,
-                FileMode.Append,
-                FileAccess.Write,
-                FileShare.ReadWrite);
-            using var writer = new StreamWriter(stream) { AutoFlush = true };
-            writer.WriteLine(message);
-        }
-
 
         // Protokolliert eine Crash-Exception
-        // Schreibt einen Absturz oder eine Ausnahme in die crash.log.
+                // Schreibt einen Absturz oder eine Ausnahme in die crash.log.
 
         public static void LogCrash(string label, Exception ex)
         {
-            
+            // crash.log
             var path = Path.Combine(LogDir, "crash.log");
-            AppendLine(path, $"{DateTime.Now:O} [{label}] {ex}");
+            File.AppendAllText(path, $"{DateTime.Now:O} [{label}] {ex}\n");
         }
 
         // Protokolliert eine beliebige Meldung in eine Datei
@@ -61,7 +44,7 @@ namespace SpaceTracker
                 fileName += ".log";
 
             var path = Path.Combine(LogDir, fileName);
-            AppendLine(path, $"{DateTime.Now:O} {message}");
+            File.AppendAllText(path, $"{DateTime.Now:O} {message}\n");
         }
     }
 }

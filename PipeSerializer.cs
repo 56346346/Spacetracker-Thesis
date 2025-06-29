@@ -2,7 +2,6 @@ using Autodesk.Revit.DB;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
-using System.Diagnostics;
 using static SpaceTracker.ParameterUtils;
 
 namespace SpaceTracker;
@@ -42,12 +41,12 @@ public static class PipeSerializer
         SerializeParameters(pipe, dict);
         return dict;
     }
-
+    
     // Erstellt einen PipeNode aus dem übergebenen Element.
     public static PipeNode ToPipeNode(MEPCurve pipe)
     {
         var dict = ToNode(pipe);
-        var node = new PipeNode(
+        return new PipeNode(
             dict.TryGetValue("uid", out var uidObj) ? uidObj.ToString() ?? string.Empty : string.Empty,
             Convert.ToInt64(dict["elementId"]),
             Convert.ToInt64(dict["typeId"]),
@@ -61,7 +60,5 @@ public static class PipeSerializer
             Convert.ToDouble(dict["z2"]),
             Convert.ToDouble(dict.GetValueOrDefault("diameter", 0.0))
         );
-            Debug.WriteLine($"[PipeSerializer] Created node for {pipe.UniqueId}");
-        return node;
     }
 }

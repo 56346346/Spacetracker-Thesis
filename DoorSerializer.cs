@@ -1,7 +1,6 @@
 using Autodesk.Revit.DB;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.Versioning;
 
 using static SpaceTracker.ParameterUtils;
@@ -56,7 +55,7 @@ public static class DoorSerializer
     public static DoorNode ToDoorNode(FamilyInstance door)
     {
         var dict = ToNode(door);
-        var node = new DoorNode(
+        return new DoorNode(
             dict.TryGetValue("uid", out var uidObj) ? uidObj.ToString() ?? string.Empty : string.Empty,
             Convert.ToInt64(dict["elementId"]),
             Convert.ToInt64(dict["typeId"]),
@@ -73,7 +72,5 @@ public static class DoorSerializer
             Convert.ToDouble(dict.GetValueOrDefault("height", 0.0)),
             Convert.ToDouble(dict.GetValueOrDefault("thickness", 0.0))
         );
-         Debug.WriteLine($"[DoorSerializer] Created node for {door.UniqueId}");
-        return node;
     }
 }
