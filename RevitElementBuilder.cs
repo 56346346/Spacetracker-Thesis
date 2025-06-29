@@ -19,7 +19,7 @@ public static class RevitElementBuilder
     private const string ProvLog = "provisional_spaces.log";
     private static Wall? FindHostWall(Document doc, XYZ point, double tol = 1.0)
     {
-           Wall? bestWall = null;
+        Wall? bestWall = null;
         double bestDist = double.MaxValue;
         var collector = new FilteredElementCollector(doc)
             .OfClass(typeof(Wall));
@@ -27,10 +27,10 @@ public static class RevitElementBuilder
         {
             BoundingBoxXYZ? bb = w.get_BoundingBox(null);
             if (bb == null) continue;
-             bool inside =
-                point.X >= bb.Min.X - tol && point.X <= bb.Max.X + tol &&
-                point.Y >= bb.Min.Y - tol && point.Y <= bb.Max.Y + tol &&
-                point.Z >= bb.Min.Z - tol && point.Z <= bb.Max.Z + tol;
+            bool inside =
+               point.X >= bb.Min.X - tol && point.X <= bb.Max.X + tol &&
+               point.Y >= bb.Min.Y - tol && point.Y <= bb.Max.Y + tol &&
+               point.Z >= bb.Min.Z - tol && point.Z <= bb.Max.Z + tol;
 
             if (!inside)
                 continue;
@@ -83,7 +83,7 @@ public static class RevitElementBuilder
         bool flip = node.TryGetValue("flipped", out var flipObj) && Convert.ToBoolean(flipObj);
         bool structural = node.TryGetValue("structural", out var structObj) && Convert.ToBoolean(structObj);
 
-        
+
         Wall? wall = null;
         if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid && !string.IsNullOrEmpty(uid))
         {
@@ -99,7 +99,8 @@ public static class RevitElementBuilder
                 wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM)?.Set(height);
                 wall.get_Parameter(BuiltInParameter.WALL_BASE_OFFSET)?.Set(offset);
                 // Set flipped orientation
-                wall.Flipped = flip;
+                if (wall.Flipped != flip)
+                    wall.Flip();
                 wall.get_Parameter(BuiltInParameter.WALL_STRUCTURAL_SIGNIFICANT)?.Set(structural ? 1 : 0);
                 if (node.TryGetValue("location_line", out var llVal))
                     wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(Convert.ToInt32(llVal));
@@ -111,10 +112,10 @@ public static class RevitElementBuilder
 
         // Create new wall if none exists
         wall = Wall.Create(doc, line, typeId, levelId, height, offset, flip, structural);
-               if (node.TryGetValue("location_line", out var ll))
+        if (node.TryGetValue("location_line", out var ll))
             wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(Convert.ToInt32(ll));
         ParameterUtils.ApplyParameters(wall, node);
-          if (node.TryGetValue("uid", out uidObj) && uidObj is string newUid)
+        if (node.TryGetValue("uid", out uidObj) && uidObj is string newUid)
             ParameterUtils.SetNeo4jUid(wall, newUid);
         return wall;
     }
@@ -201,7 +202,7 @@ public static class RevitElementBuilder
         XYZ e = new XYZ(UnitConversion.ToFt(node.Properties["x2"].As<double>()),
                         UnitConversion.ToFt(node.Properties["y2"].As<double>()),
                         UnitConversion.ToFt(node.Properties["z2"].As<double>()));
-                         ElementId typeId = new ElementId((long)node.Properties["typeId"].As<long>());
+        ElementId typeId = new ElementId((long)node.Properties["typeId"].As<long>());
         ElementId levelId = new ElementId((long)node.Properties["levelId"].As<long>());
         double height = UnitConversion.ToFt(node.Properties["height_mm"].As<double>());
         double offset = UnitConversion.ToFt(node.Properties.TryGetValue("base_offset_mm", out var bo) ? bo.As<double>() : 0.0);
@@ -216,7 +217,8 @@ public static class RevitElementBuilder
                 wall.ChangeTypeId(typeId);
             wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM)?.Set(UnitConversion.ToFt(node.Properties["height_mm"].As<double>()));
             wall.get_Parameter(BuiltInParameter.WALL_BASE_OFFSET)?.Set(offset);
-            wall.Flipped = node.Properties.TryGetValue("flipped", out var fl) && fl.As<bool>();
+            if (wall.Flipped != (node.Properties.TryGetValue("flipped", out var fl) && fl.As<bool>()))
+                wall.Flip();
             wall.get_Parameter(BuiltInParameter.WALL_STRUCTURAL_SIGNIFICANT)?.Set(node.Properties.TryGetValue("structural", out var st) && st.As<bool>() ? 1 : 0);
             if (node.Properties.TryGetValue("location_line", out var llv))
                 wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(llv.As<int>());
@@ -238,8 +240,8 @@ public static class RevitElementBuilder
             if (llp != null && !llp.IsReadOnly && node.Properties.TryGetValue("location_line", out var llv))
                 llp.Set(llv.As<int>());
 
-   ParameterUtils.ApplyParameters(newWall, node.Properties.ToDictionary(k => k.Key, k => (object)k.Value));
-            ParameterUtils.SetNeo4jUid(newWall, uid);            ParameterUtils.SetNeo4jUid(newWall, uid);
+            ParameterUtils.ApplyParameters(newWall, node.Properties.ToDictionary(k => k.Key, k => (object)k.Value));
+            ParameterUtils.SetNeo4jUid(newWall, uid); ParameterUtils.SetNeo4jUid(newWall, uid);
         }
     }
     // Erkennt den Knotentyp und ruft den passenden Builder auf.
