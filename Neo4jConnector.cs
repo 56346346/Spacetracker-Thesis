@@ -60,9 +60,9 @@ namespace SpaceTracker
         
         private async Task EnsureConstraintsAsync()
         {
-            const string c1 = "CREATE CONSTRAINT wall_uid IF NOT EXISTS FOR (w:Wall) REQUIRE w.uid IS UNIQUE";
-            const string c2 = "CREATE CONSTRAINT door_uid IF NOT EXISTS FOR (d:Door) REQUIRE d.uid IS UNIQUE";
-            const string c3 = "CREATE CONSTRAINT pipe_uid IF NOT EXISTS FOR (p:Pipe) REQUIRE p.uid IS UNIQUE";
+            const string c1 = "CREATE INDEX wall_uid IF NOT EXISTS FOR (w:Wall) ON (w.uid)";
+            const string c2 = "CREATE INDEX door_uid IF NOT EXISTS FOR (d:Door) ON (d.uid)";
+            const string c3 = "CREATE INDEX pipe_uid IF NOT EXISTS FOR (p:Pipe) ON (p.uid)";
             const string c4 = "CREATE CONSTRAINT ps_guid IF NOT EXISTS FOR (ps:ProvisionalSpace) REQUIRE ps.guid IS UNIQUE";
             await using var session = _driver.AsyncSession();
             await session.ExecuteWriteAsync(async tx =>
@@ -519,7 +519,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("d.createdBy = coalesce(d.createdBy,$user)");
             setParts.Add("d.createdAt = coalesce(d.createdAt,$created)");
             setParts.Add("d.lastModifiedUtc = datetime($modified)");
-            string cypher = $"MERGE (d:Door {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN d";
+            string cypher = $"CREATE (d:Door {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN d";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
@@ -595,7 +595,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("w.createdBy = coalesce(w.createdBy,$user)");
             setParts.Add("w.createdAt = coalesce(w.createdAt,$created)");
             setParts.Add("w.lastModifiedUtc = datetime($modified)");
-            string cypher = $"MERGE (w:Wall {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN w";
+            string cypher = $"CREATE (w:Wall {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN w";
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
             await tx.RunAsync(cypher, args).ConfigureAwait(false);
@@ -616,7 +616,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("p.createdBy = coalesce(p.createdBy,$user)");
             setParts.Add("p.createdAt = coalesce(p.createdAt,$created)");
             setParts.Add("p.lastModifiedUtc = datetime($modified)");
-            string cypher = $"MERGE (p:Pipe {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN p";
+            string cypher = $"CREATE (p:Pipe {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN p";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);

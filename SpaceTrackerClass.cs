@@ -337,11 +337,11 @@ namespace SpaceTracker
         private static void RegisterGlobalExceptionHandlers()
         {
             SolibriProcessManager.Port = SolibriApiPort;
-             AppDomain.CurrentDomain.UnhandledException += (s, e) =>
-            {
-                if (e.ExceptionObject is Exception ex)
-                    Logger.LogCrash("Unhandled", ex);
-            };
+            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+           {
+               if (e.ExceptionObject is Exception ex)
+                   Logger.LogCrash("Unhandled", ex);
+           };
             TaskScheduler.UnobservedTaskException += (s, e) =>
             {
                 Logger.LogCrash("UnobservedTask", e.Exception);
@@ -694,7 +694,9 @@ namespace SpaceTracker
 
                         foreach (var s in SessionManager.OpenSessions.Values)
                         {
-                            await s.Puller.PullRemoteChanges(s.Document, user).ConfigureAwait(false);
+                            // schedule a pull for every open session so all users
+                            // stay in sync after a change was pushed
+                            s.Puller.RequestPull(s.Document, user);
                         }
 
                         var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
@@ -709,7 +711,8 @@ namespace SpaceTracker
 
                 foreach (var s in SessionManager.OpenSessions.Values)
                 {
-                    PullCommand.RunPull(s.Document, showDialog: false);
+                    // trigger pull command via external event to keep sessions in sync
+                    _pullEventHandler?.RequestPull(s.Document);
                 }
             }
             catch (Exception ex)

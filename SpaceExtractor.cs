@@ -565,7 +565,7 @@ namespace SpaceTracker
                 ProcessPipe(pipe, doc);
             }
         }
-          private void CheckBoundingPipe(MEPCurve pipe, Document doc)
+        private void CheckBoundingPipe(MEPCurve pipe, Document doc)
         {
             BoundingBoxXYZ bbPipe = pipe.get_BoundingBox(null);
             if (bbPipe == null) return;
@@ -598,7 +598,7 @@ namespace SpaceTracker
             }
         }
 
-        private void CheckBoundingForAllPipes(Document doc)
+        public void CheckBoundingForAllPipes(Document doc)
         {
             var catFilter = new LogicalOrFilter(new List<ElementFilter>
             {
@@ -614,6 +614,54 @@ namespace SpaceTracker
             {
                 CheckBoundingPipe(pipe, doc);
             }
+        }
+
+        // Ermittelt alle Rohr/ProvisionalSpace-Paare deren Bounding Box
+        // vollständig enthalten ist. Gedacht für Situationen, in denen nur
+        // die Beziehungen benötigt werden, z.B. beim PushCommand.
+        public List<(string PipeUid, string ProvGuid)> GetPipeProvisionalSpaceRelations(Document doc)
+        {
+            var result = new List<(string PipeUid, string ProvGuid)>();
+
+            var catFilter = new LogicalOrFilter(new List<ElementFilter>
+            {
+                new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
+                new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments)
+            });
+
+            var pipes = new FilteredElementCollector(doc)
+                .WherePasses(catFilter)
+                .OfClass(typeof(MEPCurve))
+                .Cast<MEPCurve>();
+
+            var psCollector = new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_GenericModel)
+                .OfClass(typeof(FamilyInstance))
+                .Cast<FamilyInstance>()
+                .Where(ParameterUtils.IsProvisionalSpace)
+                .ToList();
+
+            foreach (var pipe in pipes)
+            {
+                BoundingBoxXYZ bbPipe = pipe.get_BoundingBox(null);
+                if (bbPipe == null) continue;
+
+                foreach (var ps in psCollector)
+                {
+                    BoundingBoxXYZ bbPs = ps.get_BoundingBox(null);
+                    if (bbPs == null) continue;
+
+                    bool contained =
+                        bbPipe.Min.X >= bbPs.Min.X && bbPipe.Max.X <= bbPs.Max.X &&
+                        bbPipe.Min.Y >= bbPs.Min.Y && bbPipe.Max.Y <= bbPs.Max.Y &&
+                        bbPipe.Min.Z >= bbPs.Min.Z && bbPipe.Max.Z <= bbPs.Max.Z;
+
+                    if (contained)
+                        result.Add((pipe.UniqueId, ps.UniqueId));
+                }
+            }
+
+            return result;
         }
 
         /// <summary>

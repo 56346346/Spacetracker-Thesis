@@ -82,11 +82,18 @@ public class PushCommand : IExternalCommand
             provData.Add(data);
         }
 
+        // Bounding Box auswerten um Rohr/ProvisionalSpace-Beziehungen zu finden
+        var extractor = new SpaceExtractor(CommandManager.Instance);
+        var relations = extractor.GetPipeProvisionalSpaceRelations(doc);
+
+
         // Asynchron in Neo4j schreiben
         _ = Task.Run(() => PushWallsAsync(wallData, connector));
         _ = Task.Run(() => PushDoorsAsync(doorData, connector));
         _ = Task.Run(() => PushPipesAsync(pipeData, connector));
         _ = Task.Run(() => PushProvisionalSpacesAsync(provData, connector));
+        _ = Task.Run(() => LinkPipeProvisionalSpacesAsync(relations, connector));
+
         return Result.Succeeded;
     }
     private static async Task PushWallsAsync(List<Dictionary<string, object>> wallData, Neo4jConnector connector)
@@ -208,5 +215,35 @@ public class PushCommand : IExternalCommand
 
         await Task.WhenAll(tasks);
         Logger.LogToFile("PushProvisionalSpacesAsync completed", "concurrency.log");
+    }
+
+    private static async Task LinkPipeProvisionalSpacesAsync(List<(string PipeUid, string ProvGuid)> relations, Neo4jConnector connector)
+    {
+        Logger.LogToFile($"LinkPipeProvisionalSpacesAsync start ({relations.Count} links)", "concurrency.log");
+        var tasks = new List<Task>();
+        using var semaphore = new SemaphoreSlim(4);
+
+        foreach (var rel in relations)
+        {
+            await semaphore.WaitAsync();
+            tasks.Add(Task.Run(async () =>
+            {
+                try
+                {
+                    await connector.LinkPipeToProvisionalSpaceAsync(rel.PipeUid, rel.ProvGuid).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("LinkPipeProvisionalSpace", ex);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }));
+        }
+
+        await Task.WhenAll(tasks);
+        Logger.LogToFile("LinkPipeProvisionalSpacesAsync completed", "concurrency.log");
     }
 }

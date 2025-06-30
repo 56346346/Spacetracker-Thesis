@@ -137,6 +137,8 @@ public static class RevitElementBuilder
         if (node.TryGetValue("diameter", out var d))
             pipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)?.Set(UnitConversion.ToFt(Convert.ToDouble(d)));
         ParameterUtils.ApplyParameters(pipe, node);
+        if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid)
+            ParameterUtils.SetNeo4jUid(pipe, uid);
         return pipe;
     }
     // Erstellt ein FamilyInstance-Element (z.B. Tür oder ProvisionalSpace).
@@ -187,6 +189,8 @@ public static class RevitElementBuilder
             fi.get_Parameter(BuiltInParameter.DOOR_WIDTH)?.Set(UnitConversion.ToFt(Convert.ToDouble(w)));
         if (node.TryGetValue("height", out var h))
             fi.get_Parameter(BuiltInParameter.DOOR_HEIGHT)?.Set(UnitConversion.ToFt(Convert.ToDouble(h)));
+        if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid)
+            ParameterUtils.SetNeo4jUid(fi, uid);
         return fi;
     }
     // Interne Variante für Node-Objekte.
@@ -294,6 +298,8 @@ public static class RevitElementBuilder
             var lc = pipe.Location as LocationCurve;
             if (lc != null)
                 lc.Curve = Line.CreateBound(s, e);
+            ParameterUtils.SetNeo4jUid(pipe, uid);
+
         }
         else
         {
@@ -307,6 +313,8 @@ public static class RevitElementBuilder
                 new ElementId((long)node.Properties["levelId"].As<long>()),
                 line.GetEndPoint(0), line.GetEndPoint(1));
             newPipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)?.Set(diam);
+            ParameterUtils.SetNeo4jUid(newPipe, uid);
+
         }
     }
 
@@ -354,6 +362,8 @@ public static class RevitElementBuilder
 
         var dict = node.Properties.ToDictionary(k => k.Key, k => (object)k.Value);
         ParameterUtils.ApplyParameters(fi, dict);
+        ParameterUtils.SetNeo4jUid(fi, uid);
+
     }
     // Legt einen ProvisionalSpace im Modell an.
     private static void BuildProvisionalSpace(Document doc, INode node)
