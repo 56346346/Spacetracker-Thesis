@@ -183,6 +183,42 @@ namespace SpaceTracker
                 throw;
             }
         }
+
+
+        // Entfernt gelöschte Komponenten aus dem Modell in Solibri.
+        public async Task DeleteComponentsAsync(string modelId, IEnumerable<string> guids)
+        {
+            if (string.IsNullOrWhiteSpace(modelId))
+                throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
+            if (guids == null)
+                throw new ArgumentNullException(nameof(guids));
+
+            SolibriProcessManager.EnsureStarted();
+            if (!await PingAsync().ConfigureAwait(false))
+                throw new Exception("Solibri REST API nicht erreichbar");
+
+            try
+            {
+                Logger.LogToFile($"Lösche {guids.Count()} Komponenten in Modell {modelId}");
+                using var response = await Http.PostAsJsonAsync($"{_baseUrl}/models/{modelId}/deleteComponents", guids).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
+            {
+                Logger.LogCrash("Solibri Delete Components", ex);
+                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
+            }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogCrash("Solibri Delete Components", ex);
+                throw new Exception($"Fehler beim Löschen von Komponenten: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Solibri Delete Components", ex);
+                throw;
+            }
+        }
         // Exportiert die BCF-Ergebnisse eines Modells in ein Verzeichnis.
         public async Task<string> ExportBcfAsync(string modelId, string outDirectory)
         {
@@ -310,7 +346,7 @@ namespace SpaceTracker
             return false;
 
         }
-        
+
         // Kopiert die angegebene Ruleset-Datei in den lokalen Solibri-Ordner.
         public string InstallRulesetLocally(string csetFilePath)
         {

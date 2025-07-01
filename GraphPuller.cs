@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Plumbing;
+using System.Linq;
 using Autodesk.Revit.UI;
 using Neo4j.Driver;
 

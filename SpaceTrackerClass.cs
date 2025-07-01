@@ -42,7 +42,6 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
         private PullEventHandler _pullEventHandler;
-        private ChangeMonitor _changeMonitor;
         public const int SolibriApiPort = 10876;
 
 
@@ -196,7 +195,6 @@ namespace SpaceTracker
                 _graphPuller = new GraphPuller(_neo4jConnector);
                 _cmdManager = CommandManager.Instance;
                 _pullEventHandler = new PullEventHandler();
-                _changeMonitor = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
             }
             catch (Exception ex)
             {
@@ -279,7 +277,10 @@ namespace SpaceTracker
                 {
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
                     _databaseUpdateHandler.TriggerPush();
-                    _changeMonitor?.Start(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId);
+                    var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
+                    mon.Start(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId);
+                    string key = uiApp.ActiveUIDocument.Document.PathName ?? uiApp.ActiveUIDocument.Document.Title;
+                    SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document, _graphPuller, mon));
                 }
 
                 Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
@@ -546,7 +547,8 @@ namespace SpaceTracker
                 {
                     AddedElements = elements,
                     ModifiedElements = new List<Element>(),
-                    DeletedElementIds = new List<ElementId>()
+                    DeletedElementIds = new List<ElementId>(),
+                    DeletedUids = new List<string>()
                 };
                 _databaseUpdateHandler.EnqueueChange(changeData);
             }
@@ -564,14 +566,20 @@ namespace SpaceTracker
             foreach (var element in addedElements.Concat(modifiedElements))
             {
                 var el = element;
-                if (!_elementCache.TryGetValue(el.Id, out _))
+                if (!_elementCache.TryGetValue(el.Id, out var meta))
                 {
                     _elementCache[el.Id] = new ElementMetadata
                     {
                         Id = el.Id,
                         Type = el.GetType().Name,
-                        Name = el.Name ?? "Unnamed"
+                        Name = el.Name ?? "Unnamed",
+                        Uid = ParameterUtils.GetNeo4jUid(el)
                     };
+                }
+                else
+                {
+                    meta.Name = el.Name ?? meta.Name;
+                    meta.Uid = ParameterUtils.GetNeo4jUid(el);
                 }
             }
             foreach (var delId in deletedIds)
@@ -602,10 +610,23 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentChanged -= documentChanged;
             application.ControlledApplication.DocumentCreated -= documentCreated;
             _neo4jConnector?.Dispose();
-            _changeMonitor?.Dispose();
+            foreach (var s in SessionManager.OpenSessions.Values)
+                s.Monitor.Dispose();
             return Result.Succeeded;
 
         }
+
+        /// <summary>
+        /// Triggers a pull of the latest changes for all open sessions.
+        /// </summary>
+        private void PullChanges()
+        {
+            foreach (var s in SessionManager.OpenSessions.Values)
+            {
+                _pullEventHandler?.RequestPull(s.Document);
+            }
+        }
+
 
         #endregion
 
@@ -632,6 +653,10 @@ namespace SpaceTracker
                 // 2. Änderungen identifizieren
                 var addedIds = e.GetAddedElementIds(filter);
                 var deletedIds = e.GetDeletedElementIds();
+                var deletedUids = deletedIds
+                   .Select(id => _elementCache.TryGetValue(id, out var meta) ? meta.Uid : null)
+                   .Where(uid => !string.IsNullOrEmpty(uid))
+                   .ToList();
                 var modifiedIds = e.GetModifiedElementIds(filter);
 
                 // 3. Early Exit bei keinen relevanten Änderungen
@@ -657,6 +682,7 @@ namespace SpaceTracker
                 {
                     AddedElements = addedElements,
                     DeletedElementIds = deletedIds.ToList(),
+                    DeletedUids = deletedUids,
                     ModifiedElements = modifiedElements
                 };
 
@@ -666,9 +692,10 @@ namespace SpaceTracker
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
                 _databaseUpdateHandler.TriggerPush();
                 _graphPuller?.RequestPull(doc, Environment.UserName);
-                _pullEventHandler?.RequestPull(doc);
-                _changeMonitor?.UpdateDocument(doc);
-
+                PullChanges();
+                string key = doc.PathName ?? doc.Title;
+                if (SessionManager.OpenSessions.TryGetValue(key, out var s))
+                    s.Monitor.UpdateDocument(doc);
 
                 _ = Task.Run(async () =>
                 {
@@ -692,12 +719,8 @@ namespace SpaceTracker
                             await _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, session, user).ConfigureAwait(false);
                         }
 
-                        foreach (var s in SessionManager.OpenSessions.Values)
-                        {
-                            // schedule a pull for every open session so all users
-                            // stay in sync after a change was pushed
-                            s.Puller.RequestPull(s.Document, user);
-                        }
+                        PullChanges();
+
 
                         var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
                         foreach (var cid in ids)
@@ -732,10 +755,11 @@ namespace SpaceTracker
                 // Nach dem Initialisieren bereits vorhandener Elemente direkt
                 // die aktuellen Befehle an Neo4j senden
                 _databaseUpdateHandler.TriggerPush();
-                _pullEventHandler?.RequestPull(e.Document);
-                _changeMonitor?.Start(e.Document, CommandManager.Instance.SessionId);
+                PullChanges();
+                var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
+                mon.Start(e.Document, CommandManager.Instance.SessionId);
                 string key = e.Document.PathName ?? e.Document.Title;
-                SessionManager.AddSession(key, new Session(e.Document, _graphPuller));
+                SessionManager.AddSession(key, new Session(e.Document, _graphPuller, mon));
             }
             catch (Exception ex)
             {
@@ -797,10 +821,11 @@ namespace SpaceTracker
                     }
                     // After loading the model trigger a pull to ensure latest changes
                     _graphPuller?.RequestPull(doc, Environment.UserName);
-                    _pullEventHandler?.RequestPull(doc);
-                    _changeMonitor?.Start(doc, CommandManager.Instance.SessionId);
+                    PullChanges();
+                    var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
+                    mon.Start(doc, CommandManager.Instance.SessionId);
                     string key = doc.PathName ?? doc.Title;
-                    SessionManager.AddSession(key, new Session(doc, _graphPuller));
+                    SessionManager.AddSession(key, new Session(doc, _graphPuller, mon));
                 }
             }
             catch (Exception ex)

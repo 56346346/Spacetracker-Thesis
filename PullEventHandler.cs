@@ -31,7 +31,7 @@ namespace SpaceTracker
                 return;
             try
             {
-                PullCommand.RunPull(_doc, showDialog: false);
+                PullCommand.PullChanges(_doc);
             }
             catch (Exception ex)
             {

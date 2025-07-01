@@ -64,6 +64,12 @@ namespace SpaceTracker
                     .Distinct()
                     .ToList();
 
+                var removedGuids = processedChanges
+               .SelectMany(c => c.DeletedUids)
+               .Distinct()
+               .ToList();
+
+
                 // Beispiel: für Räume angrenzende Wände ergänzen
                 foreach (var change in processedChanges)
                 {
@@ -101,6 +107,8 @@ namespace SpaceTracker
                               .ConfigureAwait(false);
                       }
                       await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
+                      if (removedGuids.Count > 0)
+                          await _solibriClient.DeleteComponentsAsync(modelId, removedGuids).ConfigureAwait(false);
                       await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
                       bool done = await _solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5)).ConfigureAwait(false);
                       if (!done)
@@ -273,6 +281,8 @@ namespace SpaceTracker
     {
         public List<Element> AddedElements { get; set; } = new List<Element>();
         public List<ElementId> DeletedElementIds { get; set; } = new List<ElementId>();
+        public List<string> DeletedUids { get; set; } = new List<string>();
+
         public List<Element> ModifiedElements { get; set; } = new List<Element>();
     }
 

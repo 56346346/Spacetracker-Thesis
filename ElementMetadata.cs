@@ -9,5 +9,8 @@ namespace SpaceTracker
         public ElementId Id { get; set; }
         public string Type { get; set; }
         public string Name { get; set; }
+
+        public string Uid { get; set; } = string.Empty;
+
     }
 }
