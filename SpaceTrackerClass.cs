@@ -697,41 +697,36 @@ namespace SpaceTracker
                 if (SessionManager.OpenSessions.TryGetValue(key, out var session))
                     session.Monitor.UpdateDocument(doc);
 
-                _ = Task.Run(async () =>
+                try
                 {
-                    try
+                    string user = Environment.UserName;
+                    string sessionId = CommandManager.Instance.SessionId;
+                    foreach (var el in addedElements)
                     {
-                        string user = Environment.UserName;
-                        string session = CommandManager.Instance.SessionId;
-                        foreach (var el in addedElements)
-                        {
-                            await _neo4jConnector.UpsertNodeAsync(el).ConfigureAwait(false);
-                            await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, session, user).ConfigureAwait(false);
-                        }
-                        foreach (var el in modifiedElements)
-                        {
-                            await _neo4jConnector.UpsertNodeAsync(el).ConfigureAwait(false);
-                            await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, session, user).ConfigureAwait(false);
-                        }
-                        foreach (var id in deletedIds)
-                        {
-                            await _neo4jConnector.DeleteNodeAsync(id).ConfigureAwait(false);
-                            await _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, session, user).ConfigureAwait(false);
-                        }
-
-                        PullChanges();
-
-
-                        var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
-                        foreach (var cid in ids)
-                            await SolibriChecker.CheckElementAsync(cid, doc).ConfigureAwait(false);
+                        _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
+                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId, user).GetAwaiter().GetResult();
                     }
-                    catch (Exception ex)
+                    foreach (var el in modifiedElements)
                     {
-                        Logger.LogCrash("RealtimeSync", ex);
+                        _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
+                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId, user).GetAwaiter().GetResult();
                     }
-                });
+                    foreach (var id in deletedIds)
+                    {
+                        _neo4jConnector.DeleteNodeAsync(id).GetAwaiter().GetResult();
+                        _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId, user).GetAwaiter().GetResult();
+                    }
 
+                    PullChanges();
+
+                    var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
+                    foreach (var cid in ids)
+                        SolibriChecker.CheckElementAsync(cid, doc).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("RealtimeSync", ex);
+                }
                 foreach (var openSession in SessionManager.OpenSessions.Values)
                 {
                     // trigger pull command via external event to keep sessions in sync

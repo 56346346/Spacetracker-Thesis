@@ -519,7 +519,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("d.createdBy = coalesce(d.createdBy,$user)");
             setParts.Add("d.createdAt = coalesce(d.createdAt,$created)");
             setParts.Add("d.lastModifiedUtc = datetime($modified)");
-            string cypher = $"CREATE (d:Door {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN d";
+            string cypher = $"MERGE (d:Door {{uid:$uid}}) SET {string.Join(", ", setParts)}";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
@@ -595,7 +595,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("w.createdBy = coalesce(w.createdBy,$user)");
             setParts.Add("w.createdAt = coalesce(w.createdAt,$created)");
             setParts.Add("w.lastModifiedUtc = datetime($modified)");
-            string cypher = $"CREATE (w:Wall {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN w";
+            string cypher = $"MERGE (w:Wall {{uid:$uid}}) SET {string.Join(", ", setParts)}";
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
             await tx.RunAsync(cypher, args).ConfigureAwait(false);
@@ -616,7 +616,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("p.createdBy = coalesce(p.createdBy,$user)");
             setParts.Add("p.createdAt = coalesce(p.createdAt,$created)");
             setParts.Add("p.lastModifiedUtc = datetime($modified)");
-            string cypher = $"CREATE (p:Pipe {{uid:$uid}}) SET {string.Join(", ", setParts)} RETURN p";
+            string cypher = $"MERGE (p:Pipe {{uid:$uid}}) SET {string.Join(", ", setParts)}";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
