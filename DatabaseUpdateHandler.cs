@@ -106,7 +106,8 @@ namespace SpaceTracker
                               .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
                               .ConfigureAwait(false);
                       }
-                      await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
+                      modelId = await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
+                      SpaceTrackerClass.SolibriModelUUID = modelId;
                       if (removedGuids.Count > 0)
                           await _solibriClient.DeleteComponentsAsync(modelId, removedGuids).ConfigureAwait(false);
                       await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);

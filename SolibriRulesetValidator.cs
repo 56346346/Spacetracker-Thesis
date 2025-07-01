@@ -56,7 +56,8 @@ namespace SpaceTracker
                       .GetAwaiter().GetResult();
                 }
 
-                client.PartialUpdateAsync(modelId, ifcPath).GetAwaiter().GetResult();
+                modelId = client.PartialUpdateAsync(modelId, ifcPath).GetAwaiter().GetResult();
+                SpaceTrackerClass.SolibriModelUUID = modelId;
                 client.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).GetAwaiter().GetResult();
                 bool done = client.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5)).GetAwaiter().GetResult();
                 if (!done)

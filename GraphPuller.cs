@@ -69,17 +69,36 @@ public class GraphPuller : IExternalEventHandler
         var doors = await _connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
         var pipes = await _connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
         var provisionalSpaces = await _connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-      Debug.WriteLine($"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces");
 
+        var validDoorTypes = new HashSet<ElementId>(new FilteredElementCollector(doc)
+            .OfCategory(BuiltInCategory.OST_Doors)
+            .OfClass(typeof(FamilySymbol))
+            .Select(fs => fs.Id));
+        doors = doors
+            .Where(d => validDoorTypes.Contains(new ElementId((int)d.TypeId)))
+            .ToList();
+
+        var validPipeTypes = new HashSet<ElementId>(new FilteredElementCollector(doc)
+            .OfClass(typeof(PipeType))
+            .Select(pt => pt.Id));
+        pipes = pipes
+            .Where(p => validPipeTypes.Contains(new ElementId((int)p.TypeId)))
+            .ToList();
+
+        provisionalSpaces = provisionalSpaces
+            .Where(ps => ParameterUtils.IsProvisionalSpace(ps.ToDictionary()))
+            .ToList();
+
+        Debug.WriteLine($"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces");
         using var tx = new Transaction(doc, "Auto Sync");
         tx.Start();
- 
-             foreach (var w in walls)
-            {
+
+        foreach (var w in walls)
+        {
             Debug.WriteLine($"Build wall {w.ElementId}");
             RevitElementBuilder.BuildFromNode(doc, w.ToDictionary());
         }
-                doc.Regenerate();
+        doc.Regenerate();
         foreach (var d in doors)
         {
             Debug.WriteLine($"Build door {d.ElementId}");

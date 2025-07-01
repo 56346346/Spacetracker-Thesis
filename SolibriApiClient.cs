@@ -147,8 +147,10 @@ namespace SpaceTracker
                 throw;
             }
         }
-        // Aktualisiert nur einen Teil des Modells in Solibri.
-        public async Task PartialUpdateAsync(string modelId, string ifcFilePath)
+        // Aktualisiert nur einen Teil des Modells in Solibri. Sollte das Modell
+        // nicht existieren (404), wird es automatisch neu importiert und die neue
+        // Modell-ID zurueckgegeben.
+        public async Task<string> PartialUpdateAsync(string modelId, string ifcFilePath)
         {
             if (string.IsNullOrWhiteSpace(modelId))
                 throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
@@ -166,7 +168,17 @@ namespace SpaceTracker
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
                 var response = await Http.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content).ConfigureAwait(false);
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    // Modell existiert nicht mehr in Solibri -> neu importieren
+                    Logger.LogToFile($"Model {modelId} not found. Importing new model.", "solibri.log");
+                    string newId = await ImportIfcAsync(ifcFilePath).ConfigureAwait(false);
+                    SpaceTrackerClass.SolibriModelUUID = newId;
+                    return newId;
+                }
                 response.EnsureSuccessStatusCode();
+                return modelId;
+
             }
             catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
             {

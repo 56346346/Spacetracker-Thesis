@@ -50,9 +50,12 @@ namespace SpaceTracker
         private SpaceExtractor _extractor;
         private CommandManager _cmdManager;
 
-
-        public const string SolibriModelUUID = "441081f9-7562-4a10-8d2e-7dd3add07eee";
-        public const string SolibriRulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
+        // Holds the currently loaded Solibri model UUID. This is initialized
+        // with the default value but may change if Solibri creates a new model
+        // (e.g. when the existing one was removed).
+        // Wird erst beim initialen Import gesetzt und danach bei jeder
+        // Prüfung aktualisiert.
+        public static string SolibriModelUUID = string.Empty; public const string SolibriRulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
         public static string SolibriRulesetId;
 
         public static PushButton StatusIndicatorButton;
@@ -281,6 +284,8 @@ namespace SpaceTracker
                     mon.Start(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId);
                     string key = uiApp.ActiveUIDocument.Document.PathName ?? uiApp.ActiveUIDocument.Document.Title;
                     SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document, _graphPuller, mon));
+                    ImportInitialSolibriModel(uiApp.ActiveUIDocument.Document);
+
                 }
 
                 Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
@@ -627,6 +632,42 @@ namespace SpaceTracker
             }
         }
 
+        // Exportiert das gesamte aktuelle Modell nach IFC und importiert es in
+        // Solibri, wenn noch kein Modell geladen wurde.
+        private void ImportInitialSolibriModel(Document doc)
+        {
+            try
+            {
+                if (doc == null || doc.IsLinked)
+                    return;
+
+                if (!string.IsNullOrEmpty(SolibriModelUUID))
+                    return;
+
+                var allIds = new FilteredElementCollector(doc)
+                    .WhereElementIsNotElementType()
+                    .Select(e => e.Id)
+                    .ToList();
+
+                string ifcPath = _extractor.ExportIfcSubset(doc, allIds);
+                var client = new SolibriApiClient(SolibriApiPort);
+
+                if (string.IsNullOrEmpty(SolibriRulesetId))
+                    SolibriRulesetId = client
+                        .ImportRulesetAsync(SolibriRulesetPath)
+                        .GetAwaiter().GetResult();
+
+                SolibriModelUUID = client
+                    .ImportIfcAsync(ifcPath)
+                    .GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Solibri Initial Import", ex);
+            }
+        }
+
+
 
         #endregion
 
@@ -755,6 +796,8 @@ namespace SpaceTracker
                 mon.Start(e.Document, CommandManager.Instance.SessionId);
                 string key = e.Document.PathName ?? e.Document.Title;
                 SessionManager.AddSession(key, new Session(e.Document, _graphPuller, mon));
+                ImportInitialSolibriModel(e.Document);
+
             }
             catch (Exception ex)
             {
@@ -803,6 +846,7 @@ namespace SpaceTracker
                             var errs = SolibriRulesetValidator.Validate(doc);
                             var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                             SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
+
                         }
                         catch (Exception ex)
                         {
@@ -821,6 +865,8 @@ namespace SpaceTracker
                     mon.Start(doc, CommandManager.Instance.SessionId);
                     string key = doc.PathName ?? doc.Title;
                     SessionManager.AddSession(key, new Session(doc, _graphPuller, mon));
+                    ImportInitialSolibriModel(doc);
+
                 }
             }
             catch (Exception ex)
