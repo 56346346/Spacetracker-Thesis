@@ -74,19 +74,25 @@ namespace SpaceTracker
 
         public async Task EnsureSolibriReadyAsync(CancellationToken ct)
         {
-            await _client.GetStringAsync("/ping", ct).ConfigureAwait(false);
-            while ((await _client.GetFromJsonAsync<Status>("/status", ct).ConfigureAwait(false))?.Busy == true)
+            await SendWithRetryAsync(() => _client.GetAsync("/ping", ct), "Ping", ct).ConfigureAwait(false);
+            while (true)
+            {
+                var resp = await SendWithRetryAsync(() => _client.GetAsync("/status", ct), "Status", ct).ConfigureAwait(false);
+                var status = await resp.Content.ReadFromJsonAsync<Status>(cancellationToken: ct).ConfigureAwait(false);
+                if (status?.Busy != true)
+                    break;
                 await Task.Delay(500, ct).ConfigureAwait(false);
+            }
         }
 
         public async Task<string> UploadIfcAsync(Stream ifcStream, string name, bool partial, CancellationToken ct)
         {
             var url = partial ? $"/models/{_modelUuid}/partialUpdate" : $"/models?name={name}";
             using var content = new StreamContent(ifcStream);
-            var resp = partial
-                ? await _client.PutAsync(url, content, ct).ConfigureAwait(false)
-                : await _client.PostAsync(url, content, ct).ConfigureAwait(false);
-            resp.EnsureSuccessStatusCode();
+            HttpResponseMessage resp = await SendWithRetryAsync(
+             () => partial ? _client.PutAsync(url, content, ct) : _client.PostAsync(url, content, ct),
+             "Upload IFC",
+             ct).ConfigureAwait(false);
             if (!partial)
             {
                 var model = await resp.Content.ReadFromJsonAsync<ModelInfo>(cancellationToken: ct).ConfigureAwait(false);
@@ -97,13 +103,14 @@ namespace SpaceTracker
 
         public async Task DeleteComponentsAsync(string modelUuid, IEnumerable<string> guids, CancellationToken ct)
         {
-            await _client.PostAsJsonAsync($"/models/{modelUuid}/deleteComponents", guids, ct).ConfigureAwait(false);
+            await SendWithRetryAsync(() => _client.PostAsJsonAsync($"/models/{modelUuid}/deleteComponents", guids, ct), "Delete Components", ct).ConfigureAwait(false);
         }
 
         public async Task<string> GetBcfAsync(string modelUuid, string version = "two", string scope = "all", CancellationToken ct = default)
         {
             var url = $"/bcfxml/{version}?scope={scope}";
-            return await _client.GetStringAsync(url, ct).ConfigureAwait(false);
+            var resp = await SendWithRetryAsync(() => _client.GetAsync(url, ct), "Get BCF", ct).ConfigureAwait(false);
+            return await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         }
 
         public async Task ValidateChangesAsync(Stream ifcStream, IEnumerable<string> removedGuids, string name, CancellationToken ct)
@@ -154,12 +161,39 @@ namespace SpaceTracker
 
         public async Task SelectComponentsAsync(IEnumerable<string> guids, CancellationToken ct)
         {
-            await _client.PostAsJsonAsync("/selectionBasket", guids, ct).ConfigureAwait(false);
+            await SendWithRetryAsync(() => _client.PostAsJsonAsync("/selectionBasket", guids, ct), "Select Components", ct).ConfigureAwait(false);
         }
+
+        private async Task<HttpResponseMessage> SendWithRetryAsync(Func<Task<HttpResponseMessage>> sender, string label, CancellationToken ct, int retries = 3)
+        {
+            for (int attempt = 1; attempt <= retries; attempt++)
+            {
+                try
+                {
+                    var resp = await sender().ConfigureAwait(false);
+                    if ((int)resp.StatusCode >= 500 && attempt < retries)
+                    {
+                        Logger.LogToFile($"{label} returned {resp.StatusCode}, retry {attempt}", "solibri.log");
+                        await Task.Delay(1000 * attempt, ct).ConfigureAwait(false);
+                        continue;
+                    }
+                    resp.EnsureSuccessStatusCode();
+                    return resp;
+                }
+                catch (HttpRequestException ex) when (attempt < retries)
+                {
+                    Logger.LogToFile($"HTTP error on {label}: {ex.Message}, retry {attempt}", "solibri.log");
+                    await Task.Delay(1000 * attempt, ct).ConfigureAwait(false);
+                }
+            }
+            throw new Exception($"{label} failed after {retries} attempts");
+        }
+
 
         public async Task<string> GetInfoAsync(string guid, CancellationToken ct)
         {
-            return await _client.GetStringAsync($"/info/{guid}", ct).ConfigureAwait(false);
+            var resp = await SendWithRetryAsync(() => _client.GetAsync($"/info/{guid}", ct), "Get Info", ct).ConfigureAwait(false);
+            return await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         }
     }
 }

@@ -610,8 +610,8 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentChanged -= documentChanged;
             application.ControlledApplication.DocumentCreated -= documentCreated;
             _neo4jConnector?.Dispose();
-            foreach (var s in SessionManager.OpenSessions.Values)
-                s.Monitor.Dispose();
+            foreach (var openSession in SessionManager.OpenSessions.Values)
+                openSession.Monitor.Dispose();
             return Result.Succeeded;
 
         }
@@ -621,9 +621,9 @@ namespace SpaceTracker
         /// </summary>
         private void PullChanges()
         {
-            foreach (var s in SessionManager.OpenSessions.Values)
+            foreach (var openSession in SessionManager.OpenSessions.Values)
             {
-                _pullEventHandler?.RequestPull(s.Document);
+                _pullEventHandler?.RequestPull(openSession.Document);
             }
         }
 
@@ -694,8 +694,8 @@ namespace SpaceTracker
                 _graphPuller?.RequestPull(doc, Environment.UserName);
                 PullChanges();
                 string key = doc.PathName ?? doc.Title;
-                if (SessionManager.OpenSessions.TryGetValue(key, out var s))
-                    s.Monitor.UpdateDocument(doc);
+                if (SessionManager.OpenSessions.TryGetValue(key, out var session))
+                    session.Monitor.UpdateDocument(doc);
 
                 _ = Task.Run(async () =>
                 {
@@ -732,10 +732,10 @@ namespace SpaceTracker
                     }
                 });
 
-                foreach (var s in SessionManager.OpenSessions.Values)
+                foreach (var openSession in SessionManager.OpenSessions.Values)
                 {
                     // trigger pull command via external event to keep sessions in sync
-                    _pullEventHandler?.RequestPull(s.Document);
+                    _pullEventHandler?.RequestPull(openSession.Document);
                 }
             }
             catch (Exception ex)
