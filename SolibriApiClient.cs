@@ -147,13 +147,18 @@ namespace SpaceTracker
                 throw;
             }
         }
-        // Aktualisiert nur einen Teil des Modells in Solibri. Sollte das Modell
-        // nicht existieren (404), wird es automatisch neu importiert und die neue
-        // Modell-ID zurueckgegeben.
+        // Aktualisiert nur einen Teil des Modells in Solibri. Ist keine Modell-
+        // ID vorhanden oder liefert die REST API einen 404, wird das IFC-Modell
+        // neu importiert und die neue Modell-ID zurückgegeben.
         public async Task<string> PartialUpdateAsync(string modelId, string ifcFilePath)
         {
             if (string.IsNullOrWhiteSpace(modelId))
-                throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
+            {
+                Logger.LogToFile(
+                    "Model ID empty. Importing IFC model before partial update.",
+                    "solibri.log");
+                return await ImportIfcAsync(ifcFilePath).ConfigureAwait(false);
+            }
             if (string.IsNullOrWhiteSpace(ifcFilePath))
                 throw new ArgumentException("Pfad zur IFC-Datei darf nicht leer sein.", nameof(ifcFilePath));
             SolibriProcessManager.EnsureStarted();
@@ -188,13 +193,11 @@ namespace SpaceTracker
             catch (HttpRequestException ex)
             {
                 Logger.LogCrash("Solibri Partial Update", ex);
-
                 throw new Exception($"Fehler beim partiellen Update des IFC-Modells: {ex.Message}", ex);
             }
             catch (Exception ex)
             {
                 Logger.LogCrash("Solibri Partial Update", ex);
-
                 throw;
             }
         }

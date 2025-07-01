@@ -87,13 +87,19 @@ public class PushCommand : IExternalCommand
         var relations = extractor.GetPipeProvisionalSpaceRelations(doc);
 
 
-        // Asynchron in Neo4j schreiben
-        _ = Task.Run(() => PushWallsAsync(wallData, connector));
-        _ = Task.Run(() => PushDoorsAsync(doorData, connector));
-        _ = Task.Run(() => PushPipesAsync(pipeData, connector));
-        _ = Task.Run(() => PushProvisionalSpacesAsync(provData, connector));
-        _ = Task.Run(() => LinkPipeProvisionalSpacesAsync(relations, connector));
+      // Asynchron in Neo4j schreiben. Zuerst alle Knoten aktualisieren,
+        // danach die Beziehungen anlegen, damit die Zielknoten bereits existieren.
+        _ = Task.Run(async () =>
+        {
+            var wallTask = PushWallsAsync(wallData, connector);
+            var doorTask = PushDoorsAsync(doorData, connector);
+            var pipeTask = PushPipesAsync(pipeData, connector);
+            var provTask = PushProvisionalSpacesAsync(provData, connector);
 
+            await Task.WhenAll(wallTask, doorTask, pipeTask, provTask);
+
+            await LinkPipeProvisionalSpacesAsync(relations, connector);
+        });
         return Result.Succeeded;
     }
     private static async Task PushWallsAsync(List<Dictionary<string, object>> wallData, Neo4jConnector connector)
