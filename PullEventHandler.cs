@@ -1,6 +1,7 @@
 using System;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using System.Collections.Concurrent;
 using System.Runtime.Versioning;
 
 namespace SpaceTracker
@@ -8,7 +9,7 @@ namespace SpaceTracker
     [SupportedOSPlatform("windows")]
     public class PullEventHandler : IExternalEventHandler
     {
-        private Document _doc;
+        private readonly System.Collections.Concurrent.ConcurrentQueue<Document> _queue = new();
         private readonly ExternalEvent _event;
 
         public PullEventHandler()
@@ -18,7 +19,7 @@ namespace SpaceTracker
 
         public void RequestPull(Document doc)
         {
-            _doc = doc;
+            _queue.Enqueue(doc);
             if (!_event.IsPending)
                 _event.Raise();
         }
@@ -27,20 +28,20 @@ namespace SpaceTracker
 
         public void Execute(UIApplication app)
         {
-            if (_doc == null)
-                return;
-            try
+            while (_queue.TryDequeue(out var doc))
+
             {
-                PullCommand.PullChanges(_doc);
+                try
+                {
+                    PullCommand.RunPull(doc);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("AutoPull", ex);
+                }
             }
-            catch (Exception ex)
-            {
-                Logger.LogCrash("AutoPull", ex);
-            }
-            finally
-            {
-                _doc = null;
-            }
+              if (!_queue.IsEmpty)
+                _event.Raise();
         }
     }
 }

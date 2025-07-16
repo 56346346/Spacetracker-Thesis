@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
@@ -16,9 +17,9 @@ namespace SpaceTracker;
 public class GraphPuller : IExternalEventHandler
 {
     private readonly Neo4jConnector _connector;
-    private ExternalEvent _event;
-    private Document _doc;
-    private string _userId;
+     private readonly ExternalEvent _event;
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(Document Doc, string UserId)> _queue = new();
+    private bool _pending;
 
 
     // Erzeugt den Puller und registriert ein ExternalEvent
@@ -32,10 +33,13 @@ public class GraphPuller : IExternalEventHandler
 
     public void RequestPull(Document doc, string currentUserId)
     {
-        _doc = doc;
-        _userId = currentUserId;
-        if (!_event.IsPending)
-            _event.Raise();
+                _queue.Enqueue((doc, currentUserId));
+  if (!_pending)
+        {
+            _pending = true;
+            if (!_event.IsPending)
+                _event.Raise();
+        }
     }
     // Name des Events für Debugzwecke.
     public string GetName() => "GraphPuller";
@@ -43,21 +47,20 @@ public class GraphPuller : IExternalEventHandler
 
     public void Execute(UIApplication app)
     {
-        if (_doc == null || string.IsNullOrEmpty(_userId))
-            return;
-        try
+        while (_queue.TryDequeue(out var req))
+
         {
-            PullRemoteChanges(_doc, _userId).GetAwaiter().GetResult();
+            try
+            {
+                PullRemoteChanges(req.Doc, req.UserId).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("GraphPuller", ex);
+            }
         }
-        catch (Exception ex)
-        {
-            Logger.LogCrash("GraphPuller", ex);
-        }
-        finally
-        {
-            _doc = null;
-            _userId = null;
-        }
+          if (!_queue.IsEmpty)
+            _event.Raise();
     }
     // Synchronises all changes since the last pull by querying modified nodes
     // directly instead of relying on change log relationships.

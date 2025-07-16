@@ -582,13 +582,13 @@ namespace SpaceTracker
 
                 BoundingBoxXYZ bbPs = ps.get_BoundingBox(null);
                 if (bbPs == null) continue;
+//muss noch geändert werden, damit richtige logik
+                    bool intersects =
+                    bbPipe.Min.X <= bbPs.Max.X && bbPipe.Max.X >= bbPs.Min.X &&
+                    bbPipe.Min.Y <= bbPs.Max.Y && bbPipe.Max.Y >= bbPs.Min.Y &&
+                    bbPipe.Min.Z <= bbPs.Max.Z && bbPipe.Max.Z >= bbPs.Min.Z;
 
-                bool contained =
-                    bbPipe.Min.X >= bbPs.Min.X && bbPipe.Max.X <= bbPs.Max.X &&
-                    bbPipe.Min.Y >= bbPs.Min.Y && bbPipe.Max.Y <= bbPs.Max.Y &&
-                    bbPipe.Min.Z >= bbPs.Min.Z && bbPipe.Max.Z <= bbPs.Max.Z;
-
-                if (contained)
+                if (intersects)
                 {
                     string cyRel =
                         $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}}), (ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) " +
@@ -618,7 +618,7 @@ namespace SpaceTracker
         }
 
         // Ermittelt alle Rohr/ProvisionalSpace-Paare deren Bounding Box
-        // vollständig enthalten ist. Gedacht für Situationen, in denen nur
+        // sich mit der des ProvisionalSpace schneidet. Gedacht für Situationen,
         // die Beziehungen benötigt werden, z.B. beim PushCommand.
         public List<(string PipeUid, string ProvGuid)> GetPipeProvisionalSpaceRelations(Document doc)
         {
@@ -652,12 +652,12 @@ namespace SpaceTracker
                     BoundingBoxXYZ bbPs = ps.get_BoundingBox(null);
                     if (bbPs == null) continue;
 
-                    bool contained =
-                        bbPipe.Min.X >= bbPs.Min.X && bbPipe.Max.X <= bbPs.Max.X &&
-                        bbPipe.Min.Y >= bbPs.Min.Y && bbPipe.Max.Y <= bbPs.Max.Y &&
-                        bbPipe.Min.Z >= bbPs.Min.Z && bbPipe.Max.Z <= bbPs.Max.Z;
+                     bool intersects =
+                        bbPipe.Min.X <= bbPs.Max.X && bbPipe.Max.X >= bbPs.Min.X &&
+                        bbPipe.Min.Y <= bbPs.Max.Y && bbPipe.Max.Y >= bbPs.Min.Y &&
+                        bbPipe.Min.Z <= bbPs.Max.Z && bbPipe.Max.Z >= bbPs.Min.Z;
 
-                    if (contained)
+                    if (intersects)
                         result.Add((pipe.UniqueId, ps.UniqueId));
                 }
             }

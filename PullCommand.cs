@@ -156,15 +156,6 @@ public class PullCommand : IExternalCommand
         return Result.Succeeded;
     }
 
-     /// <summary>
-    /// Convenience wrapper that performs a pull without showing a dialog.
-    /// </summary>
-    public static Result PullChanges(Document doc)
-    {
-        return RunPull(doc, showDialog: false);
-    }
-
-
     // Importiert neue oder geänderte Wände aus Neo4j in das aktuelle Modell.
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
 
