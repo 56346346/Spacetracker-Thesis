@@ -559,7 +559,7 @@ namespace SpaceTracker
             ctrl.DocumentCreated += documentCreated;
             ctrl.DocumentOpened += documentOpened;
             ctrl.DocumentChanged += documentChanged;
-            ctrl.DocumentClosed += documentClosed;
+            ctrl.DocumentClosing += documentClosing;
         }
         private void InitializeExistingElements(Document doc)
         {
@@ -653,7 +653,7 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentOpened -= documentOpened;
             application.ControlledApplication.DocumentChanged -= documentChanged;
             application.ControlledApplication.DocumentCreated -= documentCreated;
-            application.ControlledApplication.DocumentClosed -= documentClosed;
+            application.ControlledApplication.DocumentClosing -= documentClosing;
             _neo4jConnector?.Dispose();
             foreach (var openSession in SessionManager.OpenSessions.Values)
                 openSession.Monitor.Dispose();
@@ -917,12 +917,12 @@ namespace SpaceTracker
 
         }
 
-        private void documentClosed(object sender, DocumentClosedEventArgs e)
+        private void documentClosing(object sender, DocumentClosingEventArgs e)
         {
             try
             {
                 _databaseUpdateHandler.TriggerPush();
-                string key = e.DocumentPath ?? e.DocumentTitle;
+                string key = e.Document.PathName ?? e.Document.Title;
                 if (SessionManager.OpenSessions.TryGetValue(key, out var session))
                 {
                     session.Monitor.Dispose();
@@ -931,7 +931,7 @@ namespace SpaceTracker
             }
             catch (Exception ex)
             {
-                Logger.LogCrash("DocumentClosed", ex);
+                Logger.LogCrash("DocumentClosing", ex);
             }
         }
 
