@@ -19,7 +19,6 @@ public class GraphPuller : IExternalEventHandler
     private readonly Neo4jConnector _connector;
      private readonly ExternalEvent _event;
     private readonly System.Collections.Concurrent.ConcurrentQueue<(Document Doc, string UserId)> _queue = new();
-    private bool _pending;
 
 
     // Erzeugt den Puller und registriert ein ExternalEvent
@@ -34,12 +33,9 @@ public class GraphPuller : IExternalEventHandler
     public void RequestPull(Document doc, string currentUserId)
     {
                 _queue.Enqueue((doc, currentUserId));
-  if (!_pending)
-        {
-            _pending = true;
-            if (!_event.IsPending)
-                _event.Raise();
-        }
+
+        if (!_event.IsPending)
+            _event.Raise();
     }
     // Name des Events für Debugzwecke.
     public string GetName() => "GraphPuller";

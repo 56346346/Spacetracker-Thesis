@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.IO;
 using SpaceTracker;
+using TaskDialog = Autodesk.Revit.UI.TaskDialog;
 
 
 
@@ -13,18 +14,51 @@ namespace SpaceTracker
     public static class SolibriProcessManager
     {
         public const int DefaultPort = 10876;
-                public static int Port { get; set; } = DefaultPort;
-
-                 // Prüft lediglich, ob Solibri bereits läuft. Die Applikation startet
+        public static int Port { get; set; } = DefaultPort;
+        private static readonly string SolibriExePath =
+            Environment.GetEnvironmentVariable("SOLIBRI_EXE") ??
+            @"C:\\Program Files\\Solibri\\Solibri.exe";
+        // Prüft lediglich, ob Solibri bereits läuft. Die Applikation startet
         // Solibri bewusst nicht selbst, da ein manueller Start empfohlen ist.
         // Öffnen Sie Solibri also vor der Validierung und lassen Sie es im
         // Hintergrund geöffnet.
 
-        public static void EnsureStarted()
+        public static bool EnsureStarted()
         {
-            // Only verify that the REST API is reachable. The user is responsible
-            // for starting Solibri externally.
-            WaitForApi();
+            if (IsApiReachable())
+                return true;
+
+            Logger.LogToFile($"Solibri REST API not reachable on port {Port}. Versuche Solibri zu starten...");
+            TryStartSolibri();
+
+            if (WaitForApi())
+                return true;
+
+            TaskDialog.Show(
+                "Solibri",
+                $"Die Solibri REST API konnte nicht erreicht werden. Bitte starten Sie Solibri manuell mit aktivierter REST API auf Port {Port}.");
+            return false;
+        }
+
+        private static void TryStartSolibri()
+        {
+            try
+            {
+                if (File.Exists(SolibriExePath))
+                {
+                    var args = $"--rest-api-server-port={Port} --rest-api-server-local-content --rest-api-server-http";
+                    Process.Start(new ProcessStartInfo(SolibriExePath, args) { UseShellExecute = true });
+                    Logger.LogToFile($"Solibri gestartet: {SolibriExePath} {args}");
+                }
+                else
+                {
+                    Logger.LogToFile($"Solibri.exe not found at {SolibriExePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Start Solibri", ex);
+            }
         }
 
 
@@ -68,8 +102,8 @@ namespace SpaceTracker
                 return false;
             }
         }
-  // Wartet maximal einige Sekunden bis die REST-API erreichbar ist.
-        private static void WaitForApi()
+        // Wartet maximal einige Sekunden bis die REST-API erreichbar ist.
+        private static bool WaitForApi()
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
             for (int i = 0; i < 30; i++)
@@ -80,7 +114,7 @@ namespace SpaceTracker
                     if (resp.IsSuccessStatusCode)
                     {
                         Logger.LogToFile($"Solibri REST API reachable on port {Port}");
-                        return;
+                        return true;
                     }
                 }
                 catch
@@ -90,9 +124,8 @@ namespace SpaceTracker
                 Thread.Sleep(1000);
             }
 
-            var err = "Solibri REST API not reachable. Please start Solibri.";
-            Logger.LogToFile(err);
-            throw new Exception(err);
+            Logger.LogToFile("Solibri REST API not reachable after waiting.");
+            return false;
         }
     }
 }

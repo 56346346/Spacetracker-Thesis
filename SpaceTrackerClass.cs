@@ -171,7 +171,7 @@ namespace SpaceTracker
             return issues;
         }
 
-            /// <summary>
+        /// <summary>
         /// Applies graphical overrides to elements according to their severity.
         /// "RED" and "YELLOW" entries will be colored, "GREEN" removes overrides.
         /// </summary>
@@ -559,6 +559,7 @@ namespace SpaceTracker
             ctrl.DocumentCreated += documentCreated;
             ctrl.DocumentOpened += documentOpened;
             ctrl.DocumentChanged += documentChanged;
+            ctrl.DocumentClosed += documentClosed;
         }
         private void InitializeExistingElements(Document doc)
         {
@@ -652,6 +653,7 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentOpened -= documentOpened;
             application.ControlledApplication.DocumentChanged -= documentChanged;
             application.ControlledApplication.DocumentCreated -= documentCreated;
+            application.ControlledApplication.DocumentClosed -= documentClosed;
             _neo4jConnector?.Dispose();
             foreach (var openSession in SessionManager.OpenSessions.Values)
                 openSession.Monitor.Dispose();
@@ -913,6 +915,24 @@ namespace SpaceTracker
                 Debug.WriteLine($"[SpaceTracker] Fehler bei documentOpened: {ex.Message}");
             }
 
+        }
+
+        private void documentClosed(object sender, DocumentClosedEventArgs e)
+        {
+            try
+            {
+                _databaseUpdateHandler.TriggerPush();
+                string key = e.DocumentPath ?? e.DocumentTitle;
+                if (SessionManager.OpenSessions.TryGetValue(key, out var session))
+                {
+                    session.Monitor.Dispose();
+                    SessionManager.RemoveSession(key);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("DocumentClosed", ex);
+            }
         }
 
 
