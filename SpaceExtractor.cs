@@ -10,6 +10,7 @@ using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.DB.Events;
 using System.Linq;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Autodesk.Revit.UI;
 
 
@@ -758,6 +759,38 @@ namespace SpaceTracker
             }
 
             return tempIfcPath;
+        }
+
+
+        /// <summary>
+        /// Reads the exported IFC file and maps IFC GlobalIds to the provided
+        /// Revit ElementIds. This is a best-effort text based mapping that
+        /// assumes the order of occurrences matches the element list.
+        /// </summary>
+        public Dictionary<string, ElementId> MapIfcGuidsToRevitIds(string ifcFilePath, List<ElementId> elementIds)
+        {
+            var map = new Dictionary<string, ElementId>();
+            if (string.IsNullOrEmpty(ifcFilePath) || !File.Exists(ifcFilePath))
+                return map;
+
+            var guidRegex = new Regex(@"GLOBALID\('(?<g>[^']+)'", RegexOptions.IgnoreCase);
+            var guids = new List<string>();
+            foreach (var line in File.ReadLines(ifcFilePath))
+            {
+                var m = guidRegex.Match(line);
+                if (m.Success)
+                {
+                    string guid = m.Groups["g"].Value.Trim();
+                    if (!string.IsNullOrEmpty(guid))
+                        guids.Add(guid);
+                }
+            }
+
+            for (int i = 0; i < elementIds.Count && i < guids.Count; i++)
+            {
+                map[guids[i]] = elementIds[i];
+            }
+            return map;
         }
         // Ältere Methode zur Graphaktualisierung, wird für Debugzwecke verwendet.
         public void UpdateGraph(Document doc, List<Element> EnqueuedElements, List<ElementId> deletedElementIds, List<Element> modifiedElements)

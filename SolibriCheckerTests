@@ -60,7 +60,7 @@ namespace SpaceTracker.Tests
         }
         
         [Fact]
-        public void InstallRulesetLocally_CopiesFile()
+        public async Task InstallRulesetLocally_CopiesFile()
         {
             var temp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             Directory.CreateDirectory(temp);
@@ -68,7 +68,7 @@ namespace SpaceTracker.Tests
             string src = Path.Combine(temp, "rule.cset");
             File.WriteAllText(src, "dummy");
             var client = new SolibriApiClient(0);
-            string dest = client.InstallRulesetLocally(src);
+            string dest = await client.InstallRulesetLocally(src);
             Assert.True(File.Exists(dest));
         }
 

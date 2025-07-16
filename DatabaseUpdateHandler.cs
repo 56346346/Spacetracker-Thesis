@@ -22,6 +22,8 @@ namespace SpaceTracker
 
         private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
 
+        private static readonly object _lockObj = new object();
+        private static bool _solibriBusy;
 
         private ExternalEvent _externalEvent;
         private readonly CypherPushHandler _pushHandler = new CypherPushHandler();
@@ -86,13 +88,25 @@ namespace SpaceTracker
 
                 // 2. IFC-Subset exportieren
                 string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
+                var guidMap = _extractor.MapIfcGuidsToRevitIds(ifcPath, deltaIds);
 
                 // 3. Solibri REST API-Aufrufe asynchron verarbeiten
                 _ = Task.Run(async () =>
               {
                   Logger.LogToFile("Solibri async task start", "concurrency.log");
+                  bool runSolibri = false;
+
                   try
                   {
+                      lock (_lockObj)
+                      {
+                          if (_solibriBusy)
+                          {
+                              Logger.LogToFile("Solibri-Prüfung ausgelassen, da bereits aktiv.");
+                              return;
+                          }
+                      }
+
                       if (!await _solibriClient.PingAsync().ConfigureAwait(false))
                       {
                           Logger.LogToFile("Solibri REST API nicht erreichbar, überspringe Delta-Prüfung");
@@ -106,6 +120,18 @@ namespace SpaceTracker
                               .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
                               .ConfigureAwait(false);
                       }
+
+                      lock (_lockObj)
+                      {
+                          if (_solibriBusy)
+                          {
+                              Logger.LogToFile("Solibri-Prüfung ausgelassen, da bereits aktiv.");
+                              return;
+                          }
+                          _solibriBusy = true;
+                          runSolibri = true;
+                      }
+
                       modelId = await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
                       SpaceTrackerClass.SolibriModelUUID = modelId;
                       if (removedGuids.Count > 0)
@@ -118,9 +144,9 @@ namespace SpaceTracker
                           return;
                       }
                       var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
-                      string bcfZip = await _solibriClient.ExportBcfAsync(modelId, bcfDir).ConfigureAwait(false);
+                      string bcfZip = await _solibriClient.ExportBcfAsync(bcfDir).ConfigureAwait(false);
                       Debug.WriteLine($"[DatabaseUpdateHandler] BCF results stored at {bcfZip}");
-                      var severity = ProcessBcfAndWriteToNeo4j(bcfZip);
+                      var severity = ProcessBcfAndWriteToNeo4j(bcfZip, guidMap);
                       switch (severity)
                       {
                           case IssueSeverity.Error:
@@ -146,6 +172,13 @@ namespace SpaceTracker
                   }
                   finally
                   {
+                      if (runSolibri)
+                      {
+                          lock (_lockObj)
+                          {
+                              _solibriBusy = false;
+                          }
+                      }
                       if (_pushEvent != null && !_pushEvent.IsPending)
                           _pushEvent.Raise();
                       Logger.LogToFile("Solibri async task end", "concurrency.log");
@@ -175,9 +208,13 @@ namespace SpaceTracker
         private enum IssueSeverity { None, Warning, Error }
         // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
         // gibt die schwerste aufgetretene Stufe zurück.
-        private static IssueSeverity ProcessBcfAndWriteToNeo4j(string bcfZipPath)
+        private static IssueSeverity ProcessBcfAndWriteToNeo4j(string bcfZipPath, Dictionary<string, ElementId> guidMap)
         {
             IssueSeverity worst = IssueSeverity.None;
+            var severityMap = new Dictionary<ElementId, string>();
+            var session = SessionManager.OpenSessions.Values.FirstOrDefault();
+            var doc = session?.Document;
+
             using var archive = ZipFile.OpenRead(bcfZipPath);
             foreach (var entry in archive.Entries.Where(e => e.Name.Equals("markup.bcf", StringComparison.OrdinalIgnoreCase)))
             {
@@ -214,20 +251,41 @@ namespace SpaceTracker
                             sev = IssueSeverity.Warning;
                     }
                 }
-
                 if (sev > worst)
                     worst = sev;
-
-
                 foreach (var guid in components)
                 {
+                      guidMap.TryGetValue(guid, out var revitId);
+                    string idPart = revitId != ElementId.InvalidElementId ? $", elementId: {revitId.Value}" : string.Empty;
                     string cy = $@"
-                MERGE (e {{ ifcGuid: '{guid}' }})
+                MERGE (e {{ ifcGuid: '{guid}'{idPart} }})
                 MERGE (i:Issue {{ title: '{title}', description: '{desc}' }})
                 MERGE (e)-[:HAS_ISSUE]->(i)";
                     CommandManager.Instance.cypherCommands.Enqueue(cy);
+
+                    if (doc != null)
+                    {
+                        var elem = doc.GetElement(guid);
+                        if (elem != null)
+                        {
+                            string color = sev == IssueSeverity.Error ? "RED" :
+                                sev == IssueSeverity.Warning ? "YELLOW" : "GREEN";
+                            if (severityMap.TryGetValue(elem.Id, out string existing))
+                            {
+                                if (existing == "YELLOW" && color == "RED")
+                                    severityMap[elem.Id] = color;
+                            }
+                            else if (color != "GREEN")
+                            {
+                                severityMap[elem.Id] = color;
+                            }
+                        }
+                    }
                 }
             }
+
+            if (severityMap.Count > 0)
+                SpaceTrackerClass.MarkElementsBySeverity(severityMap);
             return worst;
         }
 

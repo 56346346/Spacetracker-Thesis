@@ -124,10 +124,14 @@ namespace SpaceTracker
                 await DeleteComponentsAsync(id, removedGuids, ct).ConfigureAwait(false);
                 await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
             }
+                if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
+                throw new Exception("Fehlender Solibri Regelsatz.");
+            var api = new SolibriApiClient(_client.BaseAddress?.Port ?? SolibriProcessManager.Port);
+            await api.CheckModelAsync(id, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
+            await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
             string bcf = await GetBcfAsync(id, version: "two", scope: "all", ct: ct).ConfigureAwait(false);
             await UpdateLogStatusAsync(bcf, ct).ConfigureAwait(false);
-            var api = new SolibriApiClient(_client.BaseAddress?.Port ?? SolibriProcessManager.Port);
-            api.InstallRulesetLocally(SpaceTrackerClass.SolibriRulesetPath);
+            await api.InstallRulesetLocally(SpaceTrackerClass.SolibriRulesetPath).ConfigureAwait(false);
             await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
         }
 

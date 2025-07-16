@@ -171,6 +171,44 @@ namespace SpaceTracker
             return issues;
         }
 
+            /// <summary>
+        /// Applies graphical overrides to elements according to their severity.
+        /// "RED" and "YELLOW" entries will be colored, "GREEN" removes overrides.
+        /// </summary>
+        public static void MarkElementsBySeverity(Dictionary<ElementId, string> severityMap)
+        {
+            if (severityMap == null || severityMap.Count == 0)
+                return;
+
+            var session = SessionManager.OpenSessions.Values.FirstOrDefault();
+            var doc = session?.Document;
+            if (doc == null)
+                return;
+
+            var view = doc.ActiveView;
+            using var tx = new Transaction(doc, "Mark Issue Elements");
+            tx.Start();
+            foreach (var kvp in severityMap)
+            {
+                var ogs = new OverrideGraphicSettings();
+                if (kvp.Value.Equals("RED", StringComparison.OrdinalIgnoreCase))
+                {
+                    var color = new Autodesk.Revit.DB.Color(255, 0, 0);
+                    ogs.SetProjectionLineColor(color);
+                    ogs.SetCutLineColor(color);
+                }
+                else if (kvp.Value.Equals("YELLOW", StringComparison.OrdinalIgnoreCase))
+                {
+                    var color = new Autodesk.Revit.DB.Color(255, 255, 0);
+                    ogs.SetProjectionLineColor(color);
+                    ogs.SetCutLineColor(color);
+                }
+                view.SetElementOverrides(kvp.Key, ogs);
+            }
+            tx.Commit();
+        }
+
+
         #region register events
         // Wird beim Laden des Add-Ins aufgerufen und richtet alle Komponenten ein.
         public Result OnStartup(UIControlledApplication application)

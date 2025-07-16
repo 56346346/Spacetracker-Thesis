@@ -66,7 +66,7 @@ namespace SpaceTracker
                     return errors;
                 }
                 var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
-                string bcfZip = client.ExportBcfAsync(modelId, bcfDir).GetAwaiter().GetResult();
+                string bcfZip = client.ExportBcfAsync(bcfDir).GetAwaiter().GetResult();
                 errors = ParseBcfResults(bcfZip);
                 foreach (var err in errors)
                     Logger.LogToFile($"Solibri Issue: {err.Severity} - {err.Message}", "solibri.log");

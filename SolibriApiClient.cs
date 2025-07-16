@@ -6,7 +6,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-
+using System.Threading;
 using System.Net;
 using SpaceTracker;
 using System.Diagnostics;
@@ -58,8 +58,9 @@ namespace SpaceTracker
                 using var fs = File.OpenRead(ifcFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                var response = await Http.PostAsync($"{_baseUrl}/models", content).ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
+   var modelName = Path.GetFileNameWithoutExtension(ifcFilePath);
+                modelName = WebUtility.UrlEncode(modelName);
+                var response = await Http.PostAsync($"{_baseUrl}/models?name={modelName}", content).ConfigureAwait(false);                response.EnsureSuccessStatusCode();
                 if (response.Headers.Location == null)
                     throw new Exception("Model-URI fehlt!");
 
@@ -99,9 +100,8 @@ namespace SpaceTracker
             try
             {
                 Logger.LogToFile($"Installiere Ruleset '{csetFilePath}' lokal");
-                var installed = InstallRulesetLocally(csetFilePath);
-                // Sicherstellen, dass Solibri den neuen Ruleset liest
-                await GetStatusAsync().ConfigureAwait(false);
+                               var installed = await InstallRulesetLocally(csetFilePath).ConfigureAwait(false);
+
                 return Path.GetFileNameWithoutExtension(installed);
             }
             catch (Exception ex)
@@ -237,11 +237,11 @@ namespace SpaceTracker
                 throw;
             }
         }
-        // Exportiert die BCF-Ergebnisse eines Modells in ein Verzeichnis.
-        public async Task<string> ExportBcfAsync(string modelId, string outDirectory)
+         // Exportiert die BCF-Ergebnisse des aktuell aktiven Modells in ein Verzeichnis.
+        // Seit Solibri 9.13 erfolgt der Export über einen globalen Endpunkt,
+        // daher wird keine Modell-ID mehr benötigt.
+        public async Task<string> ExportBcfAsync(string outDirectory)
         {
-            if (string.IsNullOrWhiteSpace(modelId))
-                throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
             if (string.IsNullOrWhiteSpace(outDirectory))
                 throw new ArgumentException("Ausgabeverzeichnis darf nicht leer sein.", nameof(outDirectory));
             SolibriProcessManager.EnsureStarted();
@@ -253,12 +253,12 @@ namespace SpaceTracker
                 if (!Directory.Exists(outDirectory))
                     Directory.CreateDirectory(outDirectory);
 
-                Logger.LogToFile($"Exportiere BCF für {modelId}");
-                var response = await Http.GetAsync($"{_baseUrl}/models/{modelId}/bcfxml/two_one?scope=all").ConfigureAwait(false);
+                Logger.LogToFile("Exportiere BCF für aktives Modell");
+                var response = await Http.GetAsync($"{_baseUrl}/bcfxml/two_one?scope=all").ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
-                var filePath = Path.Combine(outDirectory, $"result_{modelId}.bcfzip");
-                using (var fs = File.Create(filePath))
+ var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                var filePath = Path.Combine(outDirectory, $"result_{timestamp}.bcfzip");                using (var fs = File.Create(filePath))
                 {
                     await response.Content.CopyToAsync(fs);
                 }
@@ -366,21 +366,19 @@ namespace SpaceTracker
         }
 
         // Kopiert die angegebene Ruleset-Datei in den lokalen Solibri-Ordner.
-        public string InstallRulesetLocally(string csetFilePath)
+        public async Task<string> InstallRulesetLocally(string csetFilePath)
         {
             if (string.IsNullOrWhiteSpace(csetFilePath))
                 throw new ArgumentException("Pfad zur Ruleset-Datei darf nicht leer sein.", nameof(csetFilePath));
 
-            var programData = Environment.GetEnvironmentVariable("ProgramData");
-            if (string.IsNullOrEmpty(programData))
-                programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            if (string.IsNullOrEmpty(programData))
-                programData = Path.GetTempPath();
+                       string destDir = Path.Combine("C:\\", "Users", "Public", "Solibri", "SOLIBRI", "Rulesets");
 
-            string destDir = Path.Combine(programData, "Autodesk", "Solibri", "Rulesets Open");
             Directory.CreateDirectory(destDir);
             string destPath = Path.Combine(destDir, Path.GetFileName(csetFilePath));
             File.Copy(csetFilePath, destPath, true);
+            
+            await Task.Delay(2000).ConfigureAwait(false);
+            await GetStatusAsync().ConfigureAwait(false);
             return destPath;
         }
     }
