@@ -49,6 +49,8 @@ namespace SpaceTracker
        new Dictionary<ElementId, ElementMetadata>();
         private SpaceExtractor _extractor;
         private CommandManager _cmdManager;
+        private static IfcExportHandler _exportHandler;
+        private static ExternalEvent _exportEvent;
 
         // Holds the currently loaded Solibri model UUID. This is initialized
         // with the default value but may change if Solibri creates a new model
@@ -208,6 +210,17 @@ namespace SpaceTracker
             tx.Commit();
         }
 
+        internal static IfcExportHandler ExportHandler => _exportHandler;
+        internal static ExternalEvent ExportEvent => _exportEvent;
+
+        public static void RequestIfcExport(Document doc, List<ElementId> ids)
+        {
+            _exportHandler.Document = doc;
+            _exportHandler.ElementIds = ids;
+            if (!_exportEvent.IsPending)
+                _exportEvent.Raise();
+        }
+
 
         #region register events
         // Wird beim Laden des Add-Ins aufgerufen und richtet alle Komponenten ein.
@@ -236,6 +249,8 @@ namespace SpaceTracker
                 _graphPuller = new GraphPuller(_neo4jConnector);
                 _cmdManager = CommandManager.Instance;
                 _pullEventHandler = new PullEventHandler();
+                _exportHandler = new IfcExportHandler();
+                _exportEvent = ExternalEvent.Create(_exportHandler);
             }
             catch (Exception ex)
             {
@@ -689,7 +704,8 @@ namespace SpaceTracker
                     .Select(e => e.Id)
                     .ToList();
 
-                string ifcPath = _extractor.ExportIfcSubset(doc, allIds);
+                RequestIfcExport(doc, allIds);
+                string ifcPath = ExportHandler.ExportedPath;
                 var client = new SolibriApiClient(SolibriApiPort);
 
                 if (string.IsNullOrEmpty(SolibriRulesetId))

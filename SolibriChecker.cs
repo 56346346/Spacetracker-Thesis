@@ -48,8 +48,8 @@ namespace SpaceTracker
                 return;
             try
             {
-                var extractor = new SpaceExtractor(CommandManager.Instance);
-                string ifcPath = extractor.ExportIfcSubset(doc, new List<ElementId> { id });
+                SpaceTrackerClass.RequestIfcExport(doc, new List<ElementId> { id });
+                string ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
                 if (string.IsNullOrEmpty(ifcPath) || !File.Exists(ifcPath))
                     return;
 
@@ -124,10 +124,10 @@ namespace SpaceTracker
                 await DeleteComponentsAsync(id, removedGuids, ct).ConfigureAwait(false);
                 await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
             }
-                if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
+            if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
                 throw new Exception("Fehlender Solibri Regelsatz.");
             var api = new SolibriApiClient(_client.BaseAddress?.Port ?? SolibriProcessManager.Port);
-             var results = await api.RunRulesetCheckAsync(id).ConfigureAwait(false);
+            var results = await api.RunRulesetCheckAsync(id).ConfigureAwait(false);
             foreach (var clash in results)
             {
                 string status = MapSeverity(clash.Severity);

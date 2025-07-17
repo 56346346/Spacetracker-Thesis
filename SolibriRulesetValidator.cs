@@ -39,13 +39,12 @@ namespace SpaceTracker
                     return errors;
                 }
                 // Export the entire model as IFC to a temporary location
-                var extractor = new SpaceExtractor(CommandManager.Instance);
                 var allIds = new FilteredElementCollector(doc)
                     .WhereElementIsNotElementType()
                     .Select(e => e.Id)
                     .ToList();
-                string ifcPath = extractor.ExportIfcSubset(doc, allIds);
-
+                SpaceTrackerClass.RequestIfcExport(doc, allIds);
+                string ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
                 var client = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
                 string modelId = SpaceTrackerClass.SolibriModelUUID;
 

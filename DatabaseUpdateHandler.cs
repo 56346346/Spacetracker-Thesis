@@ -87,7 +87,8 @@ namespace SpaceTracker
                 }
 
                 // 2. IFC-Subset exportieren
-                string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
+                SpaceTrackerClass.RequestIfcExport(app.ActiveUIDocument.Document, deltaIds);
+                string ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
                 var guidMap = _extractor.MapIfcGuidsToRevitIds(ifcPath, deltaIds);
 
                 // 3. Solibri REST API-Aufrufe asynchron verarbeiten
@@ -136,7 +137,7 @@ namespace SpaceTracker
                       SpaceTrackerClass.SolibriModelUUID = modelId;
                       if (removedGuids.Count > 0)
                           await _solibriClient.DeleteComponentsAsync(modelId, removedGuids).ConfigureAwait(false);
-                       var results = await _solibriClient.RunRulesetCheckAsync(modelId).ConfigureAwait(false);
+                      var results = await _solibriClient.RunRulesetCheckAsync(modelId).ConfigureAwait(false);
                       var severity = ProcessClashResults(results, guidMap);
                       switch (severity)
                       {
@@ -184,7 +185,7 @@ namespace SpaceTracker
             Logger.LogToFile("DatabaseUpdateHandler Execute finished", "concurrency.log");
         }
 
- private static IssueSeverity ProcessClashResults(IEnumerable<ClashResult> results, Dictionary<string, ElementId> guidMap)
+        private static IssueSeverity ProcessClashResults(IEnumerable<ClashResult> results, Dictionary<string, ElementId> guidMap)
         {
             IssueSeverity worst = IssueSeverity.None;
             var severityMap = new Dictionary<ElementId, string>();
@@ -301,7 +302,7 @@ MERGE (e)-[:HAS_ISSUE]->(i)";
                     worst = sev;
                 foreach (var guid in components)
                 {
-                      guidMap.TryGetValue(guid, out var revitId);
+                    guidMap.TryGetValue(guid, out var revitId);
                     string idPart = revitId != ElementId.InvalidElementId ? $", elementId: {revitId.Value}" : string.Empty;
                     string cy = $@"
                 MERGE (e {{ ifcGuid: '{guid}'{idPart} }})

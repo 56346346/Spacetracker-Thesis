@@ -29,6 +29,7 @@ public static class NodeExtensions
 
     public static Dictionary<string, object> ToDictionary(this DoorNode d) => new()
     {
+        ["name"] = d.Name,
         ["rvtClass"] = "Door",
         ["uid"] = d.Uid,
         ["elementId"] = d.ElementId,
