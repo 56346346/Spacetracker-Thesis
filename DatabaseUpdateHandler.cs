@@ -283,7 +283,6 @@ namespace SpaceTracker
                     }
                 }
             }
-
             if (severityMap.Count > 0)
                 SpaceTrackerClass.MarkElementsBySeverity(severityMap);
             return worst;
