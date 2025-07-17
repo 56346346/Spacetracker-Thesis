@@ -124,6 +124,7 @@ namespace SpaceTracker
                     // 1) Tür mit Wand und Level verknüpfen
                     $"d.uid = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("uid", door.UniqueId).ToString())}'",
                     $"d.elementId = {door.Id.Value}",
+                    $"d.name = '{ParameterUtils.EscapeForCypher(doorName)}'",
                     $"d.typeId = {door.GetTypeId().Value}",
                     $"d.familyName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("familyName", string.Empty).ToString())}'",
                     $"d.symbolName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("symbolName", string.Empty).ToString())}'",
@@ -148,7 +149,7 @@ namespace SpaceTracker
                 string cyNode =
                     $"{cyBase} MERGE (d:Door {{ElementId: {door.Id.Value}}}) SET {string.Join(", ", setParts)}";
                 if (hostWall != null)
-                    cyNode += " MERGE (l)-[:CONTAINS]->(d)-[:CONTAINED_IN]->(w)";
+                    cyNode += " MERGE (l)-[:CONTAINS]->(d) MERGE (d)-[:INSTALLED_IN]->(w)";
                 else
                     cyNode += " MERGE (l)-[:CONTAINS]->(d)";
 
@@ -162,6 +163,38 @@ namespace SpaceTracker
                 Debug.WriteLine($"[Door Processing Error] {ex.Message}");
             }
         }
+
+        private void ProcessWindow(Element window, Document doc)
+        {
+            if (window.Category?.Id.Value != (int)BuiltInCategory.OST_Windows)
+                return;
+
+            try
+            {
+                var winInstance = window as FamilyInstance;
+                Element hostWall = winInstance?.Host;
+                string winName = ParameterUtils.EscapeForCypher(window.Name);
+
+                string cyBase = $"MATCH (l:Level {{ElementId: {window.LevelId.Value}}})";
+                if (hostWall != null)
+                    cyBase += $", (w:Wall {{ElementId: {hostWall.Id.Value}}})";
+
+                string cyNode =
+                    $"{cyBase} MERGE (wi:Window {{ElementId: {window.Id.Value}}}) SET wi.Name = '{winName}'";
+
+                cyNode += " MERGE (l)-[:CONTAINS]->(wi)";
+                if (hostWall != null)
+                    cyNode += " MERGE (wi)-[:INSTALLED_IN]->(w)";
+
+                _cmdManager.cypherCommands.Enqueue(cyNode);
+                Debug.WriteLine("[Neo4j] Created Window node: " + cyNode);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Window Processing Error] {ex.Message}");
+            }
+        }
+
 
         private void ProcessProvisionalSpace(FamilyInstance inst, Document doc)
         {
@@ -443,6 +476,14 @@ namespace SpaceTracker
                 {
                     ProcessDoor(door, doc);
                 }
+                var windowCollector = new FilteredElementCollector(doc)
+                 .OfCategory(BuiltInCategory.OST_Windows).OfClass(typeof(FamilyInstance)).WherePasses(lvlFilter);
+
+                var windows = windowCollector.ToElements();
+                foreach (var win in windows)
+                {
+                    ProcessWindow(win, doc);
+                }
                 ProcessPipes(doc, lvl);
             }
             ProcessProvisionalSpaces(doc);
@@ -521,6 +562,9 @@ namespace SpaceTracker
                         case BuiltInCategory.OST_Doors:
                             ProcessDoor(element, doc);
                             break;
+                        case BuiltInCategory.OST_Windows:
+                            ProcessWindow(element, doc);
+                            break;
                         case BuiltInCategory.OST_Stairs:
 
                             ProcessStair(element, doc);
@@ -582,11 +626,11 @@ namespace SpaceTracker
 
                 BoundingBoxXYZ bbPs = ps.get_BoundingBox(null);
                 if (bbPs == null) continue;
-//muss noch geändert werden, damit richtige logik
-                    bool intersects =
-                    bbPipe.Min.X <= bbPs.Max.X && bbPipe.Max.X >= bbPs.Min.X &&
-                    bbPipe.Min.Y <= bbPs.Max.Y && bbPipe.Max.Y >= bbPs.Min.Y &&
-                    bbPipe.Min.Z <= bbPs.Max.Z && bbPipe.Max.Z >= bbPs.Min.Z;
+                //muss noch geändert werden, damit richtige logik
+                bool intersects =
+                bbPipe.Min.X <= bbPs.Max.X && bbPipe.Max.X >= bbPs.Min.X &&
+                bbPipe.Min.Y <= bbPs.Max.Y && bbPipe.Max.Y >= bbPs.Min.Y &&
+                bbPipe.Min.Z <= bbPs.Max.Z && bbPipe.Max.Z >= bbPs.Min.Z;
 
                 if (intersects)
                 {
@@ -652,10 +696,10 @@ namespace SpaceTracker
                     BoundingBoxXYZ bbPs = ps.get_BoundingBox(null);
                     if (bbPs == null) continue;
 
-                     bool intersects =
-                        bbPipe.Min.X <= bbPs.Max.X && bbPipe.Max.X >= bbPs.Min.X &&
-                        bbPipe.Min.Y <= bbPs.Max.Y && bbPipe.Max.Y >= bbPs.Min.Y &&
-                        bbPipe.Min.Z <= bbPs.Max.Z && bbPipe.Max.Z >= bbPs.Min.Z;
+                    bool intersects =
+                       bbPipe.Min.X <= bbPs.Max.X && bbPipe.Max.X >= bbPs.Min.X &&
+                       bbPipe.Min.Y <= bbPs.Max.Y && bbPipe.Max.Y >= bbPs.Min.Y &&
+                       bbPipe.Min.Z <= bbPs.Max.Z && bbPipe.Max.Z >= bbPs.Min.Z;
 
                     if (intersects)
                         result.Add((pipe.UniqueId, ps.UniqueId));
@@ -733,9 +777,10 @@ namespace SpaceTracker
                 FileVersion = IFCVersion.IFC4,
                 FilterViewId = view.Id,
                 ExportBaseQuantities = true
-            };
 
-            // 3. Exportieren
+            };
+            ifcExportOptions.AddOption("UseElementIdAsIfcGUID", "1");
+
             // 3. Exportieren in ein sitzungsspezifisches Temp-Verzeichnis
             var sessionDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
             Directory.CreateDirectory(sessionDir);
@@ -805,12 +850,20 @@ namespace SpaceTracker
             {
                 Debug.WriteLine($"Deleting Node with ID: {id}");
                 int intId = (int)id.Value;
-                string cyDel = $"MATCH (n {{ElementId: {id}}}) DETACH DELETE n";
+                Element e = doc.GetElement(id);
+                string cyDel;
+                if (e != null && e.Category?.Id.Value == (int)BuiltInCategory.OST_Doors)
+                {
+                    cyDel = $"MATCH (d:Door {{ElementId: {intId}}}) DETACH DELETE d";
+                }
+                else
+                {
+                    cyDel = $"MATCH (n {{ElementId: {intId}}}) DETACH DELETE n";
+                }
                 _cmdManager.cypherCommands.Enqueue(cyDel);
                 Debug.WriteLine("[Neo4j] Node deletion Cypher: " + cyDel);
 
 
-                Element e = doc.GetElement(id);
                 if (e == null)
                 {
                     Debug.WriteLine($"[Warning] Gelöschtes Element {id} nicht mehr im Doc vorhanden, SQL überspringe.");
@@ -831,11 +884,26 @@ namespace SpaceTracker
                 int intId = (int)e.Id.Value;
                 if (e is FamilyInstance fi && fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors)
                 {
-                    // Tür-Typ und Name aktualisieren
+                    // Tür-Eigenschaften und Host aktualisieren
                     var sym = doc.GetElement(fi.GetTypeId()) as FamilySymbol;
                     string doorType = sym?.Name ?? "Unbekannter Typ";
-                    cy = $"MATCH (d:Door {{ElementId: {intId}}}) " +
-   $"SET d.Name = '{ParameterUtils.EscapeForCypher(e.Name)}', d.Type = '{ParameterUtils.EscapeForCypher(doorType)}'";
+                    string doorNameMod = fi.get_Parameter(BuiltInParameter.DOOR_NUMBER)?.AsString() ?? fi.Name;
+                    var hostWall = fi.Host as Wall;
+                    string cyDoor =
+                        $"MATCH (d:Door {{ElementId: {intId}}}) " +
+                        "OPTIONAL MATCH (d)-[r:INSTALLED_IN]->() DELETE r " +
+                        "WITH d " +
+                        $"MATCH (l:Level {{ElementId: {fi.LevelId.Value}}}) ";
+                    if (hostWall != null)
+                        cyDoor += $"MATCH (w:Wall {{ElementId: {hostWall.Id.Value}}}) ";
+                    cyDoor +=
+                        $"SET d.Name = '{ParameterUtils.EscapeForCypher(doorNameMod)}', " +
+                        $"d.Type = '{ParameterUtils.EscapeForCypher(doorType)}', " +
+                        $"d.hostId = {(hostWall != null ? hostWall.Id.Value : -1)} " +
+                        "MERGE (l)-[:CONTAINS]->(d) ";
+                    if (hostWall != null)
+                        cyDoor += "MERGE (d)-[:INSTALLED_IN]->(w)";
+                    cy = cyDoor;
                 }
                 else if (e is Room)
                 {
@@ -853,6 +921,11 @@ namespace SpaceTracker
                 {
                     cy = $"MATCH (l:Level {{ElementId: {intId}}}) " +
  $"SET l.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
+                }
+                else if (e is FamilyInstance win && win.Category.Id.Value == (int)BuiltInCategory.OST_Windows)
+                {
+                    cy = $"MATCH (wi:Window {{ElementId: {intId}}}) " +
+                         $"SET wi.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
                 }
                 else
                 {
@@ -906,14 +979,17 @@ namespace SpaceTracker
         " MERGE (l)-[:CONTAINS]->(w)-[:BOUNDS]->(r)";
                                 _cmdManager.cypherCommands.Enqueue(cy);
                                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
-
-
-
-
                                 Debug.WriteLine($"Modified Room with ID: {id} and Name: {e.Name}");
-
-
                             }
+                        }
+                        if (e is FamilyInstance wfi && wfi.Category.Id.Value == (int)BuiltInCategory.OST_Windows)
+                        {
+                            Element host = wfi.Host;
+                            cy = $"MATCH (wi:Window{{ElementId: {intId}}}), (l:Level{{ElementId: {wfi.LevelId.Value}}}) MERGE (l)-[:CONTAINS]->(wi)";
+                            if (host is Wall hw)
+                                cy += $" WITH wi MATCH (w:Wall{{ElementId: {hw.Id.Value}}}) MERGE (wi)-[:INSTALLED_IN]->(w)";
+                            _cmdManager.cypherCommands.Enqueue(cy);
+                            Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
                         }
                     }
                 }
@@ -992,6 +1068,9 @@ namespace SpaceTracker
                     case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
                         ProcessDoor(fi, doc);
                         break;
+                    case FamilyInstance wi when wi.Category.Id.Value == (int)BuiltInCategory.OST_Windows:
+                        ProcessWindow(wi, doc);
+                        break;
                     case Element st when st.Category.Id.Value == (int)BuiltInCategory.OST_Stairs:
                         // Directly process the stair element. Level information
                         // will be resolved inside ProcessStair.
@@ -1061,9 +1140,46 @@ namespace SpaceTracker
                 if (typeof(Wall).IsAssignableFrom(e.GetType()))
                 {
                     var wall = (Wall)e;
-                    Debug.WriteLine($"Room: {wall.Name}, ID: {wall.Id}");
+                    Debug.WriteLine($"Wall: {wall.Name}, ID: {wall.Id}");
+                    if (wall.LevelId == ElementId.InvalidElementId)
+                    {
+                        Debug.WriteLine($"[WARN] Wall {wall.Id} has invalid LevelId.");
+                    }
 
-                    cy = " MERGE (w:Wall{ElementId: " + wall.Id + "})";
+                    string escapedName = ParameterUtils.EscapeForCypher(wall.Name);
+                    cy =
+                        $"MATCH (l:Level {{ElementId: {wall.LevelId.Value}}}) " +
+                        $"MERGE (w:Wall {{ElementId: {wall.Id.Value}}}) " +
+                        $"SET w.Name = '{escapedName}' " +
+                        $"MERGE (l)-[:CONTAINS]->(w)";
+                    _cmdManager.cypherCommands.Enqueue(cy);
+                    Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
+
+                    IList<Element> rooms = getRoomFromWall(doc, wall);
+                    foreach (var roomElement in rooms)
+                    {
+                        if (roomElement is Room r)
+                        {
+                            string cyRel =
+                                $"MATCH (w:Wall {{ElementId: {wall.Id.Value}}}), " +
+                                $"(r:Room {{ElementId: {r.Id.Value}}}) " +
+                                "MERGE (w)-[:BOUNDS]->(r)";
+                            _cmdManager.cypherCommands.Enqueue(cyRel);
+                            Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cyRel);
+                        }
+                    }
+                }
+                if (e is FamilyInstance wfi && wfi.Category.Id.Value == (int)BuiltInCategory.OST_Windows)
+                {
+                    string escapedName = ParameterUtils.EscapeForCypher(wfi.Name);
+                    Element host = wfi.Host;
+                    cy = $"MATCH (l:Level{{ElementId:{wfi.LevelId.Value}}})";
+                    if (host is Wall hw)
+                        cy += $", (w:Wall {{ElementId:{hw.Id.Value}}})";
+                    cy += $" MERGE (wi:Window {{ElementId:{wfi.Id.Value}, Name:'{escapedName}'}})";
+                    cy += " MERGE (l)-[:CONTAINS]->(wi)";
+                    if (host is Wall)
+                        cy += " MERGE (wi)-[:INSTALLED_IN]->(w)";
                     _cmdManager.cypherCommands.Enqueue(cy);
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
                 }

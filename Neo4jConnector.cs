@@ -712,6 +712,8 @@ RETURN d";
                 var node = r["d"].As<INode>();
                 return new DoorNode
                 (
+                                        node.Properties.TryGetValue("name", out var name) ? name.As<string>() : string.Empty,
+
                     node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty,
                     node.Properties.TryGetValue("elementId", out var elemId) ? elemId.As<long>() : -1,
                     node.Properties["typeId"].As<long>(),

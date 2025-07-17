@@ -29,6 +29,7 @@ public static class DoorSerializer
         {
             ["rvtClass"] = "Door",
             ["uid"] = door.UniqueId,
+            ["name"] = door.get_Parameter(BuiltInParameter.DOOR_NUMBER)?.AsString() ?? string.Empty,
             ["elementId"] = door.Id.Value,
             ["typeId"] = door.GetTypeId().Value,
             ["familyName"] = door.Symbol?.FamilyName ?? string.Empty,
@@ -57,6 +58,7 @@ public static class DoorSerializer
     {
         var dict = ToNode(door);
         var node = new DoorNode(
+                        dict.GetValueOrDefault("name", string.Empty).ToString() ?? string.Empty,
             dict.TryGetValue("uid", out var uidObj) ? uidObj.ToString() ?? string.Empty : string.Empty,
             Convert.ToInt64(dict["elementId"]),
             Convert.ToInt64(dict["typeId"]),
@@ -73,7 +75,7 @@ public static class DoorSerializer
             Convert.ToDouble(dict.GetValueOrDefault("height", 0.0)),
             Convert.ToDouble(dict.GetValueOrDefault("thickness", 0.0))
         );
-         Debug.WriteLine($"[DoorSerializer] Created node for {door.UniqueId}");
+        Debug.WriteLine($"[DoorSerializer] Created node for {door.UniqueId}");
         return node;
     }
 }
