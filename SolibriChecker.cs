@@ -127,10 +127,17 @@ namespace SpaceTracker
                 if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
                 throw new Exception("Fehlender Solibri Regelsatz.");
             var api = new SolibriApiClient(_client.BaseAddress?.Port ?? SolibriProcessManager.Port);
-            await api.CheckModelAsync(id, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
-            await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
-            string bcf = await GetBcfAsync(id, version: "two", scope: "all", ct: ct).ConfigureAwait(false);
-            await UpdateLogStatusAsync(bcf, ct).ConfigureAwait(false);
+             var results = await api.RunRulesetCheckAsync(id).ConfigureAwait(false);
+            foreach (var clash in results)
+            {
+                string status = MapSeverity(clash.Severity);
+                if (!string.IsNullOrEmpty(clash.ComponentGuid))
+                {
+                    await _connector.RunWriteQueryAsync(
+                        "MATCH (l:LogChange {guid:$guid}) SET l.status=$status",
+                        new { guid = clash.ComponentGuid, status }).ConfigureAwait(false);
+                }
+            }
             await api.InstallRulesetLocally(SpaceTrackerClass.SolibriRulesetPath).ConfigureAwait(false);
             await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
         }

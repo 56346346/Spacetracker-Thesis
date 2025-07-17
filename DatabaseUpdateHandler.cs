@@ -136,17 +136,8 @@ namespace SpaceTracker
                       SpaceTrackerClass.SolibriModelUUID = modelId;
                       if (removedGuids.Count > 0)
                           await _solibriClient.DeleteComponentsAsync(modelId, removedGuids).ConfigureAwait(false);
-                      await _solibriClient.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
-                      bool done = await _solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5)).ConfigureAwait(false);
-                      if (!done)
-                      {
-                          Logger.LogToFile("Solibri Prüfung hat das Zeitlimit überschritten", "solibri.log");
-                          return;
-                      }
-                      var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
-                      string bcfZip = await _solibriClient.ExportBcfAsync(bcfDir).ConfigureAwait(false);
-                      Debug.WriteLine($"[DatabaseUpdateHandler] BCF results stored at {bcfZip}");
-                      var severity = ProcessBcfAndWriteToNeo4j(bcfZip, guidMap);
+                       var results = await _solibriClient.RunRulesetCheckAsync(modelId).ConfigureAwait(false);
+                      var severity = ProcessClashResults(results, guidMap);
                       switch (severity)
                       {
                           case IssueSeverity.Error:
@@ -193,6 +184,61 @@ namespace SpaceTracker
             Logger.LogToFile("DatabaseUpdateHandler Execute finished", "concurrency.log");
         }
 
+ private static IssueSeverity ProcessClashResults(IEnumerable<ClashResult> results, Dictionary<string, ElementId> guidMap)
+        {
+            IssueSeverity worst = IssueSeverity.None;
+            var severityMap = new Dictionary<ElementId, string>();
+            var session = SessionManager.OpenSessions.Values.FirstOrDefault();
+            var doc = session?.Document;
+
+            foreach (var clash in results)
+            {
+                if (string.IsNullOrEmpty(clash.ComponentGuid))
+                    continue;
+
+                string sevText = clash.Severity ?? string.Empty;
+                IssueSeverity sev = IssueSeverity.None;
+                sevText = sevText.Trim().ToUpperInvariant();
+                if (sevText == "ROT" || sevText == "RED" || sevText == "ERROR" || sevText == "HIGH" || sevText == "CRITICAL")
+                    sev = IssueSeverity.Error;
+                else if (sevText == "GELB" || sevText == "YELLOW" || sevText == "WARNING" || sevText == "MEDIUM")
+                    sev = IssueSeverity.Warning;
+
+                if (sev > worst)
+                    worst = sev;
+
+                guidMap.TryGetValue(clash.ComponentGuid, out var revitId);
+                string idPart = revitId != ElementId.InvalidElementId ? $", elementId: {revitId.Value}" : string.Empty;
+                string msg = clash.Message?.Replace("'", "\'") ?? string.Empty;
+                string cy = $@"MERGE (e {{ ifcGuid: '{clash.ComponentGuid}'{idPart} }})
+MERGE (i:Issue {{ title: '{msg}', description: '{msg}' }})
+MERGE (e)-[:HAS_ISSUE]->(i)";
+                CommandManager.Instance.cypherCommands.Enqueue(cy);
+
+                if (doc != null)
+                {
+                    var elem = doc.GetElement(clash.ComponentGuid);
+                    if (elem != null)
+                    {
+                        string color = sev == IssueSeverity.Error ? "RED" :
+                            sev == IssueSeverity.Warning ? "YELLOW" : "GREEN";
+                        if (severityMap.TryGetValue(elem.Id, out string existing))
+                        {
+                            if (existing == "YELLOW" && color == "RED")
+                                severityMap[elem.Id] = color;
+                        }
+                        else if (color != "GREEN")
+                        {
+                            severityMap[elem.Id] = color;
+                        }
+                    }
+                }
+            }
+
+            if (severityMap.Count > 0)
+                SpaceTrackerClass.MarkElementsBySeverity(severityMap);
+            return worst;
+        }
 
 
         // Name des ExternalEvents.

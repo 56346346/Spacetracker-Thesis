@@ -364,6 +364,110 @@ namespace SpaceTracker
             return false;
 
         }
+        
+          // Lädt das DeltaRuleset, führt die Prüfung aus und gibt die Ergebnisse zurück.
+        public async Task<List<ClashResult>> RunRulesetCheckAsync(string modelId)
+        {
+            if (string.IsNullOrWhiteSpace(modelId))
+                throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
+
+            SolibriProcessManager.EnsureStarted();
+            if (!await PingAsync().ConfigureAwait(false))
+                throw new Exception("Solibri REST API nicht erreichbar");
+
+            try
+            {
+                Logger.LogToFile($"Hole Rulesets für Modell {modelId}", "solibri.log");
+                using var rsResp = await Http.GetAsync($"{_baseUrl}/models/{modelId}/rulesets").ConfigureAwait(false);
+                rsResp.EnsureSuccessStatusCode();
+                string rsJson = await rsResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                string? deltaId = null;
+                bool active = false;
+                try
+                {
+                    using var doc = JsonDocument.Parse(rsJson);
+                    if (doc.RootElement.TryGetProperty("rulesets", out var arr))
+                    {
+                        foreach (var item in arr.EnumerateArray())
+                        {
+                            var name = item.GetProperty("name").GetString();
+                            if (string.Equals(name, "DeltaRuleset.cset", StringComparison.OrdinalIgnoreCase))
+                            {
+                                deltaId = item.GetProperty("id").GetString();
+                                if (item.TryGetProperty("active", out var a))
+                                    active = a.GetBoolean();
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("Parse Rulesets", ex);
+                }
+
+                if (!string.IsNullOrEmpty(deltaId) && !active)
+                {
+                    Logger.LogToFile($"Aktiviere Ruleset {deltaId}", "solibri.log");
+                    using var actResp = await Http.PostAsync($"{_baseUrl}/models/{modelId}/rulesets/{deltaId}/activate", null).ConfigureAwait(false);
+                    actResp.EnsureSuccessStatusCode();
+                }
+
+                Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
+                using var checkResp = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", null).ConfigureAwait(false);
+                checkResp.EnsureSuccessStatusCode();
+
+                var sw = Stopwatch.StartNew();
+                string? status = null;
+                do
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                    using var statusResp = await Http.GetAsync($"{_baseUrl}/models/{modelId}/status").ConfigureAwait(false);
+                    statusResp.EnsureSuccessStatusCode();
+                    string statusJson = await statusResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(statusJson);
+                        status = doc.RootElement.GetProperty("status").GetString();
+                    }
+                    catch
+                    {
+                        // ignore parse errors and continue
+                    }
+                } while (!string.Equals(status, "SAVED", StringComparison.OrdinalIgnoreCase) && sw.Elapsed < TimeSpan.FromMinutes(10));
+
+                if (!string.Equals(status, "SAVED", StringComparison.OrdinalIgnoreCase))
+                    throw new TimeoutException("Solibri hat den SAVED-Status nicht erreicht.");
+
+                var resultJson = await checkResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                List<ClashResult>? results = null;
+                try
+                {
+                    results = JsonSerializer.Deserialize<List<ClashResult>>(resultJson);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("Parse Check Results", ex);
+                }
+
+                return results ?? new List<ClashResult>();
+            }
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
+            {
+                Logger.LogCrash("Solibri RunRulesetCheck", ex);
+                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
+            }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogCrash("Solibri RunRulesetCheck", ex);
+                throw new Exception($"Fehler beim Ausführen der Ruleset-Prüfung: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Solibri RunRulesetCheck", ex);
+                throw;
+            }
+        }
 
         // Kopiert die angegebene Ruleset-Datei in den lokalen Solibri-Ordner.
         public async Task<string> InstallRulesetLocally(string csetFilePath)
@@ -371,12 +475,12 @@ namespace SpaceTracker
             if (string.IsNullOrWhiteSpace(csetFilePath))
                 throw new ArgumentException("Pfad zur Ruleset-Datei darf nicht leer sein.", nameof(csetFilePath));
 
-                       string destDir = Path.Combine("C:\\", "Users", "Public", "Solibri", "SOLIBRI", "Rulesets");
+            string destDir = Path.Combine("C:\\", "Users", "Public", "Solibri", "SOLIBRI", "Rulesets");
 
             Directory.CreateDirectory(destDir);
             string destPath = Path.Combine(destDir, Path.GetFileName(csetFilePath));
             File.Copy(csetFilePath, destPath, true);
-            
+
             await Task.Delay(2000).ConfigureAwait(false);
             await GetStatusAsync().ConfigureAwait(false);
             return destPath;
