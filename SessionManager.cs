@@ -15,7 +15,7 @@ namespace SpaceTracker
             Document = doc;
             Puller = puller;
             Monitor = monitor;
-
+ LastSyncTime = CommandManager.Instance.LastSyncTime;
         }
     }
 
