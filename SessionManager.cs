@@ -7,14 +7,14 @@ namespace SpaceTracker
     {
         public Document Document { get; }
         public GraphPuller Puller { get; }
-                public ChangeMonitor Monitor { get; }
-
+        public ChangeMonitor Monitor { get; }
+        public DateTime LastSyncTime { get; set; }
 
         public Session(Document doc, GraphPuller puller, ChangeMonitor monitor)
         {
             Document = doc;
             Puller = puller;
-                        Monitor = monitor;
+            Monitor = monitor;
 
         }
     }

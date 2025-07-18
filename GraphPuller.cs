@@ -17,10 +17,10 @@ namespace SpaceTracker;
 public class GraphPuller : IExternalEventHandler
 {
     private readonly Neo4jConnector _connector;
-     private readonly ExternalEvent _event;
+    private readonly ExternalEvent _event;
     private readonly System.Collections.Concurrent.ConcurrentQueue<(Document Doc, string UserId)> _queue = new();
 
- private System.Timers.Timer? _timer;
+    private System.Timers.Timer? _timer;
     private Document? _currentDoc;
     private string? _sessionId;
     private string? _userId;
@@ -31,7 +31,7 @@ public class GraphPuller : IExternalEventHandler
     {
         _connector = connector;
         _event = ExternalEvent.Create(this);
-         _timer = new System.Timers.Timer(3000) { AutoReset = true };
+        _timer = new System.Timers.Timer(3000) { AutoReset = true };
         _timer.Elapsed += async (_, _) => await CheckForUpdates();
     }
 
@@ -52,7 +52,7 @@ public class GraphPuller : IExternalEventHandler
 
     public void RequestPull(Document doc, string currentUserId)
     {
-                _queue.Enqueue((doc, currentUserId));
+        _queue.Enqueue((doc, currentUserId));
 
         if (!_event.IsPending)
             _event.Raise();
@@ -79,7 +79,7 @@ public class GraphPuller : IExternalEventHandler
             _event.Raise();
     }
 
-    
+
     private async Task CheckForUpdates()
     {
         if (_currentDoc == null || _sessionId == null || _userId == null)
@@ -125,7 +125,9 @@ public class GraphPuller : IExternalEventHandler
             .Where(ps => ParameterUtils.IsProvisionalSpace(ps.ToDictionary()))
             .ToList();
 
-        Debug.WriteLine($"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces");
+        string pullInfo = $"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces";
+        Debug.WriteLine(pullInfo);
+        Logger.LogToFile($"GraphPuller.PullRemoteChanges: {pullInfo}", "sync.log");
         using var tx = new Transaction(doc, "Auto Sync");
         tx.Start();
 
@@ -153,9 +155,13 @@ public class GraphPuller : IExternalEventHandler
         tx.Commit();
 
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;
-         cmdMgr.LastPulledAt = cmdMgr.LastSyncTime;
+        cmdMgr.LastPulledAt = cmdMgr.LastSyncTime;
         LastPulledAt = cmdMgr.LastPulledAt;
         cmdMgr.PersistSyncTime();
         await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
-    }
+ 
+        var key = doc.PathName ?? doc.Title;
+        if (SessionManager.OpenSessions.TryGetValue(key, out var session))
+            session.LastSyncTime = cmdMgr.LastSyncTime;
+   }
 }
