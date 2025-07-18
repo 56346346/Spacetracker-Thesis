@@ -276,7 +276,6 @@ namespace SpaceTracker
                 }
 
                 Debug.WriteLine("[Neo4j] Created ProvisionalSpace node: " + cyNode);
-                Logger.LogToFile($"Created provisional space {inst.UniqueId} ({inst.Name})", "extractor.log");
                 Logger.LogToFile($"Finished processing {inst.UniqueId}", ProvLog);
                 UpdateProvisionalSpaceRelations(inst, doc);
 
@@ -506,79 +505,6 @@ namespace SpaceTracker
             Debug.WriteLine($"#--------#\nTimer stopped: {timer.ElapsedMilliseconds}ms\n#--------#");
             timer.Stop();
         }
-        // Aktualisiert den Graph asynchron basierend auf Änderungslisten.
-        public Task UpdateGraphAsync(
-        Document doc,
-        List<ElementId> EnqueuedElementIds,
-        List<ElementId> deletedElementIds,
-        List<ElementId> modifiedElementIds)
-
-        {
-            try
-            {
-                // Gelöschte Elemente
-                foreach (var id in deletedElementIds)
-                {
-                    string cyDelete = $"MATCH (n {{ElementId: {id.Value}}}) DETACH DELETE n";
-                    _cmdManager.cypherCommands.Enqueue(cyDelete);
-                    Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cyDelete);
-                }
-
-                // Neue/modifizierte Elemente
-                ProcessElements(doc, EnqueuedElementIds.Concat(modifiedElementIds).ToList());
-                CheckBoundingForAllPipes(doc);
-
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Neo4j-Error] {ex.Message}");
-            }
-            return Task.CompletedTask;
-        }
-
-        private void ProcessElements(Document doc, IReadOnlyCollection<ElementId> elementIds)
-        {
-            foreach (var id in elementIds)
-            {
-                var element = doc.GetElement(id);
-                if (element.Category != null)
-                {
-                    var bic = (BuiltInCategory)element.Category.Id.Value;
-                    switch (bic)
-                    {
-                        case BuiltInCategory.OST_Rooms:
-                            ProcessRoom(element, doc);
-                            break;
-                        case BuiltInCategory.OST_Walls:
-                            ProcessWall(element, doc);
-                            break;
-                        case BuiltInCategory.OST_GenericModel when element is FamilyInstance fi:
-                            ProcessProvisionalSpace(fi, doc);
-                            break;
-                        case BuiltInCategory.OST_PipeCurves:
-                            if (element is MEPCurve pipe)
-                                ProcessPipe(pipe, doc);
-                            break;
-                        case BuiltInCategory.OST_Doors:
-                            ProcessDoor(element, doc);
-                            break;
-                        case BuiltInCategory.OST_Windows:
-                            ProcessWindow(element, doc);
-                            break;
-                        case BuiltInCategory.OST_Stairs:
-
-                            ProcessStair(element, doc);
-                            break;
-                        default:
-                            Debug.WriteLine($"[Neo4j] Ignoriere Kategorie: {bic}");
-                            break;
-                    }
-
-
-                }
-            }
-        }
-
         private void ProcessProvisionalSpaces(Document doc)
         {
             var collector = new FilteredElementCollector(doc)
