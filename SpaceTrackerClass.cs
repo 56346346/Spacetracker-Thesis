@@ -41,7 +41,6 @@ namespace SpaceTracker
         private Neo4jConnector _neo4jConnector;
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
-        private PullEventHandler _pullEventHandler;
         public const int SolibriApiPort = 10876;
 
 
@@ -248,7 +247,6 @@ namespace SpaceTracker
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
                 _graphPuller = new GraphPuller(_neo4jConnector);
                 _cmdManager = CommandManager.Instance;
-                _pullEventHandler = new PullEventHandler();
                 _exportHandler = new IfcExportHandler();
                 _exportEvent = ExternalEvent.Create(_exportHandler);
             }
@@ -333,7 +331,7 @@ namespace SpaceTracker
                 {
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
                     _databaseUpdateHandler.TriggerPush();
-                    var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
+                    var mon = new ChangeMonitor(_neo4jConnector, _graphPuller);
                     mon.Start(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId);
                     string key = uiApp.ActiveUIDocument.Document.PathName ?? uiApp.ActiveUIDocument.Document.Title;
                     SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document, _graphPuller, mon));
@@ -471,27 +469,6 @@ namespace SpaceTracker
                 }
                 var pushBtn = _ribbonPanel.AddItem(pushBtnData) as PushButton;
                 pushBtn.ToolTip = "Überträgt lokale Änderungen zum Neo4j-Graph (Push)";
-            }
-
-            // 4. Pull-Button (entfernte Änderungen holen)
-            if (!_ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "PullChangesButton"))
-            {
-                var pullBtnData = new PushButtonData(
-                    "PullChangesButton", "Pull Changes",
-                    Assembly.GetExecutingAssembly().Location,
-                    "SpaceTracker.PullCommand"
-                );
-                string pullIconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Pull.png");
-                if (File.Exists(pullIconPath))
-                {
-                    var pullIcon = new BitmapImage();
-                    pullIcon.BeginInit();
-                    pullIcon.UriSource = new Uri(pullIconPath, UriKind.Absolute);
-                    pullIcon.EndInit();
-                    pullBtnData.LargeImage = pullIcon;
-                }
-                var pullBtn = _ribbonPanel.AddItem(pullBtnData) as PushButton;
-                pullBtn.ToolTip = "Holt neueste Änderungen vom Neo4j-Graph in das lokale Modell (Pull)";
             }
 
             // 5. Consistency-Check-Button (Ampelanzeige für Status)
@@ -676,18 +653,6 @@ namespace SpaceTracker
             return Result.Succeeded;
 
         }
-
-        /// <summary>
-        /// Triggers a pull of the latest changes for all open sessions.
-        /// </summary>
-        private void PullChanges()
-        {
-            foreach (var openSession in SessionManager.OpenSessions.Values)
-            {
-                _pullEventHandler?.RequestPull(openSession.Document);
-            }
-        }
-
         // Exportiert das gesamte aktuelle Modell nach IFC und importiert es in
         // Solibri, wenn noch kein Modell geladen wurde.
         private void ImportInitialSolibriModel(Document doc)
@@ -790,7 +755,6 @@ namespace SpaceTracker
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
                 _databaseUpdateHandler.TriggerPush();
                 _graphPuller?.RequestPull(doc, Environment.UserName);
-                PullChanges();
                 string key = doc.PathName ?? doc.Title;
                 if (SessionManager.OpenSessions.TryGetValue(key, out var session))
                     session.Monitor.UpdateDocument(doc);
@@ -814,9 +778,6 @@ namespace SpaceTracker
                         _neo4jConnector.DeleteNodeAsync(id).GetAwaiter().GetResult();
                         _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId, user).GetAwaiter().GetResult();
                     }
-
-                    PullChanges();
-
                     var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
                     foreach (var cid in ids)
                         SolibriChecker.CheckElementAsync(cid, doc).GetAwaiter().GetResult();
@@ -827,8 +788,8 @@ namespace SpaceTracker
                 }
                 foreach (var openSession in SessionManager.OpenSessions.Values)
                 {
-                    // trigger pull command via external event to keep sessions in sync
-                    _pullEventHandler?.RequestPull(openSession.Document);
+                   // trigger pull to keep sessions in sync
+                    _graphPuller.RequestPull(openSession.Document, Environment.UserName);
                 }
             }
             catch (Exception ex)
@@ -848,8 +809,8 @@ namespace SpaceTracker
                 // Nach dem Initialisieren bereits vorhandener Elemente direkt
                 // die aktuellen Befehle an Neo4j senden
                 _databaseUpdateHandler.TriggerPush();
-                PullChanges();
-                var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
+                  _graphPuller.RequestPull(e.Document, Environment.UserName);
+                var mon = new ChangeMonitor(_neo4jConnector, _graphPuller);
                 mon.Start(e.Document, CommandManager.Instance.SessionId);
                 string key = e.Document.PathName ?? e.Document.Title;
                 SessionManager.AddSession(key, new Session(e.Document, _graphPuller, mon));
@@ -918,8 +879,7 @@ namespace SpaceTracker
                     }
                     // After loading the model trigger a pull to ensure latest changes
                     _graphPuller?.RequestPull(doc, Environment.UserName);
-                    PullChanges();
-                    var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
+                    var mon = new ChangeMonitor(_neo4jConnector, _graphPuller);
                     mon.Start(doc, CommandManager.Instance.SessionId);
                     string key = doc.PathName ?? doc.Title;
                     SessionManager.AddSession(key, new Session(doc, _graphPuller, mon));

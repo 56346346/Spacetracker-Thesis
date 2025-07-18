@@ -612,15 +612,15 @@ namespace SpaceTracker
         }
         private static bool Intersects(BoundingBoxXYZ a, BoundingBoxXYZ b)
         {
-  return a.Min.X <= b.Max.X && a.Max.X >= b.Min.X &&
-                   a.Min.Y <= b.Max.Y && a.Max.Y >= b.Min.Y &&
-                   a.Min.Z <= b.Max.Z && a.Max.Z >= b.Min.Z;
+            return a.Min.X <= b.Max.X && a.Max.X >= b.Min.X &&
+                             a.Min.Y <= b.Max.Y && a.Max.Y >= b.Min.Y &&
+                             a.Min.Z <= b.Max.Z && a.Max.Z >= b.Min.Z;
         }
 
         private void UpdatePipeRelations(MEPCurve pipe, Document doc)
         {
             var bbPipe = pipe.get_BoundingBox(null);
-                        if (bbPipe == null) return;
+            if (bbPipe == null) return;
 
             var psCollector = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_GenericModel)
@@ -686,9 +686,10 @@ namespace SpaceTracker
                     cypher =
                         $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}})-[r:CONTAINED_IN]->(ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) DELETE r";
                 }
-            }
-             _cmdManager.cypherCommands.Enqueue(cypher);
+                _cmdManager.cypherCommands.Enqueue(cypher);
                 Debug.WriteLine("[Neo4j] Updated Pipe-ProvisionalSpace relation: " + cypher);
+            }
+
         }
 
         public void CheckBoundingForAllPipes(Document doc)

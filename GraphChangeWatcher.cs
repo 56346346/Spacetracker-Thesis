@@ -12,16 +12,16 @@ namespace SpaceTracker
     public class ChangeMonitor : IDisposable
     {
         private readonly Neo4jConnector _connector;
-        private readonly PullEventHandler _pullEventHandler;
+        private readonly GraphPuller _puller;
         private CancellationTokenSource _cts;
         private Task _watchTask;
         private string _sessionId;
         private Document _document;
 
-        public ChangeMonitor(Neo4jConnector connector, PullEventHandler pullEventHandler)
+        public ChangeMonitor(Neo4jConnector connector, GraphPuller puller)
         {
             _connector = connector;
-            _pullEventHandler = pullEventHandler;
+            _puller = puller;
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace SpaceTracker
                     {
                         var logs = await _connector.GetPendingChangeLogsAsync(_sessionId).ConfigureAwait(false);
                         if (logs.Count > 0)
-                            _pullEventHandler.RequestPull(_document);
+                            _puller.RequestPull(_document, Environment.UserName);
                     }
                 }
                 catch (Exception ex)
