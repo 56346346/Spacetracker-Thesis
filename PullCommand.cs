@@ -147,7 +147,10 @@ public class PullCommand : IExternalCommand
 
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;
         cmdMgr.PersistSyncTime();
-
+        connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).GetAwaiter().GetResult();
+        var key = doc.PathName ?? doc.Title;
+        if (SessionManager.OpenSessions.TryGetValue(key, out var session))
+            session.LastSyncTime = cmdMgr.LastSyncTime;
         if (showDialog)
         {
             TaskDialog.Show("Neo4j", $"{walls.Count} Wände, {doors.Count} Türen, {pipes.Count} Rohre und {provisionalSpaces.Count} Provisional Spaces importiert.");

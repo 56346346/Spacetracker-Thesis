@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Autodesk.Revit.DB;
+using System.Linq;
 
 namespace SpaceTracker
 {
@@ -15,7 +16,7 @@ namespace SpaceTracker
             Document = doc;
             Puller = puller;
             Monitor = monitor;
- LastSyncTime = CommandManager.Instance.LastSyncTime;
+            LastSyncTime = CommandManager.Instance.LastSyncTime;
         }
     }
 
@@ -32,6 +33,11 @@ namespace SpaceTracker
         public static void RemoveSession(string id)
         {
             _sessions.Remove(id);
+        }
+
+        public static Document? GetDocumentForSession(string sessionId)
+        {
+            return _sessions.Values.FirstOrDefault()?.Document;
         }
     }
 }

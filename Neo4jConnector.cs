@@ -320,15 +320,15 @@ MERGE (l)-[:CONTAINS]->(w)";
             }
         }
         // Gibt alle noch nicht bestätigten ChangeLogs anderer Sessions zurück.
-        public async Task<List<IRecord>> GetPendingChangeLogsAsync(string currentSession, DateTime lastSync)
+        public async Task<List<IRecord>> GetPendingChangeLogsAsync(string currentSessionId, DateTime lastSync)
         {
             string query = @"MATCH (c:ChangeLog)
 WHERE c.sessionId <> $currentSessionId
   AND c.timestamp > datetime($lastSync)
   AND coalesce(c.acknowledged,false) = false
-  RETURN c.sessionId AS sessionId, c.elementId AS elementId, c.type AS type, c.timestamp AS ts
+RETURN c.sessionId AS sessionId, c.elementId AS elementId, c.type AS type, c.timestamp AS ts
 ORDER BY c.timestamp ASC";
-            return await RunReadQueryAsync(query, new { currentSessionId = currentSession, lastSync = lastSync.ToString("o") }).ConfigureAwait(false);            return await RunReadQueryAsync(query, new { session = currentSession }).ConfigureAwait(false);
+            return await RunReadQueryAsync(query, new { currentSessionId, lastSync = lastSync.ToString("o") }).ConfigureAwait(false);
         }
         // Markiert alle fremden ChangeLogs als gelesen.
         public async Task AcknowledgeAllAsync(string currentSession)

@@ -51,15 +51,16 @@ namespace SpaceTracker
             {
                 try
                 {
-                    if (_document != null)
+                    var doc = _document ?? SessionManager.GetDocumentForSession(_sessionId);
+                    if (doc != null)
                     {
                         var logs = await _connector.GetPendingChangeLogsAsync(
                             _sessionId,
                             CommandManager.Instance.LastSyncTime).ConfigureAwait(false);
 
-                        if (logs.Count > 0 && !_document.IsModifiable && !_document.IsReadOnly)
+                        if (logs.Count > 0 && !doc.IsModifiable && !doc.IsReadOnly)
                         {
-                            _pullEventHandler.RequestPull(_document);
+                            _pullEventHandler.RequestPull(doc);
                         }
                     }
                 }
