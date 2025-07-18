@@ -45,7 +45,7 @@ namespace SpaceTracker
                             o => o.WithConnectionTimeout(TimeSpan.FromSeconds(15))
                                   .WithMaxConnectionPoolSize(50)
                         );
-                        // Ensure uniqueness constraints exist so elements are not duplicated
+            // Ensure uniqueness constraints exist so elements are not duplicated
             // when multiple users push the same wall.
             try
             {
@@ -57,7 +57,7 @@ namespace SpaceTracker
             }
         }
 
-        
+
         private async Task EnsureConstraintsAsync()
         {
             const string c1 = "CREATE INDEX wall_uid IF NOT EXISTS FOR (w:Wall) ON (w.uid)";
@@ -110,7 +110,8 @@ namespace SpaceTracker
                 var initTime = DateTime.Now.ToString("o");
                 await tx.RunAsync(
                   @"MERGE (s:Session { id: $session })
-              SET s.lastSync = datetime($time)",
+               SET s.lastSync = datetime($time),
+                  s.lastUpdate = datetime($time)",
                   new
                   {
                       session = sessionId,
@@ -196,6 +197,26 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                         await tx.RunAsync(
                             "MATCH (e { ElementId: $id }) SET e.lastModifiedUtc = datetime($time)",
                             new { id = elementId, time = logTime }).ConfigureAwait(false);
+
+                        // Bei neu erstellten Wänden Level-Beziehung ergänzen
+                        if (changeType == "Insert" &&
+                            currentDocument != null &&
+                            cmd.Contains(":Wall", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var wall = currentDocument.GetElement(new ElementId((int)elementId)) as Wall;
+                            if (wall != null)
+                            {
+                                Level level = currentDocument.GetElement(wall.LevelId) as Level;
+                                if (level != null)
+                                {
+                                    const string relCypher =
+                                        @"MATCH (l:Level {ElementId: $levelId}), (w:Wall {ElementId: $wallId})
+MERGE (l)-[:CONTAINS]->(w)";
+                                    await tx.RunAsync(relCypher,
+                                        new { levelId = level.Id.Value, wallId = elementId }).ConfigureAwait(false);
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -459,6 +480,18 @@ SET c.acknowledged = true",
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+
+        public async Task<DateTime> GetLastUpdateTimestampAsync(string currentSession)
+        {
+            const string query = @"MATCH (s:Session)
+WHERE s.id <> $session
+RETURN max(s.lastUpdate) AS lastUpdate";
+            var records = await RunReadQueryAsync(query, new { session = currentSession }).ConfigureAwait(false);
+            var rec = records.FirstOrDefault();
+            if (rec != null && rec["lastUpdate"] != null)
+                return rec["lastUpdate"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
+            return DateTime.MinValue;
+        }
         public async Task UpsertNodeAsync(Element element)
         {
             switch (element)
@@ -632,7 +665,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
               .Where(k => k != "guid")
               .Select(k => $"p.{k} = ${k}")
               .ToList();
-                setParts.Add("p.createdBy = coalesce(p.createdBy,$user)");
+            setParts.Add("p.createdBy = coalesce(p.createdBy,$user)");
             setParts.Add("p.createdAt = coalesce(p.createdAt,$created)");
             setParts.Add("p.lastModifiedUtc = datetime($modified)");
             string cypher = $"MERGE (p:ProvisionalSpace {{guid:$guid}}) SET {string.Join(", ", setParts)}";

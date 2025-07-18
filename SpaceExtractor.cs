@@ -278,7 +278,7 @@ namespace SpaceTracker
                 Debug.WriteLine("[Neo4j] Created ProvisionalSpace node: " + cyNode);
                 Logger.LogToFile($"Created provisional space {inst.UniqueId} ({inst.Name})", "extractor.log");
                 Logger.LogToFile($"Finished processing {inst.UniqueId}", ProvLog);
-                CheckBoundingForAllPipes(doc);
+                UpdateProvisionalSpaceRelations(inst, doc);
 
             }
             catch (Exception ex)
@@ -309,7 +309,7 @@ namespace SpaceTracker
                     $"p.lastModifiedUtc = datetime('{((DateTime)data["modified"]).ToString("o")}')"; _cmdManager.cypherCommands.Enqueue(cyNode);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe Node): " + cyNode);
 
-                CheckBoundingPipe(pipe, doc);
+                UpdatePipeRelations(pipe, doc);
 
             }
             catch (Exception ex)
@@ -610,10 +610,17 @@ namespace SpaceTracker
                 ProcessPipe(pipe, doc);
             }
         }
-        private void CheckBoundingPipe(MEPCurve pipe, Document doc)
+        private static bool Intersects(BoundingBoxXYZ a, BoundingBoxXYZ b)
         {
-            BoundingBoxXYZ bbPipe = pipe.get_BoundingBox(null);
-            if (bbPipe == null) return;
+  return a.Min.X <= b.Max.X && a.Max.X >= b.Min.X &&
+                   a.Min.Y <= b.Max.Y && a.Max.Y >= b.Min.Y &&
+                   a.Min.Z <= b.Max.Z && a.Max.Z >= b.Min.Z;
+        }
+
+        private void UpdatePipeRelations(MEPCurve pipe, Document doc)
+        {
+            var bbPipe = pipe.get_BoundingBox(null);
+                        if (bbPipe == null) return;
 
             var psCollector = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_GenericModel)
@@ -624,23 +631,64 @@ namespace SpaceTracker
                 if (!ParameterUtils.IsProvisionalSpace(ps))
                     continue;
 
-                BoundingBoxXYZ bbPs = ps.get_BoundingBox(null);
+                var bbPs = ps.get_BoundingBox(null);
                 if (bbPs == null) continue;
-                //muss noch geändert werden, damit richtige logik
-                bool intersects =
-                bbPipe.Min.X <= bbPs.Max.X && bbPipe.Max.X >= bbPs.Min.X &&
-                bbPipe.Min.Y <= bbPs.Max.Y && bbPipe.Max.Y >= bbPs.Min.Y &&
-                bbPipe.Min.Z <= bbPs.Max.Z && bbPipe.Max.Z >= bbPs.Min.Z;
+                bool intersects = Intersects(bbPipe, bbPs);
+                string cypher;
 
                 if (intersects)
                 {
-                    string cyRel =
-                        $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}}), (ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) " +
-                        "MERGE (pi)-[:CONTAINED_IN]->(ps)";
-                    _cmdManager.cypherCommands.Enqueue(cyRel);
-                    Debug.WriteLine("[Neo4j] Linked Pipe to ProvisionalSpace: " + cyRel);
+                    cypher =
+                        $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}}), (ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) MERGE (pi)-[:CONTAINED_IN]->(ps)";
+                }
+                else
+                {
+                    cypher =
+                        $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}})-[r:CONTAINED_IN]->(ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) DELETE r";
+                }
+                _cmdManager.cypherCommands.Enqueue(cypher);
+                Debug.WriteLine("[Neo4j] Updated Pipe-ProvisionalSpace relation: " + cypher);
+            }
+        }
+
+        private void UpdateProvisionalSpaceRelations(FamilyInstance ps, Document doc)
+        {
+            if (!ParameterUtils.IsProvisionalSpace(ps))
+                return;
+
+            var bbPs = ps.get_BoundingBox(null);
+            if (bbPs == null) return;
+
+            var catFilter = new LogicalOrFilter(new List<ElementFilter>
+            {
+                new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
+                new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments)
+            });
+
+            var pipes = new FilteredElementCollector(doc)
+                .WherePasses(catFilter)
+                .OfClass(typeof(MEPCurve));
+
+            foreach (MEPCurve pipe in pipes.Cast<MEPCurve>())
+            {
+                var bbPipe = pipe.get_BoundingBox(null);
+                if (bbPipe == null) continue;
+
+                bool intersects = Intersects(bbPipe, bbPs);
+                string cypher;
+                if (intersects)
+                {
+                    cypher =
+                        $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}}), (ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) MERGE (pi)-[:CONTAINED_IN]->(ps)";
+                }
+                else
+                {
+                    cypher =
+                        $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}})-[r:CONTAINED_IN]->(ps:ProvisionalSpace {{guid:'{ps.UniqueId}'}}) DELETE r";
                 }
             }
+             _cmdManager.cypherCommands.Enqueue(cypher);
+                Debug.WriteLine("[Neo4j] Updated Pipe-ProvisionalSpace relation: " + cypher);
         }
 
         public void CheckBoundingForAllPipes(Document doc)
@@ -657,7 +705,7 @@ namespace SpaceTracker
 
             foreach (MEPCurve pipe in collector.Cast<MEPCurve>())
             {
-                CheckBoundingPipe(pipe, doc);
+                UpdatePipeRelations(pipe, doc);
             }
         }
 

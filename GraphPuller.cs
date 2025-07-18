@@ -20,13 +20,33 @@ public class GraphPuller : IExternalEventHandler
      private readonly ExternalEvent _event;
     private readonly System.Collections.Concurrent.ConcurrentQueue<(Document Doc, string UserId)> _queue = new();
 
-
+ private System.Timers.Timer? _timer;
+    private Document? _currentDoc;
+    private string? _sessionId;
+    private string? _userId;
+    public DateTime LastPulledAt { get; private set; } = DateTime.MinValue;
     // Erzeugt den Puller und registriert ein ExternalEvent
 
     public GraphPuller(Neo4jConnector connector)
     {
         _connector = connector;
         _event = ExternalEvent.Create(this);
+         _timer = new System.Timers.Timer(3000) { AutoReset = true };
+        _timer.Elapsed += async (_, _) => await CheckForUpdates();
+    }
+
+    public void StartAutoSync(Document doc, string sessionId, string userId)
+    {
+        _currentDoc = doc;
+        _sessionId = sessionId;
+        _userId = userId;
+        LastPulledAt = CommandManager.Instance.LastPulledAt;
+        _timer?.Start();
+    }
+
+    public void StopAutoSync()
+    {
+        _timer?.Stop();
     }
     // Fordert einen Pull an; wird von anderen Klassen aufgerufen.
 
@@ -55,8 +75,25 @@ public class GraphPuller : IExternalEventHandler
                 Logger.LogCrash("GraphPuller", ex);
             }
         }
-          if (!_queue.IsEmpty)
+        if (!_queue.IsEmpty)
             _event.Raise();
+    }
+
+    
+    private async Task CheckForUpdates()
+    {
+        if (_currentDoc == null || _sessionId == null || _userId == null)
+            return;
+        try
+        {
+            var ts = await _connector.GetLastUpdateTimestampAsync(_sessionId).ConfigureAwait(false);
+            if (ts > LastPulledAt)
+                RequestPull(_currentDoc, _userId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("PullTimer", ex);
+        }
     }
     // Synchronises all changes since the last pull by querying modified nodes
     // directly instead of relying on change log relationships.
@@ -116,6 +153,8 @@ public class GraphPuller : IExternalEventHandler
         tx.Commit();
 
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;
+         cmdMgr.LastPulledAt = cmdMgr.LastSyncTime;
+        LastPulledAt = cmdMgr.LastPulledAt;
         cmdMgr.PersistSyncTime();
         await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
     }

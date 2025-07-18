@@ -37,6 +37,8 @@ namespace SpaceTracker
 
         public DateTime LastSyncTime { get; set; } = DateTime.MinValue;
         public List<LogChange> LogChanges { get; } = new();
+                public DateTime LastPulledAt { get; set; } = DateTime.MinValue;
+
         public List<LogChangeAcknowledged> LogChangesAcknowledged { get; } = new();
         public int ExpectedSessionCount { get; set; } = 1;
 
@@ -48,7 +50,7 @@ namespace SpaceTracker
 
             SessionId = GenerateSessionId();
             LastSyncTime = LoadLastSyncTime();
-
+            LastPulledAt = LastSyncTime;
             cypherCommands = new ConcurrentQueue<string>();
         }
 

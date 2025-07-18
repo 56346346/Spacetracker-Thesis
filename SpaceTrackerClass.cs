@@ -337,6 +337,7 @@ namespace SpaceTracker
                     mon.Start(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId);
                     string key = uiApp.ActiveUIDocument.Document.PathName ?? uiApp.ActiveUIDocument.Document.Title;
                     SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document, _graphPuller, mon));
+                    _graphPuller.StartAutoSync(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId, Environment.UserName);
                     ImportInitialSolibriModel(uiApp.ActiveUIDocument.Document);
 
                 }
@@ -852,6 +853,7 @@ namespace SpaceTracker
                 mon.Start(e.Document, CommandManager.Instance.SessionId);
                 string key = e.Document.PathName ?? e.Document.Title;
                 SessionManager.AddSession(key, new Session(e.Document, _graphPuller, mon));
+                _graphPuller.StartAutoSync(e.Document, CommandManager.Instance.SessionId, Environment.UserName);
                 ImportInitialSolibriModel(e.Document);
 
             }
@@ -921,6 +923,7 @@ namespace SpaceTracker
                     mon.Start(doc, CommandManager.Instance.SessionId);
                     string key = doc.PathName ?? doc.Title;
                     SessionManager.AddSession(key, new Session(doc, _graphPuller, mon));
+                    _graphPuller.StartAutoSync(doc, CommandManager.Instance.SessionId, Environment.UserName);
                     ImportInitialSolibriModel(doc);
 
                 }
@@ -943,6 +946,7 @@ namespace SpaceTracker
                 {
                     session.Monitor.Dispose();
                     SessionManager.RemoveSession(key);
+                    _graphPuller.StopAutoSync();
                 }
             }
             catch (Exception ex)
