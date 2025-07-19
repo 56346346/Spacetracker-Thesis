@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
+using System.IO;
+
 
 namespace SpaceTracker
 {
@@ -11,6 +13,16 @@ namespace SpaceTracker
     /// </summary>
     public class ChangeMonitor : IDisposable
     {
+        private static readonly string logPath = Path.Combine("log", "ChangeMonitor.log");
+        static ChangeMonitor()
+        {
+            MethodLogger.InitializeLog(nameof(ChangeMonitor));
+        }
+
+        private static void LogMethodCall(string methodName, Dictionary<string, object?> parameters)
+        {
+            MethodLogger.Log(nameof(ChangeMonitor), methodName, parameters);
+        }
         private readonly Neo4jConnector _connector;
         private readonly PullEventHandler _pullEventHandler;
         private CancellationTokenSource _cts;
@@ -29,6 +41,11 @@ namespace SpaceTracker
         /// </summary>
         public void Start(Document doc, string sessionId)
         {
+            LogMethodCall(nameof(Start), new()
+            {
+                ["doc"] = doc?.Title,
+                ["sessionId"] = sessionId
+            });
             _document = doc;
             _sessionId = sessionId;
             if (_watchTask != null && !_watchTask.IsCompleted)
@@ -42,6 +59,8 @@ namespace SpaceTracker
         /// </summary>
         public void UpdateDocument(Document doc)
         {
+            LogMethodCall(nameof(UpdateDocument), new() { ["doc"] = doc?.Title });
+
             _document = doc;
         }
 
@@ -82,11 +101,15 @@ namespace SpaceTracker
 
         public void Stop()
         {
+            LogMethodCall(nameof(Stop), new());
+
             _cts?.Cancel();
         }
 
         public void Dispose()
         {
+            LogMethodCall(nameof(Dispose), new());
+
             Stop();
         }
     }

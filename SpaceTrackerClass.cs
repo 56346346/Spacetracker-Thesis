@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Autodesk.Revit.Exceptions;
 using Autodesk.Revit.UI;
 using System.Reflection;
+using Newtonsoft.Json;
 using Neo4j.Driver;
 using System.Windows.Forms;
 using System.IO;
@@ -35,6 +36,9 @@ namespace SpaceTracker
 {
     public class SpaceTrackerClass : IExternalApplication
     {
+          private static readonly string _logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "log", nameof(SpaceTrackerClass) + ".log");
+        private static readonly object _logLock = new object();
+
         private RibbonPanel _ribbonPanel;
 
 
@@ -51,6 +55,16 @@ namespace SpaceTracker
         private CommandManager _cmdManager;
         private static IfcExportHandler _exportHandler;
         private static ExternalEvent _exportEvent;
+         private static void LogMethodCall(string methodName, IDictionary<string, object> args)
+        {
+            var timestamp = DateTime.Now.ToString("o");
+            var argList = string.Join(", ", args.Select(kv => $"{kv.Key}={JsonConvert.SerializeObject(kv.Value)}"));
+            var line = $"[{timestamp}] {nameof(SpaceTrackerClass)}.{methodName}({argList})";
+            lock(_logLock)
+            {
+                File.AppendAllText(_logPath, line + Environment.NewLine);
+            }
+        }
 
         // Holds the currently loaded Solibri model UUID. This is initialized
         // with the default value but may change if Solibri creates a new model
@@ -69,6 +83,10 @@ namespace SpaceTracker
         // Methode zum Aktualisieren des Ampel-Icons
         public static void SetStatusIndicator(StatusColor status)
         {
+              LogMethodCall(nameof(SetStatusIndicator), new Dictionary<string, object>
+            {
+                { "status", status }
+            });
             if (StatusIndicatorButton == null) return;
             switch (status)
             {
@@ -94,6 +112,10 @@ namespace SpaceTracker
         // on the UI thread to immediately reflect the validation result.
         public static void UpdateConsistencyCheckerButton(Severity severity)
         {
+              LogMethodCall(nameof(UpdateConsistencyCheckerButton), new Dictionary<string, object>
+            {
+                { "severity", severity }
+            });
             switch (severity)
             {
                 case Severity.Error:
@@ -114,6 +136,11 @@ namespace SpaceTracker
         // Vergleicht lokale Änderungen mit dem Graphen und setzt die Ampel. Optionale Dialoge informieren den Nutzer.
         public static void PerformConsistencyCheck(Document doc, bool showDialogs)
         {
+             LogMethodCall(nameof(PerformConsistencyCheck), new Dictionary<string, object>
+            {
+                { "doc", doc },
+                { "showDialogs", showDialogs }
+            });
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
 
@@ -179,6 +206,10 @@ namespace SpaceTracker
         /// </summary>
         public static void MarkElementsBySeverity(Dictionary<ElementId, string> severityMap)
         {
+             LogMethodCall(nameof(MarkElementsBySeverity), new Dictionary<string, object>
+            {
+                { "severityMap", severityMap }
+            });
             if (severityMap == null || severityMap.Count == 0)
                 return;
 
@@ -215,6 +246,11 @@ namespace SpaceTracker
 
         public static void RequestIfcExport(Document doc, List<ElementId> ids)
         {
+             LogMethodCall(nameof(RequestIfcExport), new Dictionary<string, object>
+            {
+                { "doc", doc },
+                { "ids", ids }
+            });
             _exportHandler.Document = doc;
             _exportHandler.ElementIds = ids;
             if (!_exportEvent.IsPending)
@@ -226,7 +262,14 @@ namespace SpaceTracker
         // Wird beim Laden des Add-Ins aufgerufen und richtet alle Komponenten ein.
         public Result OnStartup(UIControlledApplication application)
         {
-            Logger.LogToFile("OnStartup begin", "assembly.log");
+            LogMethodCall(nameof(OnStartup), new Dictionary<string, object>
+            {
+                { "application", application }
+            });
+
+            var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "log");
+            if (Directory.Exists(logDir)) Directory.Delete(logDir, true);
+            Directory.CreateDirectory(logDir);
 
             try
             {
@@ -283,7 +326,6 @@ namespace SpaceTracker
 
             // 1. Logging-Pfade in Benutzerverzeichnis verlegen
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string logDir = Path.Combine(appDataPath, "SpaceTracker");
             string mainLogPath = Path.Combine(logDir, "SpaceTracker.log");
             string crashLogPath = Path.Combine(logDir, "SpaceTracker_crash.log");
             string assemblyCheckPath = Path.Combine(logDir, "SpaceTracker_Assembly_Check.log");
@@ -358,8 +400,6 @@ namespace SpaceTracker
      $"Inner: {e.InnerException?.Message}";
 
                 Logger.LogToFile(errorDetails, "crash.log");
-                Logger.LogToFile(errorDetails, "assembly.log");
-
                 Debug.WriteLine("[SpaceTracker] KRITISCHER FEHLER: " + e.Message);
                 return Result.Failed;
             }
@@ -665,6 +705,10 @@ namespace SpaceTracker
         // Aufräumarbeiten beim Beenden von Revit.
         public Result OnShutdown(UIControlledApplication application)
         {
+             LogMethodCall(nameof(OnShutdown), new Dictionary<string, object>
+            {
+                { "application", application }
+            });
             CommandManager.Instance.Dispose();
             application.ControlledApplication.DocumentOpened -= documentOpened;
             application.ControlledApplication.DocumentChanged -= documentChanged;

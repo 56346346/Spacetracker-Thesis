@@ -9,6 +9,8 @@ using Autodesk.Revit.DB.Plumbing;
 using System.Linq;
 using Autodesk.Revit.UI;
 using Neo4j.Driver;
+using System.IO;
+
 
 
 namespace SpaceTracker;
@@ -16,6 +18,16 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public class GraphPuller : IExternalEventHandler
 {
+       private static readonly string logPath = Path.Combine("log", "GraphPuller.log");
+    static GraphPuller()
+    {
+        MethodLogger.InitializeLog(nameof(GraphPuller));
+    }
+
+    private static void LogMethodCall(string methodName, Dictionary<string, object?> parameters)
+    {
+        MethodLogger.Log(nameof(GraphPuller), methodName, parameters);
+    }
     private readonly Neo4jConnector _connector;
     private readonly ExternalEvent _event;
     private readonly System.Collections.Concurrent.ConcurrentQueue<(Document Doc, string UserId)> _queue = new();
@@ -37,6 +49,12 @@ public class GraphPuller : IExternalEventHandler
 
     public void StartAutoSync(Document doc, string sessionId, string userId)
     {
+         LogMethodCall(nameof(StartAutoSync), new()
+        {
+            ["doc"] = doc?.Title,
+            ["sessionId"] = sessionId,
+            ["userId"] = userId
+        });
         _currentDoc = doc;
         _sessionId = sessionId;
         _userId = userId;
@@ -46,12 +64,19 @@ public class GraphPuller : IExternalEventHandler
 
     public void StopAutoSync()
     {
+                LogMethodCall(nameof(StopAutoSync), new());
+
         _timer?.Stop();
     }
     // Fordert einen Pull an; wird von anderen Klassen aufgerufen.
 
     public void RequestPull(Document doc, string currentUserId)
     {
+            LogMethodCall(nameof(RequestPull), new()
+        {
+            ["doc"] = doc?.Title,
+            ["currentUserId"] = currentUserId
+        });
         _queue.Enqueue((doc, currentUserId));
 
         if (!_event.IsPending)
@@ -63,6 +88,8 @@ public class GraphPuller : IExternalEventHandler
 
     public void Execute(UIApplication app)
     {
+                LogMethodCall(nameof(Execute), new() { ["app"] = app?.ToString() ?? "null" });
+
         while (_queue.TryDequeue(out var req))
 
         {
@@ -99,6 +126,11 @@ public class GraphPuller : IExternalEventHandler
     // directly instead of relying on change log relationships.
     public async Task PullRemoteChanges(Document doc, string currentUserId)
     {
+           LogMethodCall(nameof(PullRemoteChanges), new()
+        {
+            ["doc"] = doc?.Title,
+            ["currentUserId"] = currentUserId
+        });
         var cmdMgr = CommandManager.Instance;
 
         var walls = await _connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);

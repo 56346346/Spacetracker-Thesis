@@ -24,6 +24,16 @@ namespace SpaceTracker
 
     public class Neo4jConnector : IDisposable, INeo4jConnector
     {
+         private static readonly string logPath = Path.Combine("log", "Neo4jConnector.log");
+        static Neo4jConnector()
+        {
+            MethodLogger.InitializeLog(nameof(Neo4jConnector));
+        }
+
+        private static void LogMethodCall(string methodName, Dictionary<string, object?> parameters)
+        {
+            MethodLogger.Log(nameof(Neo4jConnector), methodName, parameters);
+        }
         private readonly IDriver _driver;
         private readonly Microsoft.Extensions.Logging.ILogger<Neo4jConnector> _logger;
         private const string CommandLogFile = "neo4j_commands.log";
@@ -77,6 +87,11 @@ namespace SpaceTracker
 
         public async Task<List<IRecord>> RunReadQueryAsync(string query, object parameters = null)
         {
+             LogMethodCall(nameof(RunReadQueryAsync), new()
+            {
+                ["query"] = query,
+                ["parameters"] = parameters
+            });
             await using var session = _driver.AsyncSession();
             try
             {
@@ -96,6 +111,12 @@ namespace SpaceTracker
         // jedes Element einen Log-Eintrag an.
         public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName, Autodesk.Revit.DB.Document currentDocument = null)
         {
+              LogMethodCall(nameof(PushChangesAsync), new()
+            {
+                ["changeCount"] = changes?.Count(),
+                ["sessionId"] = sessionId,
+                ["userName"] = userName
+            });
             // 1) Asynchrone Neo4j-Session öffnen
             await using var session = _driver.AsyncSession();
             Logger.LogToFile($"BEGIN push {changes.Count()} commands", CommandLogFile);
@@ -396,6 +417,11 @@ SET c.acknowledged = true",
 
         public async Task RunWriteQueryAsync(string query, object parameters = null)
         {
+             LogMethodCall(nameof(RunWriteQueryAsync), new()
+            {
+                ["query"] = query,
+                ["parameters"] = parameters
+            });
             await using var session = _driver.AsyncSession();
             try
             {
@@ -465,6 +491,11 @@ SET c.acknowledged = true",
         // Aktualisiert das lastSync-Datum einer Session in Neo4j.
         public async Task UpdateSessionLastSyncAsync(string sessionId, DateTime syncTime)
         {
+             LogMethodCall(nameof(UpdateSessionLastSyncAsync), new()
+            {
+                ["sessionId"] = sessionId,
+                ["syncTime"] = syncTime
+            });
             await using var session = _driver.AsyncSession();
             try
             {
@@ -485,6 +516,8 @@ SET c.acknowledged = true",
 
         public async Task<DateTime> GetLastUpdateTimestampAsync(string currentSession)
         {
+                        LogMethodCall(nameof(GetLastUpdateTimestampAsync), new() { ["currentSession"] = currentSession });
+
             const string query = @"MATCH (s:Session)
 WHERE s.id <> $session
 RETURN max(s.lastUpdate) AS lastUpdate";
