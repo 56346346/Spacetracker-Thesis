@@ -36,7 +36,8 @@ namespace SpaceTracker
 {
     public class SpaceTrackerClass : IExternalApplication
     {
-          private static readonly string _logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "log", nameof(SpaceTrackerClass) + ".log");
+          private static readonly string _logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker", "loggi");
+
         private static readonly object _logLock = new object();
 
         private RibbonPanel _ribbonPanel;
@@ -264,7 +265,7 @@ namespace SpaceTracker
         {
             LogMethodCall(nameof(OnStartup), new Dictionary<string, object>
             {
-                { "application", application }
+                { "application", application.GetType().Name }
             });
 
             var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "log");
