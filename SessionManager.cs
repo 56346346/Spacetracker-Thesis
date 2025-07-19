@@ -21,7 +21,7 @@ namespace SpaceTracker
     {
         private static readonly Dictionary<string, Session> _sessions = new();
         public static IReadOnlyDictionary<string, Session> OpenSessions => _sessions;
-                public static string CurrentUserId => Environment.UserName;
+        public static string CurrentUserId => CommandManager.Instance.SessionId;
 
 
         public static void AddSession(string id, Session session)

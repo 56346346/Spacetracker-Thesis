@@ -36,7 +36,7 @@ public static class PipeSerializer
             ["diameter"] = UnitConversion.ToMm(diameter),
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
-            ["user"] = Environment.UserName
+            ["user"] = CommandManager.Instance.SessionId
         };
 
         SerializeParameters(pipe, dict);

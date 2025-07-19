@@ -7,7 +7,7 @@ namespace SpaceTracker
         public void Execute(UIApplication app)
         {
             var doc = app.ActiveUIDocument?.Document;
-            if (doc != null && !doc.IsReadOnly)
+            if (doc != null && !doc.IsReadOnly && !doc.IsModifiable)
             {
                 // Reiner Neo4j-Pull
                 new GraphPuller().PullRemoteChanges(doc, SessionManager.CurrentUserId);

@@ -138,8 +138,7 @@ namespace SpaceTracker
                     $"d.width = {((double)data.GetValueOrDefault("width", 0.0)).ToString(inv)}",
                     $"d.height = {((double)data.GetValueOrDefault("height", 0.0)).ToString(inv)}",
                     $"d.thickness = {((double)data.GetValueOrDefault("thickness", 0.0)).ToString(inv)}",
-                    $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Environment.UserName).ToString())}'",
-                    $"d.created = datetime('{((DateTime)data.GetValueOrDefault("created", DateTime.UtcNow)).ToString("o")}')",
+$"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", CommandManager.Instance.SessionId).ToString())}'",                    $"d.created = datetime('{((DateTime)data.GetValueOrDefault("created", DateTime.UtcNow)).ToString("o")}')",
                     $"d.modified = datetime('{((DateTime)data.GetValueOrDefault("modified", DateTime.UtcNow)).ToString("o")}')"
                 };
 

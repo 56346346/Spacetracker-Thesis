@@ -775,6 +775,7 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentCreated -= documentCreated;
             application.ControlledApplication.DocumentClosing -= documentClosing;
             _neo4jConnector?.Dispose();
+            _pullScheduler?.Dispose();
             return Result.Succeeded;
 
         }
@@ -809,6 +810,17 @@ namespace SpaceTracker
 
                 RequestIfcExport(doc, allIds);
                 string ifcPath = ExportHandler.ExportedPath;
+                if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                {
+                    Logger.LogToFile("IFC-Export fehlgeschlagen. Versuche erneut.", "solibri.log");
+                    RequestIfcExport(doc, allIds);
+                    ifcPath = ExportHandler.ExportedPath;
+                    if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                    {
+                        Logger.LogToFile("IFC-Export weiterhin fehlgeschlagen, breche Solibri-Import ab.", "solibri.log");
+                        return;
+                    }
+                }
                 var client = new SolibriApiClient(SolibriApiPort);
 
                 if (string.IsNullOrEmpty(SolibriRulesetId))
@@ -891,26 +903,24 @@ namespace SpaceTracker
                 // Direkt nach dem Einreihen einen Push anstoßen, damit die
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
                 _databaseUpdateHandler.TriggerPush();
-                _graphPuller?.PullRemoteChanges(doc, Environment.UserName).GetAwaiter().GetResult();
                 PullChanges();
                 try
                 {
-                    string user = Environment.UserName;
                     string sessionId = CommandManager.Instance.SessionId;
                     foreach (var el in addedElements)
                     {
                         _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId, user).GetAwaiter().GetResult();
+                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId).GetAwaiter().GetResult();
                     }
                     foreach (var el in modifiedElements)
                     {
                         _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId, user).GetAwaiter().GetResult();
+                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId).GetAwaiter().GetResult();
                     }
                     foreach (var id in deletedIds)
                     {
                         _neo4jConnector.DeleteNodeAsync(id).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId, user).GetAwaiter().GetResult();
+                        _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId).GetAwaiter().GetResult();
                     }
 
                     PullChanges();
@@ -993,8 +1003,8 @@ namespace SpaceTracker
                             }
                             _neo4jConnector.PushChangesAsync(
                                 changes,
-                                CommandManager.Instance.SessionId,
-                                Environment.UserName, doc).GetAwaiter().GetResult();
+
+                                CommandManager.Instance.SessionId, doc).GetAwaiter().GetResult();
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
                             _neo4jConnector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
@@ -1016,7 +1026,7 @@ namespace SpaceTracker
 
                     }
                     // After loading the model trigger a pull to ensure latest changes
-                    _graphPuller?.PullRemoteChanges(doc, Environment.UserName).GetAwaiter().GetResult();
+                    _graphPuller?.PullRemoteChanges(doc, CommandManager.Instance.SessionId).GetAwaiter().GetResult();
                     PullChanges();
 
                     string key = doc.PathName ?? doc.Title;

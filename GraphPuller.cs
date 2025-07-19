@@ -83,6 +83,13 @@ public class GraphPuller
         string pullInfo = $"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces";
         Debug.WriteLine(pullInfo);
         Logger.LogToFile($"GraphPuller.PullRemoteChanges: {pullInfo}", "sync.log");
+
+        if (doc.IsReadOnly || doc.IsModifiable)
+        {
+            Logger.LogToFile("PullRemoteChanges skipped: document not ready for transaction", "sync.log");
+            return;
+        }
+
         using var tx = new Transaction(doc, "Auto Sync");
         tx.Start();
 

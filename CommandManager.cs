@@ -113,7 +113,7 @@ namespace SpaceTracker
                         ids.Add(parsed);
                 }
 
-                await _neo4jConnector.PushChangesAsync(changes, SessionId, Environment.UserName, currentDoc).ConfigureAwait(false);
+                await _neo4jConnector.PushChangesAsync(changes, SessionId, SessionId, currentDoc).ConfigureAwait(false);
                 LastSyncTime = DateTime.UtcNow;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
@@ -157,9 +157,8 @@ namespace SpaceTracker
         // Generiert eine eindeutige Session-ID basierend auf dem Benutzernamen
         private static string GenerateSessionId()
         {
-            string user = Environment.UserName;
             string processId = Environment.ProcessId.ToString();
-            return $"{user}_{processId}_{Guid.NewGuid().ToString().Substring(0, 8)}";
+            return $"{processId}_{Guid.NewGuid().ToString().Substring(0, 8)}";
         }
         // Liest einen zuvor gespeicherten Sync-Zeitstempel aus der Datei oder
         // liefert DateTime.Now wenn keiner vorhanden ist. 

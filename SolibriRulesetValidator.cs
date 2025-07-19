@@ -45,6 +45,17 @@ namespace SpaceTracker
                     .ToList();
                 SpaceTrackerClass.RequestIfcExport(doc, allIds);
                 string ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
+                if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                {
+                    Logger.LogToFile("IFC-Export fehlgeschlagen. Versuche erneut.", "solibri.log");
+                    SpaceTrackerClass.RequestIfcExport(doc, allIds);
+                    ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
+                    if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                    {
+                        Logger.LogToFile("IFC-Export weiterhin fehlgeschlagen. \u00dcberspringe Validierung.", "solibri.log");
+                        return errors;
+                    }
+                }
                 var client = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
                 string modelId = SpaceTrackerClass.SolibriModelUUID;
 

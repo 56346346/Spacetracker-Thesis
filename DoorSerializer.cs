@@ -46,7 +46,7 @@ public static class DoorSerializer
             ["thickness"] = thickness,
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
-            ["user"] = Environment.UserName
+            ["user"] = CommandManager.Instance.SessionId
         };
 
         SerializeParameters(door, dict);

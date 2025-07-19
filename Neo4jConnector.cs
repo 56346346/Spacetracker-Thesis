@@ -30,7 +30,7 @@ namespace SpaceTracker
             "SpaceTracker", "log");
         private static readonly string _logPath =
             Path.Combine(_logDir, nameof(Neo4jConnector) + ".log");
-                    private static readonly object _logLock = new object();
+        private static readonly object _logLock = new object();
 
         static Neo4jConnector()
         {
@@ -96,7 +96,7 @@ namespace SpaceTracker
 
         public async Task<List<IRecord>> RunReadQueryAsync(string query, object parameters = null)
         {
-             LogMethodCall(nameof(RunReadQueryAsync), new()
+            LogMethodCall(nameof(RunReadQueryAsync), new()
             {
                 ["query"] = query,
                 ["parameters"] = parameters
@@ -118,13 +118,12 @@ namespace SpaceTracker
 
         // Schreibt alle Änderungen in einer Transaktion nach Neo4j und legt für
         // jedes Element einen Log-Eintrag an.
-        public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, string userName, Autodesk.Revit.DB.Document currentDocument = null)
+        public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, Autodesk.Revit.DB.Document currentDocument = null)
         {
-              LogMethodCall(nameof(PushChangesAsync), new()
+            LogMethodCall(nameof(PushChangesAsync), new()
             {
                 ["changeCount"] = changes?.Count(),
-                ["sessionId"] = sessionId,
-                ["userName"] = userName
+                ["sessionId"] = sessionId
             });
             // 1) Asynchrone Neo4j-Session öffnen
             await using var session = _driver.AsyncSession();
@@ -214,7 +213,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                         new
                         {
                             session = sessionId,
-                            user = userName,
+                            user = sessionId,
                             time = logTime,
                             type = changeType,
                             eid = elementId,
@@ -426,7 +425,7 @@ SET c.acknowledged = true",
 
         public async Task RunWriteQueryAsync(string query, object parameters = null)
         {
-             LogMethodCall(nameof(RunWriteQueryAsync), new()
+            LogMethodCall(nameof(RunWriteQueryAsync), new()
             {
                 ["query"] = query,
                 ["parameters"] = parameters
@@ -500,7 +499,7 @@ SET c.acknowledged = true",
         // Aktualisiert das lastSync-Datum einer Session in Neo4j.
         public async Task UpdateSessionLastSyncAsync(string sessionId, DateTime syncTime)
         {
-             LogMethodCall(nameof(UpdateSessionLastSyncAsync), new()
+            LogMethodCall(nameof(UpdateSessionLastSyncAsync), new()
             {
                 ["sessionId"] = sessionId,
                 ["syncTime"] = syncTime
@@ -525,7 +524,7 @@ SET c.acknowledged = true",
 
         public async Task<DateTime> GetLastUpdateTimestampAsync(string currentSession)
         {
-                        LogMethodCall(nameof(GetLastUpdateTimestampAsync), new() { ["currentSession"] = currentSession });
+            LogMethodCall(nameof(GetLastUpdateTimestampAsync), new() { ["currentSession"] = currentSession });
 
             const string query = @"MATCH (s:Session)
 WHERE s.id <> $session
@@ -568,19 +567,19 @@ RETURN max(s.lastUpdate) AS lastUpdate";
             await RunWriteQueryAsync("MATCH (n {elementId:$id}) DETACH DELETE n", new { id = id.Value }).ConfigureAwait(false);
         }
 
-        public async Task CreateLogChangeAsync(long elementId, ChangeType type, string sessionId, string user)
+        public async Task CreateLogChangeAsync(long elementId, ChangeType type, string sessionId)
         {
             const string cypher = @"MERGE (s:Session { id:$session })
 CREATE (cl:ChangeLog {
     sessionId:$session,
-    user:$user,
+    user:$session,
     timestamp: datetime(),
     type:$type,
     elementId:$eid,
     acknowledged:false
 })
 MERGE (s)-[:HAS_LOG]->(cl)";
-            await RunWriteQueryAsync(cypher, new { session = sessionId, user, type = type.ToString(), eid = elementId }).ConfigureAwait(false);
+            await RunWriteQueryAsync(cypher, new { session = sessionId, type = type.ToString(), eid = elementId }).ConfigureAwait(false);
         }
         // Schreibt eine Tür in Neo4j (INSERT/UPDATE).
 
@@ -937,7 +936,7 @@ RETURN count(*) AS updated";
         // Schließt den Neo4j-Treiber und gibt Ressourcen frei.
         public void Dispose()
         {
-                        LogMethodCall(nameof(Dispose), new());
+            LogMethodCall(nameof(Dispose), new());
             _driver?.Dispose();
             GC.SuppressFinalize(this);
         }

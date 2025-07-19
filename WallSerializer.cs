@@ -43,7 +43,7 @@ public static class WallSerializer
             ["flipped"] = wall.Flipped,
             ["base_offset_mm"] = UnitConversion.ToMm(baseOffset),
             ["location_line"] = locationLine,
-            ["user"] = Environment.UserName,
+            ["user"] = CommandManager.Instance.SessionId,
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow
         };

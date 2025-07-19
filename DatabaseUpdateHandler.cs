@@ -89,6 +89,17 @@ namespace SpaceTracker
                 // 2. IFC-Subset exportieren
                 SpaceTrackerClass.RequestIfcExport(app.ActiveUIDocument.Document, deltaIds);
                 string ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
+                 if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                {
+                    Logger.LogToFile("IFC-Export fehlgeschlagen. Versuche erneut.", "solibri.log");
+                    SpaceTrackerClass.RequestIfcExport(app.ActiveUIDocument.Document, deltaIds);
+                    ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
+                    if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                    {
+                        Logger.LogToFile("IFC-Export weiterhin fehlgeschlagen, Solibri-Aufrufe werden \u00fcbersprungen.", "solibri.log");
+                        return;
+                    }
+                }
                 var guidMap = _extractor.MapIfcGuidsToRevitIds(ifcPath, deltaIds);
 
                 // 3. Solibri REST API-Aufrufe asynchron verarbeiten
