@@ -1,18 +1,19 @@
 using Autodesk.Revit.UI;
-using Autodesk.Revit.DB;
 
-namespace SpaceTracker;
-
-public class AutoPullHandler : IExternalEventHandler
+namespace SpaceTracker
 {
-    public void Execute(UIApplication app)
+    public class AutoPullHandler : IExternalEventHandler
     {
-        var doc = app.ActiveUIDocument?.Document;
-        if (doc != null && !doc.IsReadOnly)
+        public void Execute(UIApplication app)
         {
-            new GraphPuller().PullRemoteChanges(doc, SessionManager.CurrentUserId).GetAwaiter().GetResult();
+            var doc = app.ActiveUIDocument?.Document;
+            if (doc != null && !doc.IsReadOnly)
+            {
+                // Reiner Neo4j-Pull
+                new GraphPuller().PullRemoteChanges(doc, SessionManager.CurrentUserId);
+            }
         }
-    }
 
-    public string GetName() => "AutoPullHandler";
+        public string GetName() => "AutoPullHandler";
+    }
 }

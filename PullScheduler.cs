@@ -1,6 +1,5 @@
 using Autodesk.Revit.UI;
-   using Autodesk.Revit.UI.Events;
-
+using Autodesk.Revit.UI.Events;
 
 namespace SpaceTracker;
 
@@ -12,10 +11,10 @@ public class PullScheduler
     public PullScheduler(ExternalEvent pullEvent, UIApplication uiApp)
     {
         _pullEvent = pullEvent;
-        uiApp.Idling += OnIdling;
+        uiApp.Idling += new EventHandler<IdlingEventArgs>(OnIdling);
     }
 
-     private void OnIdling(object sender, Autodesk.Revit.UI.Events.IdlingEventArgs e)
+    private void OnIdling(object sender, Autodesk.Revit.UI.Events.IdlingEventArgs e)
     {
         if ((DateTime.Now - _lastPull).TotalMilliseconds >= 1000)
         {

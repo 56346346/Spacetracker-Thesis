@@ -50,8 +50,6 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
         private PullEventHandler _pullEventHandler;
-        private AutoPullHandler _autoPullHandler;
-        private ExternalEvent _autoPullEvent;
         private PullScheduler _pullScheduler;
         public const int SolibriApiPort = 10876;
 
@@ -288,11 +286,25 @@ namespace SpaceTracker
                 { "application", application.GetType().Name }
             });
 
-            var logDir = _logDir;
+            var logDir = Path.Combine(
+                           Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                           "SpaceTracker", "log");
+
+            // Stelle sicher, dass der Ordner existiert
             if (!Directory.Exists(logDir))
                 Directory.CreateDirectory(logDir);
+            // Nur Inhalte löschen, nicht den Ordner selbst
+
             foreach (var file in Directory.GetFiles(logDir))
-                File.Delete(file);
+            {
+                // Truncate statt Delete, um Sperrkonflikte zu vermeiden
+                using (var fs = new FileStream(
+                    file,
+                    FileMode.Truncate,
+                    FileAccess.Write,
+                    FileShare.ReadWrite))
+                { }
+            }
             try
             {
 
@@ -316,11 +328,8 @@ namespace SpaceTracker
                 _pullEventHandler = new PullEventHandler();
                 _exportHandler = new IfcExportHandler();
                 _exportEvent = ExternalEvent.Create(_exportHandler);
-                _autoPullHandler = new AutoPullHandler();
-                _autoPullEvent = ExternalEvent.Create(_autoPullHandler);
                 var uiapp = TryGetUIApplication(application);
-                if (uiapp != null)
-                    _pullScheduler = new PullScheduler(_autoPullEvent, uiapp);
+
             }
             catch (Exception ex)
             {
@@ -415,6 +424,13 @@ namespace SpaceTracker
                     ImportInitialSolibriModel(uiApp.ActiveUIDocument.Document);
 
                 }
+
+                // --- AutoPull: Periodisches Pull im Leerlauf (1 s) ---
+                var autoPullHandler = new AutoPullHandler();
+                var autoPullEvent = ExternalEvent.Create(autoPullHandler);
+                if (uiApp != null)
+                    _pullScheduler = new PullScheduler(autoPullEvent, uiApp);
+
 
                 Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
                 return Result.Succeeded;

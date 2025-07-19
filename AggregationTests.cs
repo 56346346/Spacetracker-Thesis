@@ -16,12 +16,26 @@ namespace SpaceTracker.Tests
             var temp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             Environment.SetEnvironmentVariable("HOME", temp);
             Directory.CreateDirectory(Path.Combine(temp, "SpaceTracker", "log"));
-            var logPath = Path.Combine(
+            var logDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "SpaceTracker",
-                "log",
-                "crash.log");
-            if (File.Exists(logPath)) File.Delete(logPath);
+               "log");
+
+            // Stelle sicher, dass der Ordner existiert
+            if (!Directory.Exists(logDir))
+                Directory.CreateDirectory(logDir);
+
+            // Nur Inhalte löschen, nicht den Ordner selbst
+            foreach (var file in Directory.GetFiles(logDir))
+            {
+                // Truncate statt Delete, um Sperrkonflikte zu vermeiden
+                using (var fs = new FileStream(
+                    file,
+                    FileMode.Truncate,
+                    FileAccess.Write,
+                    FileShare.ReadWrite))
+                { }
+            }
 
             var tasks = new List<Task>
             {
@@ -38,8 +52,8 @@ namespace SpaceTracker.Tests
                     Logger.LogCrash("Test", ex);
             }
 
-            Assert.True(File.Exists(logPath));
-            string content = File.ReadAllText(logPath);
+            Assert.True(File.Exists(logDir));
+            string content = File.ReadAllText(logDir);
             Assert.Contains("boom", content);
         }
     }
