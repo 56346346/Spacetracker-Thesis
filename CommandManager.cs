@@ -113,7 +113,7 @@ namespace SpaceTracker
                         ids.Add(parsed);
                 }
 
-                await _neo4jConnector.PushChangesAsync(changes, SessionId, SessionId, currentDoc).ConfigureAwait(false);
+                await _neo4jConnector.PushChangesAsync(changes, SessionId, currentDoc).ConfigureAwait(false);
                 LastSyncTime = DateTime.UtcNow;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);

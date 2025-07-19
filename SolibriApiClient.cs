@@ -20,6 +20,9 @@ namespace SpaceTracker
     public class SolibriApiClient
     {
         private readonly string _baseUrl;
+        // Holds the last successfully imported model ID to allow partial
+        // updates across multiple calls.
+        private string _currentModelId = string.Empty;
         // Static HttpClient instance to avoid socket exhaustion. Timeout is set
         // once in the static constructor before any requests are sent.
         private static readonly HttpClient Http;
@@ -58,18 +61,34 @@ namespace SpaceTracker
                 using var fs = File.OpenRead(ifcFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-   var modelName = Path.GetFileNameWithoutExtension(ifcFilePath);
+                var modelName = Path.GetFileNameWithoutExtension(ifcFilePath);
                 modelName = WebUtility.UrlEncode(modelName);
-                var response = await Http.PostAsync($"{_baseUrl}/models?name={modelName}", content).ConfigureAwait(false);                response.EnsureSuccessStatusCode();
-                if (response.Headers.Location == null)
+                var response = await Http.PostAsync($"{_baseUrl}/models?name={modelName}", content).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                string? modelId = null;
+                try
+                {
+                    var info = await response.Content.ReadFromJsonAsync<ModelInfo>().ConfigureAwait(false);
+                    modelId = info?.Uuid;
+                }
+                catch
+                {
+                    // ignore json parse errors
+                }
+                if (string.IsNullOrWhiteSpace(modelId))
+                {
+                    var uri = response.Headers.Location?.ToString();
+                    if (!string.IsNullOrWhiteSpace(uri))
+                    {
+                        var parts = uri.Split('/');
+                        modelId = parts[^1];
+                    }
+                }
+                if (string.IsNullOrWhiteSpace(modelId))
                     throw new Exception("Model-URI fehlt!");
 
-                var modelUri = response.Headers.Location.ToString();
-                if (string.IsNullOrEmpty(modelUri))
-                    throw new Exception("Model-URI fehlt!");
+                _currentModelId = modelId;
 
-                var parts = modelUri.Split('/');
-                var modelId = parts[parts.Length - 1];
                 return modelId;
             }
             catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
@@ -88,6 +107,48 @@ namespace SpaceTracker
                 throw;
             }
         }
+
+        /// <summary>
+        /// Imports or updates the IFC model depending on whether a model ID is
+        /// already known. If no ID is stored, a new model is created first and
+        /// the resulting ID persisted for subsequent calls.
+        /// </summary>
+        public async Task<string> ImportOrUpdateAsync(string ifcFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(ifcFilePath))
+                throw new ArgumentException("Pfad zur IFC-Datei darf nicht leer sein.", nameof(ifcFilePath));
+
+            if (string.IsNullOrEmpty(_currentModelId))
+            {
+                // create empty model to obtain an id
+                var createResp = await Http.PostAsync($"{_baseUrl}/models", null).ConfigureAwait(false);
+                if (createResp.IsSuccessStatusCode)
+                {
+                    var uri = createResp.Headers.Location?.ToString();
+                    if (!string.IsNullOrWhiteSpace(uri))
+                        _currentModelId = uri.Split('/')[^1];
+                    else
+                    {
+                        try
+                        {
+                            var info = await createResp.Content.ReadFromJsonAsync<ModelInfo>().ConfigureAwait(false);
+                            _currentModelId = info?.Uuid ?? string.Empty;
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
+
+                _currentModelId = await ImportIfcAsync(ifcFilePath).ConfigureAwait(false);
+            }
+            else
+            {
+                _currentModelId = await PartialUpdateAsync(_currentModelId, ifcFilePath).ConfigureAwait(false);
+            }
+
+            return _currentModelId;
+        }
         // Installiert ein Ruleset lokal und gibt dessen Dateinamen zurück.
         public async Task<string> ImportRulesetAsync(string csetFilePath)
         {
@@ -100,7 +161,7 @@ namespace SpaceTracker
             try
             {
                 Logger.LogToFile($"Installiere Ruleset '{csetFilePath}' lokal");
-                               var installed = await InstallRulesetLocally(csetFilePath).ConfigureAwait(false);
+                var installed = await InstallRulesetLocally(csetFilePath).ConfigureAwait(false);
 
                 return Path.GetFileNameWithoutExtension(installed);
             }
@@ -154,10 +215,14 @@ namespace SpaceTracker
         {
             if (string.IsNullOrWhiteSpace(modelId))
             {
-                Logger.LogToFile(
-                    "Model ID empty. Importing IFC model before partial update.",
-                    "solibri.log");
-                return await ImportIfcAsync(ifcFilePath).ConfigureAwait(false);
+                modelId = _currentModelId;
+                if (string.IsNullOrWhiteSpace(modelId))
+                {
+                    Logger.LogToFile(
+                        "Model ID empty. Importing IFC model before partial update.",
+                        "solibri.log");
+                    return await ImportIfcAsync(ifcFilePath).ConfigureAwait(false);
+                }
             }
             if (string.IsNullOrWhiteSpace(ifcFilePath))
                 throw new ArgumentException("Pfad zur IFC-Datei darf nicht leer sein.", nameof(ifcFilePath));
@@ -179,9 +244,11 @@ namespace SpaceTracker
                     Logger.LogToFile($"Model {modelId} not found. Importing new model.", "solibri.log");
                     string newId = await ImportIfcAsync(ifcFilePath).ConfigureAwait(false);
                     SpaceTrackerClass.SolibriModelUUID = newId;
+                    _currentModelId = newId;
                     return newId;
                 }
                 response.EnsureSuccessStatusCode();
+                _currentModelId = modelId;
                 return modelId;
 
             }
@@ -237,7 +304,7 @@ namespace SpaceTracker
                 throw;
             }
         }
-         // Exportiert die BCF-Ergebnisse des aktuell aktiven Modells in ein Verzeichnis.
+        // Exportiert die BCF-Ergebnisse des aktuell aktiven Modells in ein Verzeichnis.
         // Seit Solibri 9.13 erfolgt der Export über einen globalen Endpunkt,
         // daher wird keine Modell-ID mehr benötigt.
         public async Task<string> ExportBcfAsync(string outDirectory)
@@ -257,8 +324,8 @@ namespace SpaceTracker
                 var response = await Http.GetAsync($"{_baseUrl}/bcfxml/two_one?scope=all").ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
- var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-                var filePath = Path.Combine(outDirectory, $"result_{timestamp}.bcfzip");                using (var fs = File.Create(filePath))
+                var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                var filePath = Path.Combine(outDirectory, $"result_{timestamp}.bcfzip"); using (var fs = File.Create(filePath))
                 {
                     await response.Content.CopyToAsync(fs);
                 }
@@ -364,8 +431,8 @@ namespace SpaceTracker
             return false;
 
         }
-        
-          // Lädt das DeltaRuleset, führt die Prüfung aus und gibt die Ergebnisse zurück.
+
+        // Lädt das DeltaRuleset, führt die Prüfung aus und gibt die Ergebnisse zurück.
         public async Task<List<ClashResult>> RunRulesetCheckAsync(string modelId)
         {
             if (string.IsNullOrWhiteSpace(modelId))

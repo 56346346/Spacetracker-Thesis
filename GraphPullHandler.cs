@@ -9,7 +9,7 @@ namespace SpaceTracker
             var doc = app.ActiveUIDocument?.Document;
             if (doc != null && !doc.IsReadOnly && !doc.IsModifiable)
             {
-                new GraphPuller().PullRemoteChanges(doc, SessionManager.CurrentUserId);
+                new GraphPuller().PullRemoteChanges(doc, CommandManager.Instance.SessionId);
             }
         }
         public string GetName() => "GraphPullHandler";

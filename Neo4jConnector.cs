@@ -585,8 +585,10 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task UpsertDoorAsync(Dictionary<string, object> args)
         {
+                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+
             var setParts = new List<string>();
-            foreach (var kvp in args)
+            foreach (var kvp in safeArgs)
             {
                 if (kvp.Key is "uid" or "user" or "created" or "modified")
                     continue;
@@ -599,9 +601,9 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
-            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.RunAsync(cypher, safeArgs).ConfigureAwait(false);
             await tx.CommitAsync().ConfigureAwait(false);
-            _logger.LogInformation("Door {Uid} upserted", args["uid"]);
+            _logger.LogInformation("Door {Uid} upserted", safeArgs["uid"]);
         }
 
 
@@ -661,8 +663,10 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         // Erstellt oder aktualisiert eine Wand in Neo4j.
         public async Task UpsertWallAsync(Dictionary<string, object> args)
         {
+                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+
             var setParts = new List<string>();
-            foreach (var kvp in args)
+            foreach (var kvp in safeArgs)
             {
                 if (kvp.Key is "uid" or "user" or "created" or "modified")
                     continue;
@@ -674,16 +678,17 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             string cypher = $"MERGE (w:Wall {{uid:$uid}}) SET {string.Join(", ", setParts)}";
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
-            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.RunAsync(cypher, safeArgs).ConfigureAwait(false);
             await tx.CommitAsync().ConfigureAwait(false);
-            _logger.LogInformation("Wall {Uid} upserted", args["uid"]);
+            _logger.LogInformation("Wall {Uid} upserted", safeArgs["uid"]);
         }
         // Erstellt oder aktualisiert ein Rohr in Neo4j.
 
         public async Task UpsertPipeAsync(Dictionary<string, object> args)
         {
+                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
             var setParts = new List<string>();
-            foreach (var kvp in args)
+            foreach (var kvp in safeArgs)
             {
                 if (kvp.Key is "uid" or "user" or "created" or "modified")
                     continue;
@@ -696,15 +701,16 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
-            await tx.RunAsync(cypher, args).ConfigureAwait(false);
+            await tx.RunAsync(cypher, safeArgs).ConfigureAwait(false);
             await tx.CommitAsync().ConfigureAwait(false);
-            _logger.LogInformation("Pipe {Uid} upserted", args["uid"]);
+            _logger.LogInformation("Pipe {Uid} upserted", safeArgs["uid"]);
         }
         // Erstellt oder aktualisiert einen ProvisionalSpace-Knoten.
 
         public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)
         {
-            var setParts = props.Keys
+                var safeArgs = props.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+            var setParts = safeArgs.Keys
               .Where(k => k != "guid")
               .Select(k => $"p.{k} = ${k}")
               .ToList();
@@ -712,11 +718,11 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             setParts.Add("p.createdAt = coalesce(p.createdAt,$created)");
             setParts.Add("p.lastModifiedUtc = datetime($modified)");
             string cypher = $"MERGE (p:ProvisionalSpace {{guid:$guid}}) SET {string.Join(", ", setParts)}";
-            props["guid"] = guid;
+            safeArgs["guid"] = guid;
 
             await using var session = _driver.AsyncSession();
             await using var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
-            await tx.RunAsync(cypher, props).ConfigureAwait(false);
+            await tx.RunAsync(cypher, safeArgs).ConfigureAwait(false);
             await tx.CommitAsync().ConfigureAwait(false);
             _logger.LogInformation("ProvisionalSpace {Guid} upserted", guid);
         }

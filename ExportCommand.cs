@@ -73,7 +73,7 @@ namespace SpaceTracker
 
             try
             {
-                connector.PushChangesAsync(changes, sessionId, sessionId, doc).GetAwaiter().GetResult();
+                connector.PushChangesAsync(changes, sessionId, doc).GetAwaiter().GetResult();
                 connector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
 
                 var errs = SolibriRulesetValidator.Validate(doc);

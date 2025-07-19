@@ -10,7 +10,7 @@ namespace SpaceTracker
             if (doc != null && !doc.IsReadOnly && !doc.IsModifiable)
             {
                 // Reiner Neo4j-Pull
-                new GraphPuller().PullRemoteChanges(doc, SessionManager.CurrentUserId);
+                new GraphPuller().PullRemoteChanges(doc, CommandManager.Instance.SessionId);
             }
         }
 
