@@ -9,11 +9,13 @@ namespace SpaceTracker
 {
     public class SolibriCheckHandler : IExternalEventHandler
     {
-          private static readonly string _logDir =
+        private static readonly string _logDir =
             Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SpaceTracker", "log");
-        private static readonly string logPath =
+        private static readonly string _logPath =
             Path.Combine(_logDir, nameof(SolibriCheckHandler) + ".log");
+                    private static readonly object _logLock = new object();
+
         static SolibriCheckHandler()
         {
             if (!Directory.Exists(_logDir))

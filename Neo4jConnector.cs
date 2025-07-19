@@ -25,11 +25,13 @@ namespace SpaceTracker
 
     public class Neo4jConnector : IDisposable, INeo4jConnector
     {
-           private static readonly string _logDir =
+        private static readonly string _logDir =
             Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SpaceTracker", "log");
-        private static readonly string logPath =
+        private static readonly string _logPath =
             Path.Combine(_logDir, nameof(Neo4jConnector) + ".log");
+                    private static readonly object _logLock = new object();
+
         static Neo4jConnector()
         {
             if (!Directory.Exists(_logDir))

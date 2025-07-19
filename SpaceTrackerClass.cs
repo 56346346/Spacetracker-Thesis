@@ -37,8 +37,8 @@ namespace SpaceTracker
 {
     public class SpaceTrackerClass : IExternalApplication
     {
-          private static readonly string _logDir =
-            Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker", "log");
+        private static readonly string _logDir =
+          Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker", "log");
         private static readonly string _logPath =
             Path.Combine(_logDir, nameof(SpaceTrackerClass) + ".log");
         private static readonly object _logLock = new object();
@@ -50,6 +50,9 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
         private PullEventHandler _pullEventHandler;
+        private AutoPullHandler _autoPullHandler;
+        private ExternalEvent _autoPullEvent;
+        private PullScheduler _pullScheduler;
         public const int SolibriApiPort = 10876;
 
         // Statischer Konstruktor stellt sicher, dass das Log-Verzeichnis existiert
@@ -72,9 +75,15 @@ namespace SpaceTracker
             var line = $"[{timestamp}] {nameof(SpaceTrackerClass)}.{methodName}({argList})";
             lock (_logLock)
             {
-                   if (!Directory.Exists(_logDir))
+                if (!Directory.Exists(_logDir))
                     Directory.CreateDirectory(_logDir);
-                File.AppendAllText(_logPath, line + Environment.NewLine);
+                using var stream = new FileStream(
+                                   _logPath,
+                                   FileMode.Append,
+                                   FileAccess.Write,
+                                   FileShare.ReadWrite);
+                using var writer = new StreamWriter(stream) { AutoFlush = true };
+                writer.WriteLine(line);
             }
         }
 
@@ -279,13 +288,11 @@ namespace SpaceTracker
                 { "application", application.GetType().Name }
             });
 
-                var logDir = Path.Combine(
-                GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "SpaceTracker",
-                "log");
-            if (Directory.Exists(logDir)) Directory.Delete(logDir, recursive: true);
-            Directory.CreateDirectory(logDir);
-
+            var logDir = _logDir;
+            if (!Directory.Exists(logDir))
+                Directory.CreateDirectory(logDir);
+            foreach (var file in Directory.GetFiles(logDir))
+                File.Delete(file);
             try
             {
 
@@ -309,6 +316,11 @@ namespace SpaceTracker
                 _pullEventHandler = new PullEventHandler();
                 _exportHandler = new IfcExportHandler();
                 _exportEvent = ExternalEvent.Create(_exportHandler);
+                _autoPullHandler = new AutoPullHandler();
+                _autoPullEvent = ExternalEvent.Create(_autoPullHandler);
+                var uiapp = TryGetUIApplication(application);
+                if (uiapp != null)
+                    _pullScheduler = new PullScheduler(_autoPullEvent, uiapp);
             }
             catch (Exception ex)
             {
@@ -329,15 +341,22 @@ namespace SpaceTracker
                 }
             });
             System.Windows.Forms.Application.ThreadException += (sender, args) =>
-           {
-               File.AppendAllText(
-                   Path.Combine(
-                       Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                       "SpaceTracker",
-                       "crash.log"),
-                   $"{DateTime.Now:O} UI Thread Exception: {args.Exception}\n"
-               );
-           };
+          {
+              var crashPath = Path.Combine(
+                  Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                  "SpaceTracker",
+                  "crash.log");
+              lock (_logLock)
+              {
+                  using var stream = new FileStream(
+                      crashPath,
+                      FileMode.Append,
+                      FileAccess.Write,
+                      FileShare.ReadWrite);
+                  using var writer = new StreamWriter(stream) { AutoFlush = true };
+                  writer.WriteLine($"{DateTime.Now:O} UI Thread Exception: {args.Exception}");
+              }
+          };
 
             // 1. Logging-Pfade in Benutzerverzeichnis verlegen
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -390,11 +409,9 @@ namespace SpaceTracker
                 {
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
                     _databaseUpdateHandler.TriggerPush();
-                    var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
-                    mon.Start(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId);
                     string key = uiApp.ActiveUIDocument.Document.PathName ?? uiApp.ActiveUIDocument.Document.Title;
-                    SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document, _graphPuller, mon));
-                    _graphPuller.StartAutoSync(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId, Environment.UserName);
+                    SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document));
+
                     ImportInitialSolibriModel(uiApp.ActiveUIDocument.Document);
 
                 }
@@ -730,8 +747,6 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentCreated -= documentCreated;
             application.ControlledApplication.DocumentClosing -= documentClosing;
             _neo4jConnector?.Dispose();
-            foreach (var openSession in SessionManager.OpenSessions.Values)
-                openSession.Monitor.Dispose();
             return Result.Succeeded;
 
         }
@@ -848,12 +863,8 @@ namespace SpaceTracker
                 // Direkt nach dem Einreihen einen Push anstoßen, damit die
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
                 _databaseUpdateHandler.TriggerPush();
-                _graphPuller?.RequestPull(doc, Environment.UserName);
+                _graphPuller?.PullRemoteChanges(doc, Environment.UserName).GetAwaiter().GetResult();
                 PullChanges();
-                string key = doc.PathName ?? doc.Title;
-                if (SessionManager.OpenSessions.TryGetValue(key, out var session))
-                    session.Monitor.UpdateDocument(doc);
-
                 try
                 {
                     string user = Environment.UserName;
@@ -908,11 +919,10 @@ namespace SpaceTracker
                 // die aktuellen Befehle an Neo4j senden
                 _databaseUpdateHandler.TriggerPush();
                 PullChanges();
-                var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
-                mon.Start(e.Document, CommandManager.Instance.SessionId);
+
                 string key = e.Document.PathName ?? e.Document.Title;
-                SessionManager.AddSession(key, new Session(e.Document, _graphPuller, mon));
-                _graphPuller.StartAutoSync(e.Document, CommandManager.Instance.SessionId, Environment.UserName);
+                SessionManager.AddSession(key, new Session(e.Document));
+
                 ImportInitialSolibriModel(e.Document);
 
             }
@@ -976,13 +986,12 @@ namespace SpaceTracker
 
                     }
                     // After loading the model trigger a pull to ensure latest changes
-                    _graphPuller?.RequestPull(doc, Environment.UserName);
+                    _graphPuller?.PullRemoteChanges(doc, Environment.UserName).GetAwaiter().GetResult();
                     PullChanges();
-                    var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
-                    mon.Start(doc, CommandManager.Instance.SessionId);
+
                     string key = doc.PathName ?? doc.Title;
-                    SessionManager.AddSession(key, new Session(doc, _graphPuller, mon));
-                    _graphPuller.StartAutoSync(doc, CommandManager.Instance.SessionId, Environment.UserName);
+                    SessionManager.AddSession(key, new Session(doc));
+
                     ImportInitialSolibriModel(doc);
 
                 }
@@ -1003,9 +1012,7 @@ namespace SpaceTracker
                 string key = e.Document.PathName ?? e.Document.Title;
                 if (SessionManager.OpenSessions.TryGetValue(key, out var session))
                 {
-                    session.Monitor.Dispose();
                     SessionManager.RemoveSession(key);
-                    _graphPuller.StopAutoSync();
                 }
             }
             catch (Exception ex)

@@ -32,21 +32,18 @@ namespace SpaceTracker
             {
                 try
                 {
-  PullCommand.RunPull(doc, showDialog: false);
-                    Logger.LogToFile("PullEventHandler: PullCommand executed", "sync.log");                }
+ PullCommand.RunPull(doc, showDialog: false);
+                    Logger.LogToFile("PullEventHandler: PullCommand executed", "sync.log");
+                }
                 catch (Exception ex)
                 {
- Logger.LogCrash("AutoPullCommand", ex);
+                    Logger.LogCrash("AutoPullCommand", ex);
                 }
 
                 try
                 {
-                    string key = doc.PathName ?? doc.Title;
-                    if (SessionManager.OpenSessions.TryGetValue(key, out var session))
-                    {
-                        session.Puller.RequestPull(doc, Environment.UserName);
-                        Logger.LogToFile("PullEventHandler: GraphPuller executed", "sync.log");
-                    }
+                    new GraphPuller().PullRemoteChanges(doc, SessionManager.CurrentUserId).GetAwaiter().GetResult();
+                    Logger.LogToFile("PullEventHandler: GraphPuller executed", "sync.log");
                 }
                 catch (Exception ex)
                 {

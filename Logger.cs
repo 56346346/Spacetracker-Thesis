@@ -6,39 +6,45 @@ namespace SpaceTracker
 {
     internal static class Logger
     {
-        private static readonly string LogDir = Path.Combine(
+        private static readonly string _logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SpaceTracker",
             "log"
         );
+         private static readonly string _logPath =
+            Path.Combine(_logDir, nameof(Logger) + ".log");
+        private static readonly object _logLock = new object();
         // Legt das Log-Verzeichnis an und initialisiert den Serilog-Logger
         static Logger()
         {
-            if (!Directory.Exists(LogDir))
-                Directory.CreateDirectory(LogDir);
-                
+             if (!Directory.Exists(_logDir))
+                Directory.CreateDirectory(_logDir);
+
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-                .WriteTo.File(Path.Combine(LogDir, "main.log"), shared: true)
+                .WriteTo.File(Path.Combine(_logDir, "main.log"), shared: true)
                 .CreateLogger();
         }
 
         // Interne Helferfunktion, stellt das Log-Verzeichnis sicher.
         private static void EnsureLogDir()
         {
-            if (!Directory.Exists(LogDir))
-                Directory.CreateDirectory(LogDir);
+            if (!Directory.Exists(_logDir))
+                Directory.CreateDirectory(_logDir);
         }
          // Hilfsmethode zum Schreiben mit gemeinsamem Dateizugriff
         private static void AppendLine(string path, string message)
         {
-            using var stream = new FileStream(
-                path,
-                FileMode.Append,
-                FileAccess.Write,
-                FileShare.ReadWrite);
-            using var writer = new StreamWriter(stream) { AutoFlush = true };
-            writer.WriteLine(message);
+            lock (_logLock)
+            {
+                using var stream = new FileStream(
+                    path,
+                    FileMode.Append,
+                    FileAccess.Write,
+                    FileShare.ReadWrite);
+                using var writer = new StreamWriter(stream) { AutoFlush = true };
+                writer.WriteLine(message);
+            }
         }
 
 
@@ -48,7 +54,7 @@ namespace SpaceTracker
         public static void LogCrash(string label, Exception ex)
         {
             
-            var path = Path.Combine(LogDir, "crash.log");
+            var path = Path.Combine(_logDir, "crash.log");
             AppendLine(path, $"{DateTime.Now:O} [{label}] {ex}");
         }
 
@@ -61,7 +67,7 @@ namespace SpaceTracker
             if (!fileName.EndsWith(".log", StringComparison.OrdinalIgnoreCase))
                 fileName += ".log";
 
-            var path = Path.Combine(LogDir, fileName);
+            var path = Path.Combine(_logDir, fileName);
             AppendLine(path, $"{DateTime.Now:O} {message}");
         }
     }

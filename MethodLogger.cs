@@ -10,27 +10,35 @@ namespace SpaceTracker
 {
     internal static class MethodLogger
     {
-        private static readonly object _lock = new();
-  private static readonly string BaseDir = Path.Combine(
+        private static readonly object _logLock = new object();
+        private static readonly string _logDir = Path.Combine(
             GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SpaceTracker",
             "log");
+        private static readonly string _logPath =
+       Path.Combine(_logDir, nameof(MethodLogger) + ".log");
         public static void InitializeLog(string className)
         {
             EnsureDir();
-            var path = Path.Combine(BaseDir, $"{className}.log");
+            var path = Path.Combine(_logDir, $"{className}.log");
             File.WriteAllText(path, string.Empty);
         }
 
         public static void Log(string className, string methodName, Dictionary<string, object?> parameters)
         {
             EnsureDir();
-            var path = Path.Combine(BaseDir, $"{className}.log");
+            var path = Path.Combine(_logDir, $"{className}.log");
             var paramStr = string.Join(", ", parameters.Select(kv => $"{kv.Key}={Serialize(kv.Value)}"));
             var line = $"{className}.{methodName}({paramStr})";
-            lock (_lock)
+            lock (_logLock)
             {
-                File.AppendAllText(path, line + Environment.NewLine);
+                using var stream = new FileStream(
+                                    path,
+                                    FileMode.Append,
+                                    FileAccess.Write,
+                                    FileShare.ReadWrite);
+                using var writer = new StreamWriter(stream) { AutoFlush = true };
+                writer.WriteLine(line);
             }
         }
 
@@ -49,8 +57,8 @@ namespace SpaceTracker
 
         private static void EnsureDir()
         {
-            if (!Directory.Exists(BaseDir))
-                Directory.CreateDirectory(BaseDir);
+            if (!Directory.Exists(_logDir))
+                Directory.CreateDirectory(_logDir);
         }
     }
 }
