@@ -28,6 +28,7 @@ using System.Threading;
 using Autodesk.Revit.ApplicationServices;
 using RevitApplication = Autodesk.Revit.ApplicationServices.Application;
 using System.Runtime.Versioning;
+using static System.Environment;
 
 [assembly: SupportedOSPlatform("windows")]
 
@@ -36,8 +37,10 @@ namespace SpaceTracker
 {
     public class SpaceTrackerClass : IExternalApplication
     {
-          private static readonly string _logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker", "loggi");
-
+          private static readonly string _logDir =
+            Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker", "log");
+        private static readonly string _logPath =
+            Path.Combine(_logDir, nameof(SpaceTrackerClass) + ".log");
         private static readonly object _logLock = new object();
 
         private RibbonPanel _ribbonPanel;
@@ -49,20 +52,28 @@ namespace SpaceTracker
         private PullEventHandler _pullEventHandler;
         public const int SolibriApiPort = 10876;
 
-
+        // Statischer Konstruktor stellt sicher, dass das Log-Verzeichnis existiert
+        static SpaceTrackerClass()
+        {
+            var dir = Path.GetDirectoryName(_logPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+        }
         private readonly Dictionary<ElementId, ElementMetadata> _elementCache =
        new Dictionary<ElementId, ElementMetadata>();
         private SpaceExtractor _extractor;
         private CommandManager _cmdManager;
         private static IfcExportHandler _exportHandler;
         private static ExternalEvent _exportEvent;
-         private static void LogMethodCall(string methodName, IDictionary<string, object> args)
+        private static void LogMethodCall(string methodName, IDictionary<string, object> args)
         {
             var timestamp = DateTime.Now.ToString("o");
             var argList = string.Join(", ", args.Select(kv => $"{kv.Key}={JsonConvert.SerializeObject(kv.Value)}"));
             var line = $"[{timestamp}] {nameof(SpaceTrackerClass)}.{methodName}({argList})";
-            lock(_logLock)
+            lock (_logLock)
             {
+                   if (!Directory.Exists(_logDir))
+                    Directory.CreateDirectory(_logDir);
                 File.AppendAllText(_logPath, line + Environment.NewLine);
             }
         }
@@ -84,7 +95,7 @@ namespace SpaceTracker
         // Methode zum Aktualisieren des Ampel-Icons
         public static void SetStatusIndicator(StatusColor status)
         {
-              LogMethodCall(nameof(SetStatusIndicator), new Dictionary<string, object>
+            LogMethodCall(nameof(SetStatusIndicator), new Dictionary<string, object>
             {
                 { "status", status }
             });
@@ -113,7 +124,7 @@ namespace SpaceTracker
         // on the UI thread to immediately reflect the validation result.
         public static void UpdateConsistencyCheckerButton(Severity severity)
         {
-              LogMethodCall(nameof(UpdateConsistencyCheckerButton), new Dictionary<string, object>
+            LogMethodCall(nameof(UpdateConsistencyCheckerButton), new Dictionary<string, object>
             {
                 { "severity", severity }
             });
@@ -137,7 +148,7 @@ namespace SpaceTracker
         // Vergleicht lokale Änderungen mit dem Graphen und setzt die Ampel. Optionale Dialoge informieren den Nutzer.
         public static void PerformConsistencyCheck(Document doc, bool showDialogs)
         {
-             LogMethodCall(nameof(PerformConsistencyCheck), new Dictionary<string, object>
+            LogMethodCall(nameof(PerformConsistencyCheck), new Dictionary<string, object>
             {
                 { "doc", doc },
                 { "showDialogs", showDialogs }
@@ -207,7 +218,7 @@ namespace SpaceTracker
         /// </summary>
         public static void MarkElementsBySeverity(Dictionary<ElementId, string> severityMap)
         {
-             LogMethodCall(nameof(MarkElementsBySeverity), new Dictionary<string, object>
+            LogMethodCall(nameof(MarkElementsBySeverity), new Dictionary<string, object>
             {
                 { "severityMap", severityMap }
             });
@@ -247,7 +258,7 @@ namespace SpaceTracker
 
         public static void RequestIfcExport(Document doc, List<ElementId> ids)
         {
-             LogMethodCall(nameof(RequestIfcExport), new Dictionary<string, object>
+            LogMethodCall(nameof(RequestIfcExport), new Dictionary<string, object>
             {
                 { "doc", doc },
                 { "ids", ids }
@@ -268,8 +279,11 @@ namespace SpaceTracker
                 { "application", application.GetType().Name }
             });
 
-            var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "log");
-            if (Directory.Exists(logDir)) Directory.Delete(logDir, true);
+                var logDir = Path.Combine(
+                GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "SpaceTracker",
+                "log");
+            if (Directory.Exists(logDir)) Directory.Delete(logDir, recursive: true);
             Directory.CreateDirectory(logDir);
 
             try
@@ -706,7 +720,7 @@ namespace SpaceTracker
         // Aufräumarbeiten beim Beenden von Revit.
         public Result OnShutdown(UIControlledApplication application)
         {
-             LogMethodCall(nameof(OnShutdown), new Dictionary<string, object>
+            LogMethodCall(nameof(OnShutdown), new Dictionary<string, object>
             {
                 { "application", application }
             });

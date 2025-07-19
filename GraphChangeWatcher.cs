@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
 using System.IO;
+using static System.Environment;
+
 
 
 namespace SpaceTracker
@@ -13,9 +15,15 @@ namespace SpaceTracker
     /// </summary>
     public class ChangeMonitor : IDisposable
     {
-        private static readonly string logPath = Path.Combine("log", "ChangeMonitor.log");
+        private static readonly string _logDir =
+                   Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                   "SpaceTracker", "log");
+        private static readonly string logPath =
+            Path.Combine(_logDir, nameof(ChangeMonitor) + ".log");
         static ChangeMonitor()
         {
+             if (!Directory.Exists(_logDir))
+                Directory.CreateDirectory(_logDir);
             MethodLogger.InitializeLog(nameof(ChangeMonitor));
         }
 

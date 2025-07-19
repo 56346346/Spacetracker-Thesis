@@ -3,14 +3,21 @@ using System.Collections.Concurrent;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System.IO;
+using static System.Environment;
 
 namespace SpaceTracker
 {
     public class SolibriCheckHandler : IExternalEventHandler
     {
-         private static readonly string logPath = Path.Combine("log", "SolibriCheckHandler.log");
+          private static readonly string _logDir =
+            Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "SpaceTracker", "log");
+        private static readonly string logPath =
+            Path.Combine(_logDir, nameof(SolibriCheckHandler) + ".log");
         static SolibriCheckHandler()
         {
+            if (!Directory.Exists(_logDir))
+                Directory.CreateDirectory(_logDir);
             MethodLogger.InitializeLog(nameof(SolibriCheckHandler));
         }
 

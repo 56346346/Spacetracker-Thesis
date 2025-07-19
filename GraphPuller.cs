@@ -10,6 +10,8 @@ using System.Linq;
 using Autodesk.Revit.UI;
 using Neo4j.Driver;
 using System.IO;
+using static System.Environment;
+
 
 
 
@@ -18,9 +20,15 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public class GraphPuller : IExternalEventHandler
 {
-       private static readonly string logPath = Path.Combine("log", "GraphPuller.log");
+        private static readonly string _logDir =
+           Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
+           "SpaceTracker", "log");
+       private static readonly string logPath =
+           Path.Combine(_logDir, nameof(GraphPuller) + ".log");
     static GraphPuller()
     {
+        if (!Directory.Exists(_logDir))
+            Directory.CreateDirectory(_logDir);
         MethodLogger.InitializeLog(nameof(GraphPuller));
     }
 

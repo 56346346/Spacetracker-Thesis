@@ -3,14 +3,18 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using static System.Environment;
+
 
 namespace SpaceTracker
 {
     internal static class MethodLogger
     {
         private static readonly object _lock = new();
-        private static readonly string BaseDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "log");
-
+  private static readonly string BaseDir = Path.Combine(
+            GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "SpaceTracker",
+            "log");
         public static void InitializeLog(string className)
         {
             EnsureDir();

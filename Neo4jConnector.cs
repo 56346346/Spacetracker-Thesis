@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using static System.Environment;
 
 
 namespace SpaceTracker
@@ -24,9 +25,15 @@ namespace SpaceTracker
 
     public class Neo4jConnector : IDisposable, INeo4jConnector
     {
-         private static readonly string logPath = Path.Combine("log", "Neo4jConnector.log");
+           private static readonly string _logDir =
+            Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "SpaceTracker", "log");
+        private static readonly string logPath =
+            Path.Combine(_logDir, nameof(Neo4jConnector) + ".log");
         static Neo4jConnector()
         {
+            if (!Directory.Exists(_logDir))
+                Directory.CreateDirectory(_logDir);
             MethodLogger.InitializeLog(nameof(Neo4jConnector));
         }
 
@@ -928,6 +935,7 @@ RETURN count(*) AS updated";
         // Schließt den Neo4j-Treiber und gibt Ressourcen frei.
         public void Dispose()
         {
+                        LogMethodCall(nameof(Dispose), new());
             _driver?.Dispose();
             GC.SuppressFinalize(this);
         }

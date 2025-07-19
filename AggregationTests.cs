@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Xunit;
+using static System.Environment;
 
 namespace SpaceTracker.Tests
 {
@@ -14,8 +15,12 @@ namespace SpaceTracker.Tests
             // redirect log directory to temp
             var temp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             Environment.SetEnvironmentVariable("HOME", temp);
-            Directory.CreateDirectory(Path.Combine(temp, "SpaceTracker"));
-            var logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker", "crash.log");
+            Directory.CreateDirectory(Path.Combine(temp, "SpaceTracker", "log"));
+            var logPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "SpaceTracker",
+                "log",
+                "crash.log");
             if (File.Exists(logPath)) File.Delete(logPath);
 
             var tasks = new List<Task>

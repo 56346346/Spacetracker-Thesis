@@ -8,7 +8,8 @@ namespace SpaceTracker
     {
         private static readonly string LogDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "SpaceTracker"
+            "SpaceTracker",
+            "log"
         );
         // Legt das Log-Verzeichnis an und initialisiert den Serilog-Logger
         static Logger()
