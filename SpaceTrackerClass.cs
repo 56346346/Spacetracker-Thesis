@@ -51,6 +51,8 @@ namespace SpaceTracker
         private GraphPuller _graphPuller;
         private PullEventHandler _pullEventHandler;
         private PullScheduler _pullScheduler;
+        private ExternalEvent _graphPullEvent;
+
         public const int SolibriApiPort = 10876;
 
         // Statischer Konstruktor stellt sicher, dass das Log-Verzeichnis existiert
@@ -68,19 +70,27 @@ namespace SpaceTracker
         private static ExternalEvent _exportEvent;
         private static void LogMethodCall(string methodName, IDictionary<string, object> args)
         {
-            var timestamp = DateTime.Now.ToString("o");
-            var argList = string.Join(", ", args.Select(kv => $"{kv.Key}={JsonConvert.SerializeObject(kv.Value)}"));
-            var line = $"[{timestamp}] {nameof(SpaceTrackerClass)}.{methodName}({argList})";
+            // Remove Document instances to avoid WorksharingCentralGUID errors
+            var safeArgs = args
+                .Where(kv => !(kv.Value is Autodesk.Revit.DB.Document))
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            string SerializeSafe(object v)
+            {
+                if (v == null) return "null";
+                if (v is string) return $"\"{v}\"";
+                try { return JsonConvert.SerializeObject(v); }
+                catch { return v.ToString(); }
+            }
+
+            var line = methodName + "(" +
+                string.Join(", ",
+                    safeArgs.Select(kv => $"{kv.Key}={SerializeSafe(kv.Value)}")
+                ) + ")";
             lock (_logLock)
             {
-                if (!Directory.Exists(_logDir))
-                    Directory.CreateDirectory(_logDir);
-                using var stream = new FileStream(
-                                   _logPath,
-                                   FileMode.Append,
-                                   FileAccess.Write,
-                                   FileShare.ReadWrite);
-                using var writer = new StreamWriter(stream) { AutoFlush = true };
+                using var fs = new FileStream(_logPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                using var writer = new StreamWriter(fs) { AutoFlush = true };
                 writer.WriteLine(line);
             }
         }
@@ -324,6 +334,8 @@ namespace SpaceTracker
                 _extractor = new SpaceExtractor(CommandManager.Instance);
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
                 _graphPuller = new GraphPuller(_neo4jConnector);
+                var graphPullHandler = new GraphPullHandler();
+                _graphPullEvent = ExternalEvent.Create(graphPullHandler);
                 _cmdManager = CommandManager.Instance;
                 _pullEventHandler = new PullEventHandler();
                 _exportHandler = new IfcExportHandler();
@@ -916,6 +928,8 @@ namespace SpaceTracker
                     // trigger pull command via external event to keep sessions in sync
                     _pullEventHandler?.RequestPull(openSession.Document);
                 }
+                _graphPullEvent.Raise();
+
             }
             catch (Exception ex)
             {
