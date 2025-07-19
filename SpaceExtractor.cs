@@ -74,6 +74,7 @@ namespace SpaceTracker
                     $"w.typeId = {data["typeId"]}",
                     $"w.typeName = '{ParameterUtils.EscapeForCypher(data["typeName"].ToString())}'",
                     $"w.familyName = '{ParameterUtils.EscapeForCypher(data["familyName"].ToString())}'",
+                    $"w.Name = '{ParameterUtils.EscapeForCypher(data["Name"].ToString())}'",
                     $"w.levelId = {data["levelId"]}",
                     $"w.x1 = {((double)data["x1"]).ToString(inv)}",
                     $"w.y1 = {((double)data["y1"]).ToString(inv)}",
@@ -1120,25 +1121,16 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                         Debug.WriteLine($"[WARN] Wall {wall.Id} has invalid LevelId.");
                     }
 
-                    string escapedName = ParameterUtils.EscapeForCypher(wall.Name);
-                    cy =
-                        $"MATCH (l:Level {{ElementId: {wall.LevelId.Value}}}) " +
-                        $"MERGE (w:Wall {{ElementId: {wall.Id.Value}}}) " +
-                        $"SET w.Name = '{escapedName}' " +
-                        $"MERGE (l)-[:CONTAINS]->(w)";
-                    _cmdManager.cypherCommands.Enqueue(cy);
-                    Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
-
+  // Create or update wall node with all properties
+                    ProcessWall(wall, doc);
+   // Link wall to adjacent rooms
                     IList<Element> rooms = getRoomFromWall(doc, wall);
                     foreach (var roomElement in rooms)
                     {
                         if (roomElement is Room r)
                         {
                             string cyRel =
-                                $"MATCH (w:Wall {{ElementId: {wall.Id.Value}}}), " +
-                                $"(r:Room {{ElementId: {r.Id.Value}}}) " +
-                                "MERGE (w)-[:BOUNDS]->(r)";
-                            _cmdManager.cypherCommands.Enqueue(cyRel);
+ $"MATCH (w:Wall {{ElementId: {wall.Id.Value}}}), (r:Room {{ElementId: {r.Id.Value}}}) MERGE (w)-[:BOUNDS]->(r)";                            _cmdManager.cypherCommands.Enqueue(cyRel);
                             Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cyRel);
                         }
                     }

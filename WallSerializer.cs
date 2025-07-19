@@ -11,7 +11,7 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class WallSerializer
 {
-        // Erstellt ein Dictionary aller wichtigen Wand-Eigenschaften für Neo4j.
+    // Erstellt ein Dictionary aller wichtigen Wand-Eigenschaften für Neo4j.
     public static Dictionary<string, object> ToNode(Wall wall)
     {
         var lc = wall.Location as LocationCurve;
@@ -20,6 +20,9 @@ public static class WallSerializer
         XYZ e = line?.GetEndPoint(1) ?? XYZ.Zero;
         double height = wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM)?.AsDouble() ?? 0;
         double thickness = wall.WallType.Width;
+        string name = wall.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM)?.AsString()
+                    ?? wall.Name
+                    ?? string.Empty;
         double baseOffset = wall.get_Parameter(BuiltInParameter.WALL_BASE_OFFSET)?.AsDouble() ?? 0;
         int locationLine = wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.AsInteger() ?? (int)WallLocationLine.WallCenterline;
         var dict = new Dictionary<string, object>
@@ -30,6 +33,7 @@ public static class WallSerializer
             ["typeId"] = wall.GetTypeId().Value,
             ["typeName"] = wall.WallType.Name,
             ["familyName"] = wall.WallType.FamilyName,
+            ["Name"] = name,
             ["levelId"] = wall.LevelId.Value,
             ["x1"] = UnitConversion.ToMm(s.X),
             ["y1"] = UnitConversion.ToMm(s.Y),
