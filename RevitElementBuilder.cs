@@ -198,13 +198,14 @@ public static class RevitElementBuilder
         {
             var axis = Line.CreateBound(p, new XYZ(p.X, p.Y, p.Z + 1));
             ElementTransformUtils.RotateElement(doc, fi.Id, axis, Convert.ToDouble(rotObj));
-               ParameterUtils.ApplyParameters(fi, node);
+            ParameterUtils.ApplyParameters(fi, node);
 
-        if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid)
-            ParameterUtils.SetNeo4jUid(fi, uid);
-        return fi;
-    }
-
+            if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid)
+                ParameterUtils.SetNeo4jUid(fi, uid);
+        }
+            return fi;
+        }
+    
     
     // Legt einen ProvisionalSpace im Modell an.
     private static FamilyInstance BuildProvisionalSpace(Document doc, Dictionary<string, object> node)
