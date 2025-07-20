@@ -39,7 +39,7 @@ namespace SpaceTracker
             // 1) Gesamtes Modell exportieren
             var extractor = new SpaceExtractor(cmdMgr);
             cmdMgr.cypherCommands = new ConcurrentQueue<string>();
-            extractor.CreateInitialGraph(doc);
+            extractor.CreateInitialGraph(doc).GetAwaiter().GetResult();
             var commands = cmdMgr.cypherCommands.Distinct().ToList();
             cmdMgr.cypherCommands = new ConcurrentQueue<string>();
 
