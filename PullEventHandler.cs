@@ -29,16 +29,26 @@ namespace SpaceTracker
         public void Execute(UIApplication app)
         {
             while (_queue.TryDequeue(out var doc))
-
             {
                 try
                 {
-                    PullCommand.RunPull(doc);
+ PullCommand.RunPull(doc, showDialog: false);
+                    Logger.LogToFile("PullEventHandler: PullCommand executed", "sync.log");
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogCrash("AutoPull", ex);
+                    Logger.LogCrash("AutoPullCommand", ex);
                 }
+
+                try
+                {
+                    new GraphPuller().PullRemoteChanges(doc, SessionManager.CurrentUserId).GetAwaiter().GetResult();
+                    Logger.LogToFile("PullEventHandler: GraphPuller executed", "sync.log");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogCrash("AutoPullGraphPuller", ex);
+                                    }
             }
               if (!_queue.IsEmpty)
                 _event.Raise();

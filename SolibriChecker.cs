@@ -48,8 +48,8 @@ namespace SpaceTracker
                 return;
             try
             {
-                var extractor = new SpaceExtractor(CommandManager.Instance);
-                string ifcPath = extractor.ExportIfcSubset(doc, new List<ElementId> { id });
+                SpaceTrackerClass.RequestIfcExport(doc, new List<ElementId> { id });
+                string ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
                 if (string.IsNullOrEmpty(ifcPath) || !File.Exists(ifcPath))
                     return;
 
@@ -74,10 +74,44 @@ namespace SpaceTracker
 
         public async Task EnsureSolibriReadyAsync(CancellationToken ct)
         {
-            await SendWithRetryAsync(() => _client.GetAsync("/ping", ct), "Ping", ct).ConfigureAwait(false);
             while (true)
             {
-                var resp = await SendWithRetryAsync(() => _client.GetAsync("/status", ct), "Status", ct).ConfigureAwait(false);
+                 try
+                {
+                    var resp = await _client.GetAsync("/ping", ct).ConfigureAwait(false);
+                    if ((int)resp.StatusCode == 404)
+                    {
+                        await Task.Delay(500, ct).ConfigureAwait(false);
+                        continue;
+                    }
+                    resp.EnsureSuccessStatusCode();
+                    break;
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    await Task.Delay(500, ct).ConfigureAwait(false);
+                }
+            }
+
+            while (true)
+            {
+                HttpResponseMessage resp;
+                try
+                {
+                    resp = await _client.GetAsync("/status", ct).ConfigureAwait(false);
+                    if ((int)resp.StatusCode == 404)
+                    {
+                        await Task.Delay(500, ct).ConfigureAwait(false);
+                        continue;
+                    }
+                    resp.EnsureSuccessStatusCode();
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    await Task.Delay(500, ct).ConfigureAwait(false);
+                    continue;
+                }
+
                 var status = await resp.Content.ReadFromJsonAsync<Status>(cancellationToken: ct).ConfigureAwait(false);
                 if (status?.Busy != true)
                     break;
@@ -124,13 +158,20 @@ namespace SpaceTracker
                 await DeleteComponentsAsync(id, removedGuids, ct).ConfigureAwait(false);
                 await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
             }
-                if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
+            if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
                 throw new Exception("Fehlender Solibri Regelsatz.");
             var api = new SolibriApiClient(_client.BaseAddress?.Port ?? SolibriProcessManager.Port);
-            await api.CheckModelAsync(id, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
-            await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
-            string bcf = await GetBcfAsync(id, version: "two", scope: "all", ct: ct).ConfigureAwait(false);
-            await UpdateLogStatusAsync(bcf, ct).ConfigureAwait(false);
+            var results = await api.RunRulesetCheckAsync(id).ConfigureAwait(false);
+            foreach (var clash in results)
+            {
+                string status = MapSeverity(clash.Severity);
+                if (!string.IsNullOrEmpty(clash.ComponentGuid))
+                {
+                    await _connector.RunWriteQueryAsync(
+                        "MATCH (l:LogChange {guid:$guid}) SET l.status=$status",
+                        new { guid = clash.ComponentGuid, status }).ConfigureAwait(false);
+                }
+            }
             await api.InstallRulesetLocally(SpaceTrackerClass.SolibriRulesetPath).ConfigureAwait(false);
             await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
         }
@@ -175,6 +216,16 @@ namespace SpaceTracker
                 try
                 {
                     var resp = await sender().ConfigureAwait(false);
+                  if ((int)resp.StatusCode == 404)
+                    {
+                        if (attempt < retries)
+                        {
+                            Logger.LogToFile($"{label} returned 404, retry {attempt}", "solibri.log");
+                            await Task.Delay(500, ct).ConfigureAwait(false);
+                            continue;
+                        }
+                        return resp;
+                    }
                     if ((int)resp.StatusCode >= 500 && attempt < retries)
                     {
                         Logger.LogToFile($"{label} returned {resp.StatusCode}, retry {attempt}", "solibri.log");
@@ -183,6 +234,11 @@ namespace SpaceTracker
                     }
                     resp.EnsureSuccessStatusCode();
                     return resp;
+                }
+                 catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound && attempt < retries)
+                {
+                    Logger.LogToFile($"HTTP 404 on {label}, retry {attempt}", "solibri.log");
+                    await Task.Delay(500, ct).ConfigureAwait(false);
                 }
                 catch (HttpRequestException ex) when (attempt < retries)
                 {

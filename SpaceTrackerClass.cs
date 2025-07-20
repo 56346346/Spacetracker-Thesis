@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Autodesk.Revit.Exceptions;
 using Autodesk.Revit.UI;
 using System.Reflection;
+using Newtonsoft.Json;
 using Neo4j.Driver;
 using System.Windows.Forms;
 using System.IO;
@@ -27,6 +28,7 @@ using System.Threading;
 using Autodesk.Revit.ApplicationServices;
 using RevitApplication = Autodesk.Revit.ApplicationServices.Application;
 using System.Runtime.Versioning;
+using static System.Environment;
 
 [assembly: SupportedOSPlatform("windows")]
 
@@ -35,6 +37,12 @@ namespace SpaceTracker
 {
     public class SpaceTrackerClass : IExternalApplication
     {
+        private static readonly string _logDir =
+          Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker", "log");
+        private static readonly string _logPath =
+            Path.Combine(_logDir, nameof(SpaceTrackerClass) + ".log");
+        private static readonly object _logLock = new object();
+
         private RibbonPanel _ribbonPanel;
 
 
@@ -42,13 +50,50 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
         private PullEventHandler _pullEventHandler;
+        private PullScheduler _pullScheduler;
+        private ExternalEvent _graphPullEvent;
+
         public const int SolibriApiPort = 10876;
 
-
+        // Statischer Konstruktor stellt sicher, dass das Log-Verzeichnis existiert
+        static SpaceTrackerClass()
+        {
+            var dir = Path.GetDirectoryName(_logPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+        }
         private readonly Dictionary<ElementId, ElementMetadata> _elementCache =
        new Dictionary<ElementId, ElementMetadata>();
         private SpaceExtractor _extractor;
         private CommandManager _cmdManager;
+        private static IfcExportHandler _exportHandler;
+        private static ExternalEvent _exportEvent;
+        private static void LogMethodCall(string methodName, IDictionary<string, object> args)
+        {
+            // Remove Document instances to avoid WorksharingCentralGUID errors
+            var safeArgs = args
+                .Where(kv => !(kv.Value is Autodesk.Revit.DB.Document))
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            string SerializeSafe(object v)
+            {
+                if (v == null) return "null";
+                if (v is string) return $"\"{v}\"";
+                try { return JsonConvert.SerializeObject(v); }
+                catch { return v.ToString(); }
+            }
+
+            var line = methodName + "(" +
+                string.Join(", ",
+                    safeArgs.Select(kv => $"{kv.Key}={SerializeSafe(kv.Value)}")
+                ) + ")";
+            lock (_logLock)
+            {
+                using var fs = new FileStream(_logPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                using var writer = new StreamWriter(fs) { AutoFlush = true };
+                writer.WriteLine(line);
+            }
+        }
 
         // Holds the currently loaded Solibri model UUID. This is initialized
         // with the default value but may change if Solibri creates a new model
@@ -67,6 +112,10 @@ namespace SpaceTracker
         // Methode zum Aktualisieren des Ampel-Icons
         public static void SetStatusIndicator(StatusColor status)
         {
+            LogMethodCall(nameof(SetStatusIndicator), new Dictionary<string, object>
+            {
+                { "status", status }
+            });
             if (StatusIndicatorButton == null) return;
             switch (status)
             {
@@ -92,6 +141,10 @@ namespace SpaceTracker
         // on the UI thread to immediately reflect the validation result.
         public static void UpdateConsistencyCheckerButton(Severity severity)
         {
+            LogMethodCall(nameof(UpdateConsistencyCheckerButton), new Dictionary<string, object>
+            {
+                { "severity", severity }
+            });
             switch (severity)
             {
                 case Severity.Error:
@@ -112,6 +165,11 @@ namespace SpaceTracker
         // Vergleicht lokale Änderungen mit dem Graphen und setzt die Ampel. Optionale Dialoge informieren den Nutzer.
         public static void PerformConsistencyCheck(Document doc, bool showDialogs)
         {
+            LogMethodCall(nameof(PerformConsistencyCheck), new Dictionary<string, object>
+            {
+                { "doc", doc },
+                { "showDialogs", showDialogs }
+            });
             var cmdMgr = CommandManager.Instance;
             var connector = cmdMgr.Neo4jConnector;
 
@@ -177,6 +235,10 @@ namespace SpaceTracker
         /// </summary>
         public static void MarkElementsBySeverity(Dictionary<ElementId, string> severityMap)
         {
+            LogMethodCall(nameof(MarkElementsBySeverity), new Dictionary<string, object>
+            {
+                { "severityMap", severityMap }
+            });
             if (severityMap == null || severityMap.Count == 0)
                 return;
 
@@ -208,13 +270,51 @@ namespace SpaceTracker
             tx.Commit();
         }
 
+        internal static IfcExportHandler ExportHandler => _exportHandler;
+        internal static ExternalEvent ExportEvent => _exportEvent;
+
+        public static void RequestIfcExport(Document doc, List<ElementId> ids)
+        {
+            LogMethodCall(nameof(RequestIfcExport), new Dictionary<string, object>
+            {
+                { "doc", doc },
+                { "ids", ids }
+            });
+            _exportHandler.Document = doc;
+            _exportHandler.ElementIds = ids;
+            if (!_exportEvent.IsPending)
+                _exportEvent.Raise();
+        }
+
 
         #region register events
         // Wird beim Laden des Add-Ins aufgerufen und richtet alle Komponenten ein.
         public Result OnStartup(UIControlledApplication application)
         {
-            Logger.LogToFile("OnStartup begin", "assembly.log");
+            LogMethodCall(nameof(OnStartup), new Dictionary<string, object>
+            {
+                { "application", application.GetType().Name }
+            });
 
+            var logDir = Path.Combine(
+                           Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                           "SpaceTracker", "log");
+
+            // Stelle sicher, dass der Ordner existiert
+            if (!Directory.Exists(logDir))
+                Directory.CreateDirectory(logDir);
+            // Nur Inhalte löschen, nicht den Ordner selbst
+
+            foreach (var file in Directory.GetFiles(logDir))
+            {
+                // Truncate statt Delete, um Sperrkonflikte zu vermeiden
+                using (var fs = new FileStream(
+                    file,
+                    FileMode.Truncate,
+                    FileAccess.Write,
+                    FileShare.ReadWrite))
+                { }
+            }
             try
             {
 
@@ -234,8 +334,14 @@ namespace SpaceTracker
                 _extractor = new SpaceExtractor(CommandManager.Instance);
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
                 _graphPuller = new GraphPuller(_neo4jConnector);
+                var graphPullHandler = new GraphPullHandler();
+                _graphPullEvent = ExternalEvent.Create(graphPullHandler);
                 _cmdManager = CommandManager.Instance;
                 _pullEventHandler = new PullEventHandler();
+                _exportHandler = new IfcExportHandler();
+                _exportEvent = ExternalEvent.Create(_exportHandler);
+                var uiapp = TryGetUIApplication(application);
+
             }
             catch (Exception ex)
             {
@@ -256,19 +362,25 @@ namespace SpaceTracker
                 }
             });
             System.Windows.Forms.Application.ThreadException += (sender, args) =>
-           {
-               File.AppendAllText(
-                   Path.Combine(
-                       Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                       "SpaceTracker",
-                       "crash.log"),
-                   $"{DateTime.Now:O} UI Thread Exception: {args.Exception}\n"
-               );
-           };
+          {
+              var crashPath = Path.Combine(
+                  Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                  "SpaceTracker",
+                  "crash.log");
+              lock (_logLock)
+              {
+                  using var stream = new FileStream(
+                      crashPath,
+                      FileMode.Append,
+                      FileAccess.Write,
+                      FileShare.ReadWrite);
+                  using var writer = new StreamWriter(stream) { AutoFlush = true };
+                  writer.WriteLine($"{DateTime.Now:O} UI Thread Exception: {args.Exception}");
+              }
+          };
 
             // 1. Logging-Pfade in Benutzerverzeichnis verlegen
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string logDir = Path.Combine(appDataPath, "SpaceTracker");
             string mainLogPath = Path.Combine(logDir, "SpaceTracker.log");
             string crashLogPath = Path.Combine(logDir, "SpaceTracker_crash.log");
             string assemblyCheckPath = Path.Combine(logDir, "SpaceTracker_Assembly_Check.log");
@@ -318,13 +430,19 @@ namespace SpaceTracker
                 {
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
                     _databaseUpdateHandler.TriggerPush();
-                    var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
-                    mon.Start(uiApp.ActiveUIDocument.Document, CommandManager.Instance.SessionId);
                     string key = uiApp.ActiveUIDocument.Document.PathName ?? uiApp.ActiveUIDocument.Document.Title;
-                    SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document, _graphPuller, mon));
+                    SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document));
+
                     ImportInitialSolibriModel(uiApp.ActiveUIDocument.Document);
 
                 }
+
+                // --- AutoPull: Periodisches Pull im Leerlauf (1 s) ---
+                var autoPullHandler = new AutoPullHandler();
+                var autoPullEvent = ExternalEvent.Create(autoPullHandler);
+                if (uiApp != null)
+                    _pullScheduler = new PullScheduler(autoPullEvent, uiApp);
+
 
                 Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
                 return Result.Succeeded;
@@ -342,8 +460,6 @@ namespace SpaceTracker
      $"Inner: {e.InnerException?.Message}";
 
                 Logger.LogToFile(errorDetails, "crash.log");
-                Logger.LogToFile(errorDetails, "assembly.log");
-
                 Debug.WriteLine("[SpaceTracker] KRITISCHER FEHLER: " + e.Message);
                 return Result.Failed;
             }
@@ -649,14 +765,17 @@ namespace SpaceTracker
         // Aufräumarbeiten beim Beenden von Revit.
         public Result OnShutdown(UIControlledApplication application)
         {
+            LogMethodCall(nameof(OnShutdown), new Dictionary<string, object>
+            {
+                { "application", application }
+            });
             CommandManager.Instance.Dispose();
             application.ControlledApplication.DocumentOpened -= documentOpened;
             application.ControlledApplication.DocumentChanged -= documentChanged;
             application.ControlledApplication.DocumentCreated -= documentCreated;
             application.ControlledApplication.DocumentClosing -= documentClosing;
             _neo4jConnector?.Dispose();
-            foreach (var openSession in SessionManager.OpenSessions.Values)
-                openSession.Monitor.Dispose();
+            _pullScheduler?.Dispose();
             return Result.Succeeded;
 
         }
@@ -689,7 +808,19 @@ namespace SpaceTracker
                     .Select(e => e.Id)
                     .ToList();
 
-                string ifcPath = _extractor.ExportIfcSubset(doc, allIds);
+                RequestIfcExport(doc, allIds);
+                string ifcPath = ExportHandler.ExportedPath;
+                if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                {
+                    Logger.LogToFile("IFC-Export fehlgeschlagen. Versuche erneut.", "solibri.log");
+                    RequestIfcExport(doc, allIds);
+                    ifcPath = ExportHandler.ExportedPath;
+                    if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                    {
+                        Logger.LogToFile("IFC-Export weiterhin fehlgeschlagen, breche Solibri-Import ab.", "solibri.log");
+                        return;
+                    }
+                }
                 var client = new SolibriApiClient(SolibriApiPort);
 
                 if (string.IsNullOrEmpty(SolibriRulesetId))
@@ -772,30 +903,24 @@ namespace SpaceTracker
                 // Direkt nach dem Einreihen einen Push anstoßen, damit die
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
                 _databaseUpdateHandler.TriggerPush();
-                _graphPuller?.RequestPull(doc, Environment.UserName);
                 PullChanges();
-                string key = doc.PathName ?? doc.Title;
-                if (SessionManager.OpenSessions.TryGetValue(key, out var session))
-                    session.Monitor.UpdateDocument(doc);
-
                 try
                 {
-                    string user = Environment.UserName;
                     string sessionId = CommandManager.Instance.SessionId;
                     foreach (var el in addedElements)
                     {
-                        _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId, user).GetAwaiter().GetResult();
+                        await UpsertElementAsync(el);
+                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId).GetAwaiter().GetResult();
                     }
                     foreach (var el in modifiedElements)
                     {
-                        _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId, user).GetAwaiter().GetResult();
+                        await UpsertElementAsync(el);
+                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId).GetAwaiter().GetResult();
                     }
                     foreach (var id in deletedIds)
                     {
                         _neo4jConnector.DeleteNodeAsync(id).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId, user).GetAwaiter().GetResult();
+                        _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId).GetAwaiter().GetResult();
                     }
 
                     PullChanges();
@@ -813,6 +938,8 @@ namespace SpaceTracker
                     // trigger pull command via external event to keep sessions in sync
                     _pullEventHandler?.RequestPull(openSession.Document);
                 }
+                _graphPullEvent.Raise();
+
             }
             catch (Exception ex)
             {
@@ -821,6 +948,31 @@ namespace SpaceTracker
             }
         }
 
+        private async Task UpsertElementAsync(Element el)
+        {
+            switch (el)
+            {
+                case Wall w:
+                    var wData = WallSerializer.ToNode(w);
+                    await _neo4jConnector.UpsertWallAsync(wData);
+                    break;
+                case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
+                    var dData = DoorSerializer.ToNode(fi);
+                    await _neo4jConnector.UpsertDoorAsync(dData);
+                    break;
+                case MEPCurve pipe:
+                    var pData = PipeSerializer.ToNode(pipe);
+                    await _neo4jConnector.UpsertPipeAsync(pData);
+                    break;
+                case FamilyInstance ps when ParameterUtils.IsProvisionalSpace(ps):
+                    _ = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(ps, out var data);
+                    await _neo4jConnector.UpsertProvisionalSpaceAsync(data["guid"].ToString(), data);
+                    break;
+                default:
+                    await _neo4jConnector.UpsertNodeAsync(el);
+                    break;
+            }
+        }
 
 
         private void documentCreated(object sender, DocumentCreatedEventArgs e)
@@ -832,10 +984,10 @@ namespace SpaceTracker
                 // die aktuellen Befehle an Neo4j senden
                 _databaseUpdateHandler.TriggerPush();
                 PullChanges();
-                var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
-                mon.Start(e.Document, CommandManager.Instance.SessionId);
+
                 string key = e.Document.PathName ?? e.Document.Title;
-                SessionManager.AddSession(key, new Session(e.Document, _graphPuller, mon));
+                SessionManager.AddSession(key, new Session(e.Document));
+
                 ImportInitialSolibriModel(e.Document);
 
             }
@@ -858,8 +1010,8 @@ namespace SpaceTracker
                 {
                     // Neo4j-Graph ist leer: initialen Graph aus Revit-Daten erzeugen und pushen
                     Debug.WriteLine("[SpaceTracker] Neuer Graph - initialer Upload der Modelldaten.");
-                    _extractor.CreateInitialGraph(doc);  // alle vorhandenen Elemente ins Queue einreihen
-                                                         // Änderungen in einem Batch an Neo4j senden (Push)
+                    _extractor.CreateInitialGraph(doc).GetAwaiter().GetResult();  // alle vorhandenen Elemente ins Queue einreihen
+                                                                                  // Änderungen in einem Batch an Neo4j senden (Push)
                     if (!CommandManager.Instance.cypherCommands.IsEmpty)
                     {
                         // Befehle kopieren, damit die Queue sofort wieder benutzt werden kann
@@ -876,8 +1028,8 @@ namespace SpaceTracker
                             }
                             _neo4jConnector.PushChangesAsync(
                                 changes,
-                                CommandManager.Instance.SessionId,
-                                Environment.UserName, doc).GetAwaiter().GetResult();
+
+                                CommandManager.Instance.SessionId, doc).GetAwaiter().GetResult();
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
                             _neo4jConnector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
@@ -899,12 +1051,12 @@ namespace SpaceTracker
 
                     }
                     // After loading the model trigger a pull to ensure latest changes
-                    _graphPuller?.RequestPull(doc, Environment.UserName);
+                    _graphPuller?.PullRemoteChanges(doc, CommandManager.Instance.SessionId).GetAwaiter().GetResult();
                     PullChanges();
-                    var mon = new ChangeMonitor(_neo4jConnector, _pullEventHandler);
-                    mon.Start(doc, CommandManager.Instance.SessionId);
+
                     string key = doc.PathName ?? doc.Title;
-                    SessionManager.AddSession(key, new Session(doc, _graphPuller, mon));
+                    SessionManager.AddSession(key, new Session(doc));
+
                     ImportInitialSolibriModel(doc);
 
                 }
@@ -925,7 +1077,6 @@ namespace SpaceTracker
                 string key = e.Document.PathName ?? e.Document.Title;
                 if (SessionManager.OpenSessions.TryGetValue(key, out var session))
                 {
-                    session.Monitor.Dispose();
                     SessionManager.RemoveSession(key);
                 }
             }

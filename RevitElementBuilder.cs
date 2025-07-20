@@ -17,6 +17,12 @@ namespace SpaceTracker;
 public static class RevitElementBuilder
 {
     private const string ProvLog = "provisional_spaces.log";
+
+    
+    private static double RoundValue(double v)
+    {
+        return Math.Abs(v - Math.Round(v)) < 0.001 ? Math.Round(v, 1) : v;
+    }
     private static Wall? FindHostWall(Document doc, XYZ point, double tol = 1.0)
     {
         Wall? bestWall = null;
@@ -59,7 +65,7 @@ public static class RevitElementBuilder
             "Wall" => BuildWall(doc, node),
             "Pipe" => BuildPipe(doc, node),
             "Door" => BuildDoor(doc, node),
-            "ProvisionalSpace" => BuildFamilyInstance(doc, node),
+            "ProvisionalSpace" => BuildProvisionalSpace(doc, node),
             _ => throw new NotSupportedException($"Unsupported rvtClass {cls}")
         };
     }
@@ -75,10 +81,27 @@ public static class RevitElementBuilder
                         UnitConversion.ToFt(Convert.ToDouble(node["z2"])));
         Line line = Line.CreateBound(s, e);
         ElementId typeId = new ElementId(Convert.ToInt32(node["typeId"]));
+         if (node.TryGetValue("WallType", out var typeNameObj) && typeNameObj is string typeName)
+        {
+            var wt = new FilteredElementCollector(doc)
+                .OfClass(typeof(WallType))
+                .Cast<WallType>()
+                .FirstOrDefault(t => t.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase));
+            if (wt != null)
+                typeId = wt.Id;
+        }
         ElementId levelId = new ElementId(Convert.ToInt32(node["levelId"]));
-        double height = UnitConversion.ToFt(Convert.ToDouble(node["height_mm"]));
-        double offset = node.TryGetValue("base_offset_mm", out var offObj)
-          ? UnitConversion.ToFt(Convert.ToDouble(offObj))
+   if (node.TryGetValue("BaseLevelName", out var lvlNameObj) && lvlNameObj is string lvlName)
+        {
+            var lvl = new FilteredElementCollector(doc)
+                .OfClass(typeof(Level))
+                .Cast<Level>()
+                .FirstOrDefault(l => l.Name.Equals(lvlName, StringComparison.OrdinalIgnoreCase));
+            if (lvl != null)
+                levelId = lvl.Id;
+        }
+        double height = UnitConversion.ToFt(RoundValue(Convert.ToDouble(node["height_mm"])));        double offset = node.TryGetValue("base_offset_mm", out var offObj)
+          ? UnitConversion.ToFt(RoundValue(Convert.ToDouble(offObj)))
           : 0;
         bool flip = node.TryGetValue("flipped", out var flipObj) && Convert.ToBoolean(flipObj);
         bool structural = node.TryGetValue("structural", out var structObj) && Convert.ToBoolean(structObj);
@@ -96,14 +119,9 @@ public static class RevitElementBuilder
                     lc.Curve = line;
                 if (wall.WallType.Id != typeId)
                     wall.ChangeTypeId(typeId);
-                wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM)?.Set(height);
-                wall.get_Parameter(BuiltInParameter.WALL_BASE_OFFSET)?.Set(offset);
                 // Set flipped orientation
                 if (wall.Flipped != flip)
                     wall.Flip();
-                wall.get_Parameter(BuiltInParameter.WALL_STRUCTURAL_SIGNIFICANT)?.Set(structural ? 1 : 0);
-                if (node.TryGetValue("location_line", out var llVal))
-                    wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(Convert.ToInt32(llVal));
                 ParameterUtils.ApplyParameters(wall, node);
                 ParameterUtils.SetNeo4jUid(wall, uid);
                 return wall;
@@ -112,8 +130,6 @@ public static class RevitElementBuilder
 
         // Create new wall if none exists
         wall = Wall.Create(doc, line, typeId, levelId, height, offset, flip, structural);
-        if (node.TryGetValue("location_line", out var ll))
-            wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.Set(Convert.ToInt32(ll));
         ParameterUtils.ApplyParameters(wall, node);
         if (node.TryGetValue("uid", out uidObj) && uidObj is string newUid)
             ParameterUtils.SetNeo4jUid(wall, newUid);
@@ -134,8 +150,6 @@ public static class RevitElementBuilder
                    : ElementId.InvalidElementId;
         ElementId levelId = new ElementId(Convert.ToInt32(node["levelId"]));
         Pipe pipe = Pipe.Create(doc, systemTypeId, pipeTypeId, levelId, s, e);
-        if (node.TryGetValue("diameter", out var d))
-            pipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)?.Set(UnitConversion.ToFt(Convert.ToDouble(d)));
         ParameterUtils.ApplyParameters(pipe, node);
         if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid)
             ParameterUtils.SetNeo4jUid(pipe, uid);
@@ -184,14 +198,65 @@ public static class RevitElementBuilder
         {
             var axis = Line.CreateBound(p, new XYZ(p.X, p.Y, p.Z + 1));
             ElementTransformUtils.RotateElement(doc, fi.Id, axis, Convert.ToDouble(rotObj));
+            ParameterUtils.ApplyParameters(fi, node);
+
+            if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid)
+                ParameterUtils.SetNeo4jUid(fi, uid);
         }
-        if (node.TryGetValue("width", out var w))
-            fi.get_Parameter(BuiltInParameter.DOOR_WIDTH)?.Set(UnitConversion.ToFt(Convert.ToDouble(w)));
-        if (node.TryGetValue("height", out var h))
-            fi.get_Parameter(BuiltInParameter.DOOR_HEIGHT)?.Set(UnitConversion.ToFt(Convert.ToDouble(h)));
-        if (node.TryGetValue("uid", out var uidObj) && uidObj is string uid)
-            ParameterUtils.SetNeo4jUid(fi, uid);
-        return fi;
+            return fi;
+        }
+    
+    
+    // Legt einen ProvisionalSpace im Modell an.
+    private static FamilyInstance BuildProvisionalSpace(Document doc, Dictionary<string, object> node)
+    {
+        Logger.LogToFile("Start BuildProvisionalSpace", ProvLog);
+
+        string guid = node.TryGetValue("guid", out var gObj) ? gObj.ToString() ?? string.Empty : string.Empty;
+        Element? existing = !string.IsNullOrEmpty(guid) ? doc.GetElement(guid) : null;
+        if (existing is FamilyInstance fiExisting)
+        {
+            Logger.LogToFile($"ProvisionalSpace {guid} already exists", ProvLog);
+            return fiExisting;
+        }
+
+        string familyName = node.TryGetValue("familyName", out var famObj) ? famObj.ToString() ?? string.Empty : string.Empty;
+        FamilySymbol? symbol = new FilteredElementCollector(doc)
+            .OfClass(typeof(FamilySymbol))
+            .Cast<FamilySymbol>()
+            .FirstOrDefault(fs => fs.FamilyName.Equals(familyName, StringComparison.OrdinalIgnoreCase));
+        if (symbol == null)
+        {
+            Logger.LogToFile($"FamilySymbol '{familyName}' not found", ProvLog);
+            throw new InvalidOperationException($"FamilySymbol '{familyName}' not found");
+        }
+        if (!symbol.IsActive)
+            symbol.Activate();
+
+        double minX = node.TryGetValue("bbMinX", out var minXObj) ? RoundValue(Convert.ToDouble(minXObj)) : 0.0;
+        double minY = node.TryGetValue("bbMinY", out var minYObj) ? RoundValue(Convert.ToDouble(minYObj)) : 0.0;
+        double minZ = node.TryGetValue("bbMinZ", out var minZObj) ? RoundValue(Convert.ToDouble(minZObj)) : 0.0;
+        double maxX = node.TryGetValue("bbMaxX", out var maxXObj) ? RoundValue(Convert.ToDouble(maxXObj)) : 0.0;
+        double maxY = node.TryGetValue("bbMaxY", out var maxYObj) ? RoundValue(Convert.ToDouble(maxYObj)) : 0.0;
+        double maxZ = node.TryGetValue("bbMaxZ", out var maxZObj) ? RoundValue(Convert.ToDouble(maxZObj)) : 0.0;
+
+        XYZ center = new XYZ(
+            UnitConversion.ToFt((minX + maxX) / 2),
+            UnitConversion.ToFt((minY + maxY) / 2),
+            UnitConversion.ToFt((minZ + maxZ) / 2));
+
+        Level? level = null;
+        if (node.TryGetValue("levelId", out var lvlObj))
+            level = doc.GetElement(new ElementId(Convert.ToInt32(lvlObj))) as Level;
+
+        FamilyInstance inst = doc.Create.NewFamilyInstance(center, symbol, level, StructuralType.NonStructural);
+
+        ParameterUtils.ApplyParameters(inst, node);
+        if (!string.IsNullOrEmpty(guid))
+            ParameterUtils.SetNeo4jUid(inst, guid);
+
+        Logger.LogToFile($"Finished BuildProvisionalSpace {guid}", ProvLog);
+        return inst;
     }
     // Interne Variante für Node-Objekte.
     private static void BuildWall(Document doc, INode node)
