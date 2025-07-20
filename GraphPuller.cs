@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
@@ -8,52 +9,59 @@ using Autodesk.Revit.DB.Plumbing;
 using System.Linq;
 using Autodesk.Revit.UI;
 using Neo4j.Driver;
-using System.IO;
-using static System.Environment;
-
-
 
 
 namespace SpaceTracker;
 
 [SupportedOSPlatform("windows")]
-public class GraphPuller
+public class GraphPuller : IExternalEventHandler
 {
-    private static readonly string _logDir =
-       Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
-       "SpaceTracker", "log");
-    private static readonly string _logPath =
-       Path.Combine(_logDir, nameof(GraphPuller) + ".log");
-    private static readonly object _logLock = new object();
-
-    static GraphPuller()
-    {
-        if (!Directory.Exists(_logDir))
-            Directory.CreateDirectory(_logDir);
-        MethodLogger.InitializeLog(nameof(GraphPuller));
-    }
-
-    private static void LogMethodCall(string methodName, Dictionary<string, object?> parameters)
-    {
-        MethodLogger.Log(nameof(GraphPuller), methodName, parameters);
-    }
     private readonly Neo4jConnector _connector;
-    public DateTime LastPulledAt { get; private set; } = DateTime.MinValue;
-    // Erzeugt den Puller mit optionalem Connector
+     private readonly ExternalEvent _event;
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(Document Doc, string UserId)> _queue = new();
 
-    public GraphPuller(Neo4jConnector? connector = null)
+
+    // Erzeugt den Puller und registriert ein ExternalEvent
+
+    public GraphPuller(Neo4jConnector connector)
     {
-        _connector = connector ?? CommandManager.Instance.Neo4jConnector;
+        _connector = connector;
+        _event = ExternalEvent.Create(this);
+    }
+    // Fordert einen Pull an; wird von anderen Klassen aufgerufen.
+
+    public void RequestPull(Document doc, string currentUserId)
+    {
+                _queue.Enqueue((doc, currentUserId));
+
+        if (!_event.IsPending)
+            _event.Raise();
+    }
+    // Name des Events für Debugzwecke.
+    public string GetName() => "GraphPuller";
+    // ExternalEvent-Callback, ruft PullRemoteChanges auf.
+
+    public void Execute(UIApplication app)
+    {
+        while (_queue.TryDequeue(out var req))
+
+        {
+            try
+            {
+                PullRemoteChanges(req.Doc, req.UserId).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("GraphPuller", ex);
+            }
+        }
+          if (!_queue.IsEmpty)
+            _event.Raise();
     }
     // Synchronises all changes since the last pull by querying modified nodes
     // directly instead of relying on change log relationships.
     public async Task PullRemoteChanges(Document doc, string currentUserId)
     {
-        LogMethodCall(nameof(PullRemoteChanges), new()
-        {
-            ["doc"] = doc?.Title,
-            ["currentUserId"] = currentUserId
-        });
         var cmdMgr = CommandManager.Instance;
 
         var walls = await _connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
@@ -80,16 +88,7 @@ public class GraphPuller
             .Where(ps => ParameterUtils.IsProvisionalSpace(ps.ToDictionary()))
             .ToList();
 
-        string pullInfo = $"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces";
-        Debug.WriteLine(pullInfo);
-        Logger.LogToFile($"GraphPuller.PullRemoteChanges: {pullInfo}", "sync.log");
-
-        if (doc.IsReadOnly || doc.IsModifiable)
-        {
-            Logger.LogToFile("PullRemoteChanges skipped: document not ready for transaction", "sync.log");
-            return;
-        }
-
+        Debug.WriteLine($"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces");
         using var tx = new Transaction(doc, "Auto Sync");
         tx.Start();
 
@@ -117,13 +116,7 @@ public class GraphPuller
         tx.Commit();
 
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;
-        cmdMgr.LastPulledAt = cmdMgr.LastSyncTime;
-        LastPulledAt = cmdMgr.LastPulledAt;
         cmdMgr.PersistSyncTime();
         await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
-
-        var key = doc.PathName ?? doc.Title;
-        if (SessionManager.OpenSessions.TryGetValue(key, out var session))
-            session.LastSyncTime = cmdMgr.LastSyncTime;
     }
 }

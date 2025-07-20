@@ -6,15 +6,11 @@
         <Description>Das .NET Framework verwendet die Versionsnummer zur eindeutigen Identifikation einer Assembly und zum Binden an Typen in Assemblys mit starker Namensgebung. Die Versionsnummer wird zusammen mit der Versions- und Herausgeberrichtlinie verwendet. Standardmäßig werden Anwendungen nur mit der Assemblyversion ausgeführt, mit der sie erstellt wurden.</Description>
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1016</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CA1510" Title="ArgumentNullException-Throw-Hilfsprogramm verwenden" Count="1">
-        <Description>Throw-Hilfsprogramme sind einfacher und effizienter als If-Blöcke, die eine neue Ausnahmeinstanz erstellen.</Description>
-        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1510</HelpLink>
-      </Diagnostic>
       <Diagnostic Id="CA1816" Title="Dispose-Methoden müssen SuppressFinalize aufrufen" Count="1">
         <Description>Eine Methode, die eine Implementierung von "Dispose" ist, ruft "GC.SuppressFinalize" nicht auf, oder eine Methode, die keine Implementierung von "Dispose" ist, ruft "GC.SuppressFinalize" auf, oder eine Methode ruft "GC.SuppressFinalize" auf und übergibt etwas anderes als dies ("Me" in Visual Basic).</Description>
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1816</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CA1822" Title="Member als statisch markieren" Count="5">
+      <Diagnostic Id="CA1822" Title="Member als statisch markieren" Count="1">
         <Description>Member, die nicht auf Instanzdaten zugreifen oder Instanzmethoden aufrufen, können als "static" markiert werden. Nachdem Sie die Methoden als statisch markiert haben, gibt der Compiler nicht virtuelle Aufrufsites an diese Member aus. Dadurch kann sich für leistungsabhängigen Code eine spürbare Leistungssteigerung ergeben.</Description>
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1822</HelpLink>
       </Diagnostic>
@@ -26,7 +22,7 @@
         <Description>Ziehen Sie einen „TryGetValue“-Aufruf einem Wörterbuchindexerzugriff vor, der durch eine „ContainsKey“-Überprüfung geschützt wird. „ContainsKey“ und der Indexer würden beide den Schlüssel im Hintergrund suchen; die Verwendung von „TryGetValue“ entfernt die zusätzliche Suche.</Description>
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1854</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CA2211" Title="Nicht konstante Felder dürfen nicht sichtbar sein" Count="3">
+      <Diagnostic Id="CA2211" Title="Nicht konstante Felder dürfen nicht sichtbar sein" Count="2">
         <Description>Statische Felder, die weder Konstanten noch schreibgeschützt sind, sind nicht threadsicher. Der Zugriff auf ein solches Feld muss sorgfältig kontrolliert werden und erfordert erweiterte Programmiertechniken, um den Zugriff auf das Klassenobjekt zu synchronisieren.</Description>
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2211</HelpLink>
       </Diagnostic>
@@ -36,10 +32,10 @@
       <Diagnostic Id="CS8600" Title="Das NULL-Literal oder ein möglicher NULL-Wert wird in einen Non-Nullable-Typ konvertiert." Count="4">
         <HelpLink>https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&amp;k=k(CS8600)</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="CS8632" Title="Die Anmerkung für Nullable-Verweistypen darf nur in Code innerhalb eines #nullable-Anmerkungskontexts verwendet werden." Count="7">
+      <Diagnostic Id="CS8632" Title="Die Anmerkung für Nullable-Verweistypen darf nur in Code innerhalb eines #nullable-Anmerkungskontexts verwendet werden." Count="4">
         <HelpLink>https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&amp;k=k(CS8632)</HelpLink>
       </Diagnostic>
-      <Diagnostic Id="SYSLIB1045" Title="In „GeneratedRegexAttribute“ konvertieren." Count="4">
+      <Diagnostic Id="SYSLIB1045" Title="In „GeneratedRegexAttribute“ konvertieren." Count="3">
         <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/syslib-diagnostics/syslib1045</HelpLink>
       </Diagnostic>
     </Summary>
@@ -76,7 +72,7 @@
             <Severity>Info</Severity>
             <Message>In „GeneratedRegexAttribute“ konvertieren.</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\Neo4jConnector.cs</FilePath>
-            <Location Line="122" Character="31" />
+            <Location Line="95" Character="31" />
           </Diagnostic>
           <Diagnostic Id="CS8632">
             <Severity>Warning</Severity>
@@ -88,13 +84,13 @@
             <Severity>Info</Severity>
             <Message>Methode „IDictionary.TryGetValue(TKey, out TValue)“ bevorzugen</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\ProvisionalSpaceSerializer.cs</FilePath>
-            <Location Line="117" Character="13" />
+            <Location Line="113" Character="13" />
           </Diagnostic>
           <Diagnostic Id="CS8632">
             <Severity>Warning</Severity>
             <Message>Die Anmerkung für Nullable-Verweistypen darf nur in Code innerhalb eines #nullable-Anmerkungskontexts verwendet werden.</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\ProvisionalSpaceSerializer.cs</FilePath>
-            <Location Line="31" Character="23" />
+            <Location Line="30" Character="23" />
           </Diagnostic>
           <Diagnostic Id="CS8600">
             <Severity>Warning</Severity>
@@ -120,36 +116,6 @@
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\PullCommand.cs</FilePath>
             <Location Line="132" Character="31" />
           </Diagnostic>
-          <Diagnostic Id="CA1510">
-            <Severity>Info</Severity>
-            <Message>ArgumentNullException-Throw-Hilfsprogramm verwenden</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SolibriApiClient.cs</FilePath>
-            <Location Line="211" Character="13" />
-          </Diagnostic>
-          <Diagnostic Id="CS8632">
-            <Severity>Warning</Severity>
-            <Message>Die Anmerkung für Nullable-Verweistypen darf nur in Code innerhalb eines #nullable-Anmerkungskontexts verwendet werden.</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SolibriApiClient.cs</FilePath>
-            <Location Line="384" Character="23" />
-          </Diagnostic>
-          <Diagnostic Id="CS8632">
-            <Severity>Warning</Severity>
-            <Message>Die Anmerkung für Nullable-Verweistypen darf nur in Code innerhalb eines #nullable-Anmerkungskontexts verwendet werden.</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SolibriApiClient.cs</FilePath>
-            <Location Line="421" Character="23" />
-          </Diagnostic>
-          <Diagnostic Id="CS8632">
-            <Severity>Warning</Severity>
-            <Message>Die Anmerkung für Nullable-Verweistypen darf nur in Code innerhalb eines #nullable-Anmerkungskontexts verwendet werden.</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SolibriApiClient.cs</FilePath>
-            <Location Line="443" Character="34" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SolibriChecker.cs</FilePath>
-            <Location Line="178" Character="49" />
-          </Diagnostic>
           <Diagnostic Id="CS8632">
             <Severity>Warning</Severity>
             <Message>Die Anmerkung für Nullable-Verweistypen darf nur in Code innerhalb eines #nullable-Anmerkungskontexts verwendet werden.</Message>
@@ -166,55 +132,25 @@
             <Severity>Info</Severity>
             <Message>Member als statisch markieren</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="667" Character="56" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="751" Character="23" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="815" Character="46" />
+            <Location Line="609" Character="23" />
           </Diagnostic>
           <Diagnostic Id="CS0414">
             <Severity>Warning</Severity>
             <Message>Feld ist zugewiesen, der Wert wird jedoch niemals verwendet</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="28" Character="28" />
-          </Diagnostic>
-          <Diagnostic Id="SYSLIB1045">
-            <Severity>Info</Severity>
-            <Message>In „GeneratedRegexAttribute“ konvertieren.</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceExtractor.cs</FilePath>
-            <Location Line="821" Character="29" />
-          </Diagnostic>
-          <Diagnostic Id="CA1822">
-            <Severity>Info</Severity>
-            <Message>Member als statisch markieren</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="692" Character="22" />
+            <Location Line="27" Character="28" />
           </Diagnostic>
           <Diagnostic Id="CA2211">
             <Severity>Info</Severity>
             <Message>Nicht konstante Felder dürfen nicht sichtbar sein</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="60" Character="30" />
+            <Location Line="56" Character="30" />
           </Diagnostic>
           <Diagnostic Id="CA2211">
             <Severity>Info</Severity>
             <Message>Nicht konstante Felder dürfen nicht sichtbar sein</Message>
             <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="61" Character="30" />
-          </Diagnostic>
-          <Diagnostic Id="CA2211">
-            <Severity>Info</Severity>
-            <Message>Nicht konstante Felder dürfen nicht sichtbar sein</Message>
-            <FilePath>C:\Users\Vitus\Desktop\Bachelorarbeit\Programmieren Python\SpaceTracker\SpaceTracker\SpaceTrackerClass.cs</FilePath>
-            <Location Line="63" Character="34" />
+            <Location Line="58" Character="34" />
           </Diagnostic>
         </Diagnostics>
       </Project>

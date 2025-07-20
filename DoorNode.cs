@@ -4,7 +4,6 @@ namespace SpaceTracker;
 
 [SupportedOSPlatform("windows")]
 public record DoorNode(
-     string Name,
     string Uid,
     long ElementId,
     long TypeId,

@@ -68,7 +68,7 @@ public static class ProvisionalSpaceSerializer
             ["ifcType"] = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString() ?? string.Empty,
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
-            ["user"] = CommandManager.Instance.SessionId
+            ["user"] = Environment.UserName
         };
         if (isProv)
         {

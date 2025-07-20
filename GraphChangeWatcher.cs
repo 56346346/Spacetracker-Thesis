@@ -1,11 +1,7 @@
-/*using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
-using System.IO;
-using static System.Environment;
-
-
 
 namespace SpaceTracker
 {
@@ -15,24 +11,6 @@ namespace SpaceTracker
     /// </summary>
     public class ChangeMonitor : IDisposable
     {
-        private static readonly string _logDir =
-                   Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                   "SpaceTracker", "log");
-        private static readonly string _logPath =
-            Path.Combine(_logDir, nameof(ChangeMonitor) + ".log");
-                    private static readonly object _logLock = new object();
-
-        static ChangeMonitor()
-        {
-            if (!Directory.Exists(_logDir))
-                Directory.CreateDirectory(_logDir);
-            MethodLogger.InitializeLog(nameof(ChangeMonitor));
-        }
-
-        private static void LogMethodCall(string methodName, Dictionary<string, object?> parameters)
-        {
-            MethodLogger.Log(nameof(ChangeMonitor), methodName, parameters);
-        }
         private readonly Neo4jConnector _connector;
         private readonly PullEventHandler _pullEventHandler;
         private CancellationTokenSource _cts;
@@ -51,11 +29,6 @@ namespace SpaceTracker
         /// </summary>
         public void Start(Document doc, string sessionId)
         {
-            LogMethodCall(nameof(Start), new()
-            {
-                ["doc"] = doc?.Title,
-                ["sessionId"] = sessionId
-            });
             _document = doc;
             _sessionId = sessionId;
             if (_watchTask != null && !_watchTask.IsCompleted)
@@ -69,8 +42,6 @@ namespace SpaceTracker
         /// </summary>
         public void UpdateDocument(Document doc)
         {
-            LogMethodCall(nameof(UpdateDocument), new() { ["doc"] = doc?.Title });
-
             _document = doc;
         }
 
@@ -80,17 +51,11 @@ namespace SpaceTracker
             {
                 try
                 {
-                    var doc = _document ?? SessionManager.GetDocumentForSession(_sessionId);
-                    if (doc != null)
+                    if (_document != null)
                     {
-                        var logs = await _connector.GetPendingChangeLogsAsync(
-                            _sessionId,
-                            CommandManager.Instance.LastSyncTime).ConfigureAwait(false);
-
-                        if (logs.Count > 0 && !doc.IsModifiable && !doc.IsReadOnly)
-                        {
-                            _pullEventHandler.RequestPull(doc);
-                        }
+                        var logs = await _connector.GetPendingChangeLogsAsync(_sessionId).ConfigureAwait(false);
+                        if (logs.Count > 0)
+                            _pullEventHandler.RequestPull(_document);
                     }
                 }
                 catch (Exception ex)
@@ -100,7 +65,7 @@ namespace SpaceTracker
 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(1), token).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(5), token).ConfigureAwait(false);
                 }
                 catch (TaskCanceledException)
                 {
@@ -111,17 +76,12 @@ namespace SpaceTracker
 
         public void Stop()
         {
-            LogMethodCall(nameof(Stop), new());
-
             _cts?.Cancel();
         }
 
         public void Dispose()
         {
-            LogMethodCall(nameof(Dispose), new());
-
             Stop();
         }
     }
 }
-*/
