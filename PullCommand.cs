@@ -55,14 +55,14 @@ public class PullCommand : IExternalCommand
             var spacesTask = connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime);
 
             var allTasks = Task.WhenAll(wallsTask, doorsTask, pipesTask, spacesTask);
-            var completed = await Task.WhenAny(allTasks, Task.Delay(Timeout.Infinite, cts.Token));
+            var completed = await Task.WhenAny(allTasks, Task.Delay(Timeout.Infinite, cts.Token)).ConfigureAwait(false);
             if (completed != allTasks)
                 throw new OperationCanceledException("Pull-Operation wurde nach 10 Sekunden abgebrochen.");
 
-            walls = await wallsTask;
-            doors = await doorsTask;
-            pipes = await pipesTask;
-            provisionalSpaces = await spacesTask;
+             walls = await wallsTask.ConfigureAwait(false);
+            doors = await doorsTask.ConfigureAwait(false);
+            pipes = await pipesTask.ConfigureAwait(false);
+            provisionalSpaces = await spacesTask.ConfigureAwait(false);
         }
         catch (OperationCanceledException oce)
         {

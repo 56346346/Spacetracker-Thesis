@@ -337,7 +337,6 @@ namespace SpaceTracker
                 _exportHandler = new IfcExportHandler();
                 _exportEvent = ExternalEvent.Create(_exportHandler);
                 var uiapp = TryGetUIApplication(application);
-
             }
             catch (Exception ex)
             {

@@ -49,7 +49,7 @@ namespace SpaceTracker
 
         public void Execute(UIApplication app)
         {
-                        LogMethodCall(nameof(Execute), new() { ["app"] = app?.ToString() ?? "null" });
+            LogMethodCall(nameof(Execute), new() { ["app"] = app?.ToString() ?? "null" });
 
             while (_queue.TryDequeue(out var item))
             {

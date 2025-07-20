@@ -36,11 +36,7 @@ namespace SpaceTracker
         public string SessionId { get; private set; }
 
         public DateTime LastSyncTime { get; set; } = DateTime.MinValue;
-        public List<LogChange> LogChanges { get; } = new();
-                public DateTime LastPulledAt { get; set; } = DateTime.MinValue;
-
-        public List<LogChangeAcknowledged> LogChangesAcknowledged { get; } = new();
-        public int ExpectedSessionCount { get; set; } = 1;
+        public DateTime LastPulledAt { get; set; } = DateTime.MinValue;
 
         // Privater Konstruktor; erzeugt eine neue Instanz und initialisiert
         // Session-ID sowie den Zeitstempel der letzten Synchronisation.
