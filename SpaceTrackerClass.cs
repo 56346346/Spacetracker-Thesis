@@ -44,8 +44,6 @@ namespace SpaceTracker
         private static readonly object _logLock = new object();
 
         private RibbonPanel _ribbonPanel;
-
-
         private Neo4jConnector _neo4jConnector;
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
@@ -319,13 +317,9 @@ namespace SpaceTracker
             {
 
                 RegisterGlobalExceptionHandlers();
-
-
                 using var loggerFactory = LoggerFactory.Create(b => b.AddDebug());
                 _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
-
                 CommandManager.Initialize(_neo4jConnector);
-
                 var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
                 services.AddHttpClient("solibri", c => c.BaseAddress = new Uri("http://localhost:10876/solibri/v1/"));
                 var provider = services.BuildServiceProvider();
@@ -389,8 +383,6 @@ namespace SpaceTracker
             Directory.CreateDirectory(logDir);
 
             // 3. Zentralisierte Logging-Methode
-
-
             try
             {
                 // 4. Debugger-Logging initialisieren
@@ -464,7 +456,6 @@ namespace SpaceTracker
                 return Result.Failed;
             }
         }
-
         private static UIApplication TryGetUIApplication(UIControlledApplication app)
         {
             try
@@ -493,7 +484,6 @@ namespace SpaceTracker
             }
             return null;
         }
-
         private static void RegisterGlobalExceptionHandlers()
         {
             SolibriProcessManager.Port = SolibriApiPort;
@@ -519,7 +509,6 @@ namespace SpaceTracker
                 }
             });
         }
-
 
         private void CreateRibbonUI(UIControlledApplication application)
         {
@@ -696,7 +685,6 @@ namespace SpaceTracker
     new ElementCategoryFilter(BuiltInCategory.OST_GenericModel)
 
 });
-
                 // Reine Leseoperationen benötigen keine Transaktion
                 var elements = new FilteredElementCollector(doc)
                     .WherePasses(filter)
@@ -717,7 +705,6 @@ namespace SpaceTracker
                 Debug.WriteLine($"[Init Error] {ex.Message}");
             }
         }
-
         private void UpdateElementCache(
         List<Element> addedElements,
         List<Element> modifiedElements,
@@ -754,7 +741,6 @@ namespace SpaceTracker
                    .Where(el => el != null)
                    .ToList();
         }
-
         private static List<Element> GetModifiedElements(DocumentChangedEventArgs e, Document doc)
         {
             return e.GetModifiedElementIds()
@@ -777,9 +763,7 @@ namespace SpaceTracker
             _neo4jConnector?.Dispose();
             _pullScheduler?.Dispose();
             return Result.Succeeded;
-
         }
-
         /// <summary>
         /// Triggers a pull of the latest changes for all open sessions.
         /// </summary>
@@ -790,7 +774,6 @@ namespace SpaceTracker
                 _pullEventHandler?.RequestPull(openSession.Document);
             }
         }
-
         // Exportiert das gesamte aktuelle Modell nach IFC und importiert es in
         // Solibri, wenn noch kein Modell geladen wurde.
         private void ImportInitialSolibriModel(Document doc)
@@ -807,7 +790,6 @@ namespace SpaceTracker
                     .WhereElementIsNotElementType()
                     .Select(e => e.Id)
                     .ToList();
-
                 RequestIfcExport(doc, allIds);
                 string ifcPath = ExportHandler.ExportedPath;
                 if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
@@ -822,7 +804,6 @@ namespace SpaceTracker
                     }
                 }
                 var client = new SolibriApiClient(SolibriApiPort);
-
                 if (string.IsNullOrEmpty(SolibriRulesetId))
                     SolibriRulesetId = client
                         .ImportRulesetAsync(SolibriRulesetPath)
@@ -838,10 +819,7 @@ namespace SpaceTracker
             }
         }
 
-
-
         #endregion
-
         #region Event handler
 
         private void documentChanged(object sender, DocumentChangedEventArgs e)
@@ -850,12 +828,11 @@ namespace SpaceTracker
             {
                 Document doc = e.GetDocument();
                 if (doc == null || doc.IsLinked) return;
-
                 var filter = new LogicalOrFilter(new List<ElementFilter>{
     new ElementCategoryFilter(BuiltInCategory.OST_Walls),
     new ElementCategoryFilter(BuiltInCategory.OST_Rooms),
     new ElementCategoryFilter(BuiltInCategory.OST_Doors),
-     new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
+    new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
     new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments),
     new ElementCategoryFilter(BuiltInCategory.OST_Levels),
     new ElementCategoryFilter(BuiltInCategory.OST_Stairs),
@@ -870,10 +847,7 @@ namespace SpaceTracker
                    .Where(uid => !string.IsNullOrEmpty(uid))
                    .ToList();
                 var modifiedIds = e.GetModifiedElementIds(filter);
-
                 // 3. Early Exit bei keinen relevanten Änderungen
-
-
                 // 4. Elemente aus Dokument holen (mit Null-Check)
                 var addedElements = GetAddedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
 
@@ -884,8 +858,6 @@ namespace SpaceTracker
                  addedIds.Count == 0 &&
                  modifiedIds.Count == 0)
                     return;
-
-
                 // 5. Element-Cache aktualisieren
                 UpdateElementCache(addedElements, modifiedElements, deletedIds.ToList());
 
@@ -897,7 +869,6 @@ namespace SpaceTracker
                     DeletedUids = deletedUids,
                     ModifiedElements = modifiedElements
                 };
-
                 // 7. Änderungen zur Verarbeitung einreihen
                 _databaseUpdateHandler.EnqueueChange(changeData);
                 // Direkt nach dem Einreihen einen Push anstoßen, damit die
@@ -909,12 +880,12 @@ namespace SpaceTracker
                     string sessionId = CommandManager.Instance.SessionId;
                     foreach (var el in addedElements)
                     {
-                        await UpsertElementAsync(el);
+                        UpsertElementAsync(el).GetAwaiter().GetResult();
                         _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId).GetAwaiter().GetResult();
                     }
                     foreach (var el in modifiedElements)
                     {
-                        await UpsertElementAsync(el);
+                        UpsertElementAsync(el).GetAwaiter().GetResult();
                         _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId).GetAwaiter().GetResult();
                     }
                     foreach (var id in deletedIds)
@@ -922,9 +893,7 @@ namespace SpaceTracker
                         _neo4jConnector.DeleteNodeAsync(id).GetAwaiter().GetResult();
                         _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId).GetAwaiter().GetResult();
                     }
-
                     PullChanges();
-
                     var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
                     foreach (var cid in ids)
                         SolibriChecker.CheckElementAsync(cid, doc).GetAwaiter().GetResult();
@@ -939,7 +908,6 @@ namespace SpaceTracker
                     _pullEventHandler?.RequestPull(openSession.Document);
                 }
                 _graphPullEvent.Raise();
-
             }
             catch (Exception ex)
             {
@@ -974,7 +942,6 @@ namespace SpaceTracker
             }
         }
 
-
         private void documentCreated(object sender, DocumentCreatedEventArgs e)
         {
             try
@@ -984,19 +951,15 @@ namespace SpaceTracker
                 // die aktuellen Befehle an Neo4j senden
                 _databaseUpdateHandler.TriggerPush();
                 PullChanges();
-
                 string key = e.Document.PathName ?? e.Document.Title;
                 SessionManager.AddSession(key, new Session(e.Document));
-
                 ImportInitialSolibriModel(e.Document);
-
             }
             catch (Exception ex)
             {
                 Logger.LogCrash("DocumentCreated", ex);
             }
         }
-
         private void documentOpened(object sender, DocumentOpenedEventArgs e)
         {
             Document doc = e.Document;
@@ -1068,7 +1031,6 @@ namespace SpaceTracker
             }
 
         }
-
         private void documentClosing(object sender, DocumentClosingEventArgs e)
         {
             try
@@ -1085,13 +1047,6 @@ namespace SpaceTracker
                 Logger.LogCrash("DocumentClosing", ex);
             }
         }
-
-
-
         #endregion
     }
-
-
-
-
 }
