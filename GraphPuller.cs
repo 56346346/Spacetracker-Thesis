@@ -121,9 +121,11 @@ public class GraphPuller
         LastPulledAt = cmdMgr.LastPulledAt;
         cmdMgr.PersistSyncTime();
         await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
-
+        // Prevent endless pull loops by acknowledging remote changelogs
+        await _connector.AcknowledgeAllAsync(cmdMgr.SessionId).ConfigureAwait(false);
         var key = doc.PathName ?? doc.Title;
         if (SessionManager.OpenSessions.TryGetValue(key, out var session))
             session.LastSyncTime = cmdMgr.LastSyncTime;
+
     }
 }

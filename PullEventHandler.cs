@@ -44,11 +44,17 @@ namespace SpaceTracker
                 {
                     new GraphPuller().PullRemoteChanges(doc, SessionManager.CurrentUserId).GetAwaiter().GetResult();
                     Logger.LogToFile("PullEventHandler: GraphPuller executed", "sync.log");
+                     // Trigger Solibri consistency check after pull
+                    var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
+                    solibriClient.CheckModelAsync(SpaceTrackerClass.SolibriModelUUID, SpaceTrackerClass.SolibriRulesetId)
+                                 .GetAwaiter().GetResult();
+                    solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(2))
+                                 .GetAwaiter().GetResult();
                 }
                 catch (Exception ex)
                 {
                     Logger.LogCrash("AutoPullGraphPuller", ex);
-                                    }
+                }
             }
               if (!_queue.IsEmpty)
                 _event.Raise();

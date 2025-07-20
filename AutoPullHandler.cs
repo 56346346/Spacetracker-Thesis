@@ -1,4 +1,5 @@
 using Autodesk.Revit.UI;
+using System;
 
 namespace SpaceTracker
 {
@@ -11,6 +12,12 @@ namespace SpaceTracker
             {
                 // Reiner Neo4j-Pull
                 new GraphPuller().PullRemoteChanges(doc, CommandManager.Instance.SessionId);
+                      // Trigger Solibri consistency check after pull
+                var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
+                solibriClient.CheckModelAsync(SpaceTrackerClass.SolibriModelUUID, SpaceTrackerClass.SolibriRulesetId)
+                             .GetAwaiter().GetResult();
+                solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(2))
+                             .GetAwaiter().GetResult();
             }
         }
 

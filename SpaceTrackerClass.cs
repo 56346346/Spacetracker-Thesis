@@ -674,7 +674,7 @@ namespace SpaceTracker
             var ctrl = app.ControlledApplication;
             ctrl.DocumentCreated += documentCreated;
             ctrl.DocumentOpened += documentOpened;
-            ctrl.DocumentChanged += documentChanged;
+            ctrl.DocumentChanged += documentChangedHandler;
             ctrl.DocumentClosing += documentClosing;
         }
         private void InitializeExistingElements(Document doc)
@@ -771,7 +771,7 @@ namespace SpaceTracker
             });
             CommandManager.Instance.Dispose();
             application.ControlledApplication.DocumentOpened -= documentOpened;
-            application.ControlledApplication.DocumentChanged -= documentChanged;
+            application.ControlledApplication.DocumentChanged -= documentChangedHandler;
             application.ControlledApplication.DocumentCreated -= documentCreated;
             application.ControlledApplication.DocumentClosing -= documentClosing;
             _neo4jConnector?.Dispose();
@@ -844,7 +844,7 @@ namespace SpaceTracker
 
         #region Event handler
 
-        private void documentChanged(object sender, DocumentChangedEventArgs e)
+        private async Task documentChanged(object sender, DocumentChangedEventArgs e)
         {
             try
             {
@@ -909,25 +909,25 @@ namespace SpaceTracker
                     string sessionId = CommandManager.Instance.SessionId;
                     foreach (var el in addedElements)
                     {
-                        _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId).GetAwaiter().GetResult();
+                         await _neo4jConnector.UpsertNodeAsync(el);
+                        await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId);
                     }
                     foreach (var el in modifiedElements)
                     {
-                        _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId).GetAwaiter().GetResult();
+                       await _neo4jConnector.UpsertNodeAsync(el);
+                        await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId);
                     }
                     foreach (var id in deletedIds)
                     {
-                        _neo4jConnector.DeleteNodeAsync(id).GetAwaiter().GetResult();
-                        _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId).GetAwaiter().GetResult();
+                         await _neo4jConnector.DeleteNodeAsync(id);
+                        await _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId);
                     }
 
                     PullChanges();
 
                     var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
                     foreach (var cid in ids)
-                        SolibriChecker.CheckElementAsync(cid, doc).GetAwaiter().GetResult();
+                        await SolibriChecker.CheckElementAsync(cid, doc);
                 }
                 catch (Exception ex)
                 {
@@ -948,6 +948,11 @@ namespace SpaceTracker
             }
         }
 
+    // Wrapper for event subscription as DocumentChangedEventHandler expects a void return type
+        private async void documentChangedHandler(object sender, DocumentChangedEventArgs e)
+        {
+            await documentChanged(sender, e);
+        }
 
 
         private void documentCreated(object sender, DocumentCreatedEventArgs e)
@@ -1027,6 +1032,12 @@ namespace SpaceTracker
                     }
                     // After loading the model trigger a pull to ensure latest changes
                     _graphPuller?.PullRemoteChanges(doc, CommandManager.Instance.SessionId).GetAwaiter().GetResult();
+                   // Trigger Solibri consistency check after pull
+                    var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
+                    solibriClient.CheckModelAsync(SpaceTrackerClass.SolibriModelUUID, SpaceTrackerClass.SolibriRulesetId)
+                                 .GetAwaiter().GetResult();
+                    solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(2))
+                                 .GetAwaiter().GetResult();
                     PullChanges();
 
                     string key = doc.PathName ?? doc.Title;
