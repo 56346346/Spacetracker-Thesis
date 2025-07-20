@@ -329,6 +329,7 @@ namespace SpaceTracker
                 _extractor = new SpaceExtractor(CommandManager.Instance);
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
                 _graphPuller = new GraphPuller(_neo4jConnector);
+                _graphPullHandler = new GraphPullHandler();
                 _graphPullEvent = ExternalEvent.Create(_graphPullHandler);
                 _graphPullHandler.ExternalEvent = _graphPullEvent;
                 _cmdManager = CommandManager.Instance;
