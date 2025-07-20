@@ -1,11 +1,10 @@
-using System.Threading.Tasks;
 using Autodesk.Revit.UI;
 
 namespace SpaceTracker
 {
     public class AutoPullHandler : IExternalEventHandler
     {
-        public async Task Execute(UIApplication app)
+        public void Execute(UIApplication app)
         {
             var doc = app.ActiveUIDocument?.Document;
             if (doc != null && !doc.IsReadOnly && !doc.IsModifiable)

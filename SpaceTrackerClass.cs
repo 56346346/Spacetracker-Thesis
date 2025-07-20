@@ -909,12 +909,12 @@ namespace SpaceTracker
                     string sessionId = CommandManager.Instance.SessionId;
                     foreach (var el in addedElements)
                     {
-                        await UpsertElementAsync(el);
+                        _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
                         _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId).GetAwaiter().GetResult();
                     }
                     foreach (var el in modifiedElements)
                     {
-                        await UpsertElementAsync(el);
+                        _neo4jConnector.UpsertNodeAsync(el).GetAwaiter().GetResult();
                         _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId).GetAwaiter().GetResult();
                     }
                     foreach (var id in deletedIds)
@@ -948,31 +948,6 @@ namespace SpaceTracker
             }
         }
 
-        private async Task UpsertElementAsync(Element el)
-        {
-            switch (el)
-            {
-                case Wall w:
-                    var wData = WallSerializer.ToNode(w);
-                    await _neo4jConnector.UpsertWallAsync(wData);
-                    break;
-                case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
-                    var dData = DoorSerializer.ToNode(fi);
-                    await _neo4jConnector.UpsertDoorAsync(dData);
-                    break;
-                case MEPCurve pipe:
-                    var pData = PipeSerializer.ToNode(pipe);
-                    await _neo4jConnector.UpsertPipeAsync(pData);
-                    break;
-                case FamilyInstance ps when ParameterUtils.IsProvisionalSpace(ps):
-                    _ = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(ps, out var data);
-                    await _neo4jConnector.UpsertProvisionalSpaceAsync(data["guid"].ToString(), data);
-                    break;
-                default:
-                    await _neo4jConnector.UpsertNodeAsync(el);
-                    break;
-            }
-        }
 
 
         private void documentCreated(object sender, DocumentCreatedEventArgs e)
@@ -1010,8 +985,8 @@ namespace SpaceTracker
                 {
                     // Neo4j-Graph ist leer: initialen Graph aus Revit-Daten erzeugen und pushen
                     Debug.WriteLine("[SpaceTracker] Neuer Graph - initialer Upload der Modelldaten.");
-                    _extractor.CreateInitialGraph(doc).GetAwaiter().GetResult();  // alle vorhandenen Elemente ins Queue einreihen
-                                                                                  // Änderungen in einem Batch an Neo4j senden (Push)
+                    _extractor.CreateInitialGraph(doc);  // alle vorhandenen Elemente ins Queue einreihen
+                                                         // Änderungen in einem Batch an Neo4j senden (Push)
                     if (!CommandManager.Instance.cypherCommands.IsEmpty)
                     {
                         // Befehle kopieren, damit die Queue sofort wieder benutzt werden kann

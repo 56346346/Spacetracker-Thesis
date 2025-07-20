@@ -274,6 +274,155 @@ MERGE (l)-[:CONTAINS]->(w)";
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
+        // Prüft, ob alle aktiven Sessions den gleichen Synchronisationsstand haben.
+        public async Task<bool> AreAllUsersConsistentAsync()
+        {
+            await using var session = _driver.AsyncSession();
+            try
+            {
+                var minRes = await session.RunAsync("MATCH (s:Session) RETURN min(s.lastSync) AS minSync").ConfigureAwait(false);
+                var minRec = await minRes.SingleAsync().ConfigureAwait(false);
+                if (minRec["minSync"] is null)
+                    return true;
+                var minSync = minRec["minSync"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
+
+                var maxRes = await session.RunAsync("MATCH (cl:ChangeLog) RETURN max(cl.timestamp) AS lastChange").ConfigureAwait(false);
+                var maxRec = await maxRes.SingleAsync().ConfigureAwait(false);
+                if (maxRec["lastChange"] is null)
+                    return true;
+                var lastChange = maxRec["lastChange"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
+
+                return lastChange <= minSync;
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+        // Liefert den Sync-Status aller Sessions zur Prüfung, ob alle gepullt haben
+        // Liefert eine Liste aller Sessions inklusive Pull-Status.
+
+        public async Task<List<SessionStatus>> GetSessionStatusesAsync()
+        {
+            var result = new List<SessionStatus>();
+            await using var session = _driver.AsyncSession();
+            try
+            {
+                var lastChangeRes = await session.RunAsync("MATCH (cl:ChangeLog) RETURN max(cl.timestamp) AS lastChange").ConfigureAwait(false);
+                var lastChangeRec = await lastChangeRes.SingleAsync().ConfigureAwait(false);
+                DateTime lastChange = DateTime.MinValue;
+                if (lastChangeRec["lastChange"] != null)
+                    lastChange = lastChangeRec["lastChange"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
+
+                var res = await session.RunAsync("MATCH (s:Session) RETURN s.id AS id, s.lastSync AS lastSync").ConfigureAwait(false);
+                await res.ForEachAsync(r =>
+                {
+                    DateTime sync = DateTime.MinValue;
+                    if (r["lastSync"] != null)
+                        sync = r["lastSync"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
+                    bool pulled = lastChange <= sync;
+                    result.Add(new SessionStatus { Id = r["id"].As<string>(), HasPulledAll = pulled });
+                }).ConfigureAwait(false);
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+            return result;
+        }
+        // Entfernt sämtliche Session- und ChangeLog-Knoten aus der Datenbank.
+        public async Task DeleteAllSessionsAndLogsAsync()
+        {
+            await using var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    await tx.RunAsync("MATCH (cl:ChangeLog) DELETE cl").ConfigureAwait(false);
+                    await tx.RunAsync("MATCH (s:Session) DETACH DELETE s").ConfigureAwait(false);
+                });
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+        // Gibt alle noch nicht bestätigten ChangeLogs anderer Sessions zurück.
+        public async Task<List<IRecord>> GetPendingChangeLogsAsync(string currentSessionId, DateTime lastSync)
+        {
+            string query = @"MATCH (c:ChangeLog)
+WHERE c.sessionId <> $currentSessionId
+  AND c.timestamp > datetime($lastSync)
+  AND coalesce(c.acknowledged,false) = false
+RETURN c.sessionId AS sessionId, c.elementId AS elementId, c.type AS type, c.timestamp AS ts
+ORDER BY c.timestamp ASC";
+            return await RunReadQueryAsync(query, new { currentSessionId, lastSync = lastSync.ToString("o") }).ConfigureAwait(false);
+        }
+        // Markiert alle fremden ChangeLogs als gelesen.
+        public async Task AcknowledgeAllAsync(string currentSession)
+        {
+            await using var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    await tx.RunAsync(@"MATCH (c:ChangeLog)
+WHERE c.sessionId <> $session AND c.acknowledged = false
+SET c.acknowledged = true", new { session = currentSession }).ConfigureAwait(false);
+                });
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+        // Bestätigt nur Logs der angegebenen Elemente.
+
+        public async Task AcknowledgeSelectedAsync(string currentSession, IEnumerable<long> elementIds)
+        {
+            await using var session = _driver.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    foreach (var id in elementIds)
+                    {
+                        await tx.RunAsync(@"MATCH (c:ChangeLog)
+WHERE c.sessionId <> $session AND c.elementId = $id
+SET c.acknowledged = true",
+                            new { session = currentSession, id }).ConfigureAwait(false);
+                    }
+                });
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+
+        // Führt einen beliebigen Cypher-String aus.
+
+        public async Task RunCypherQuery(string query)
+        {
+            await using var session = _driver.AsyncSession();
+
+            try
+            {
+                var result = await session.RunAsync(query).ConfigureAwait(false);
+                await result.ConsumeAsync().ConfigureAwait(false);
+                Debug.WriteLine($"[Neo4j] Query erfolgreich: {query}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Neo4j-Fehler] {ex.Message}");
+                throw;
+            }
+        }
+
+
+
         public async Task RunWriteQueryAsync(string query, object parameters = null)
         {
             LogMethodCall(nameof(RunWriteQueryAsync), new()
@@ -436,7 +585,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task UpsertDoorAsync(Dictionary<string, object> args)
         {
-            var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
 
             var setParts = new List<string>();
             foreach (var kvp in safeArgs)
@@ -457,6 +606,47 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             _logger.LogInformation("Door {Uid} upserted", safeArgs["uid"]);
         }
 
+
+        // Spielt zuvor gespeicherte Cypher-Befehle aus der Datei in die Datenbank ein.
+        public async Task ExportToNeo4j()
+        {
+            try
+            {
+                if (!File.Exists(_cypherFilePath))
+                {
+                    Debug.WriteLine("[Neo4j] Cypher-Datei nicht gefunden: " + _cypherFilePath);
+                    return;
+                }
+
+                // Read all Cypher commands asynchronously to avoid blocking the UI thread
+                var commands = await File.ReadAllLinesAsync(_cypherFilePath).ConfigureAwait(false);
+                await using var session = _driver.AsyncSession();
+                foreach (var cmd in commands)
+                {
+                    if (!string.IsNullOrWhiteSpace(cmd))
+                    {
+                        try
+                        {
+                            var result = await session.RunAsync(cmd).ConfigureAwait(false);
+                            await result.ConsumeAsync().ConfigureAwait(false);
+                            Debug.WriteLine("[Neo4j] Erfolgreich: " + cmd);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine("[Neo4j ERROR] Query fehlgeschlagen: " + ex.Message);
+                            // Optional: Fehlerhafte Abfragen speichern
+                        }
+                    }
+                }
+
+                Debug.WriteLine("[Neo4j] Export abgeschlossen");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[Neo4j Export Error] " + ex.Message);
+                throw;
+            }
+        }
         // ------------------------------------------------------------------
         // Neue API für Node-basierten Datenaustausch
         // Helfer für generische Abfragen mit Mapping-Funktion.
@@ -473,7 +663,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         // Erstellt oder aktualisiert eine Wand in Neo4j.
         public async Task UpsertWallAsync(Dictionary<string, object> args)
         {
-            var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
 
             var setParts = new List<string>();
             foreach (var kvp in safeArgs)
@@ -496,7 +686,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task UpsertPipeAsync(Dictionary<string, object> args)
         {
-            var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
             var setParts = new List<string>();
             foreach (var kvp in safeArgs)
             {
@@ -519,7 +709,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)
         {
-            var safeArgs = props.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+                var safeArgs = props.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
             var setParts = safeArgs.Keys
               .Where(k => k != "guid")
               .Select(k => $"p.{k} = ${k}")
@@ -696,6 +886,60 @@ RETURN ps";
             _logger.LogInformation("Pulled {Count} provisional spaces", list.Count);
             return list;
         }
+        // Setzt LogChanges auf "acknowledged" sobald alle Online-Nutzer sie empfangen haben.
+        public async Task<int> AcknowledgeLogChangesAsync(CancellationToken cancellationToken = default)
+        {
+            const string cypher = @"MATCH (lc:LogChanges)
+WITH lc,
+     SIZE( (lc)<-[:RECEIVED]-(:User {online:true}) ) AS rcv,
+     SIZE( (:User {online:true}) )                  AS all
+WHERE rcv = all AND all > 0
+CALL {
+  WITH lc
+  REMOVE lc:LogChanges
+  SET   lc:LogChangesAcknowledged,
+        lc.tsAcknowledged = datetime()
+} IN TRANSACTIONS OF 1000 ROWS
+RETURN count(*) AS updated";
+
+            await using var session = _driver.AsyncSession();
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var updated = await session.ExecuteWriteAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(cypher).ConfigureAwait(false);
+                    var record = await cursor.SingleAsync().ConfigureAwait(false);
+                    return record["updated"].As<int>();
+                }).ConfigureAwait(false);
+
+                sw.Stop();
+                _logger.LogInformation("Acknowledged {Count} LogChanges in {Elapsed}", updated, sw.Elapsed);
+                return updated;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to acknowledge LogChanges");
+                throw;
+            }
+            finally
+            {
+                await session.CloseAsync().ConfigureAwait(false);
+            }
+        }
+        // Speichert einen Status für einen bestimmten LogChange.
+        public async Task SetLogChangeStatusAsync(long elementId, string sessionId, string status, string code)
+        {
+            const string cypher = @"MATCH (cl:ChangeLog { elementId: $id, sessionId: $session }) SET cl.status = $status, cl.errorCode = $code";
+            await using var session = _driver.AsyncSession();
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                await tx.RunAsync(cypher, new { id = elementId, session = sessionId, status, code }).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+        }
+
+        // Schließt den Neo4j-Treiber und gibt Ressourcen frei.
         public void Dispose()
         {
             LogMethodCall(nameof(Dispose), new());
