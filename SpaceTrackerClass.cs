@@ -317,10 +317,6 @@ namespace SpaceTracker
             }
             try
             {
-
-                RegisterGlobalExceptionHandlers();
-
-
                 using var loggerFactory = LoggerFactory.Create(b => b.AddDebug());
                 _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
 
@@ -493,34 +489,6 @@ namespace SpaceTracker
             }
             return null;
         }
-
-        private static void RegisterGlobalExceptionHandlers()
-        {
-            SolibriProcessManager.Port = SolibriApiPort;
-            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
-           {
-               if (e.ExceptionObject is Exception ex)
-                   Logger.LogCrash("Unhandled", ex);
-           };
-            TaskScheduler.UnobservedTaskException += (s, e) =>
-            {
-                Logger.LogCrash("UnobservedTask", e.Exception);
-                e.SetObserved();
-            };
-            _ = Task.Run(() =>
-            {
-                try
-                {
-                    SolibriProcessManager.EnsureStarted();
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogCrash("Solibri Start", ex);
-                }
-            });
-        }
-
-
         private void CreateRibbonUI(UIControlledApplication application)
         {
             // 1. SpaceTracker RibbonPanel sicherstellen (ggf. erstellen)

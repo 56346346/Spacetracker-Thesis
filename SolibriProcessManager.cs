@@ -13,11 +13,7 @@ namespace SpaceTracker
 {
     public static class SolibriProcessManager
     {
-        public const int DefaultPort = 10876;
-        public static int Port { get; set; } = DefaultPort;
-        private static readonly string SolibriExePath =
-            Environment.GetEnvironmentVariable("SOLIBRI_EXE") ??
-            @"C:\\Program Files\\Solibri\\Solibri.exe";
+        public const int Port = 10876;
         // Prüft lediglich, ob Solibri bereits läuft. Die Applikation startet
         // Solibri bewusst nicht selbst, da ein manueller Start empfohlen ist.
         // Öffnen Sie Solibri also vor der Validierung und lassen Sie es im
@@ -29,7 +25,7 @@ namespace SpaceTracker
                 return true;
 
             Logger.LogToFile($"Solibri REST API not reachable on port {Port}. Versuche Solibri zu starten...");
-            TryStartSolibri();
+           
 
             if (WaitForApi())
                 return true;
@@ -40,52 +36,7 @@ namespace SpaceTracker
             return false;
         }
 
-        private static void TryStartSolibri()
-        {
-            try
-            {
-                if (File.Exists(SolibriExePath))
-                {
-                    var args = $"--rest-api-server-port={Port} --rest-api-server-local-content --rest-api-server-http";
-                    Process.Start(new ProcessStartInfo(SolibriExePath, args) { UseShellExecute = true });
-                    Logger.LogToFile($"Solibri gestartet: {SolibriExePath} {args}");
-                }
-                else
-                {
-                    Logger.LogToFile($"Solibri.exe not found at {SolibriExePath}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogCrash("Start Solibri", ex);
-            }
-        }
-
-
-        /// <summary>
-        /// Logs instructions for starting Solibri with the REST API and warns if
-        /// the API is not reachable on the configured port.
-        /// </summary>
-        public static void StartSolibriWithRestApi()
-        {
-            var message =
-                "Bitte Solibri Office mit aktivierter REST API starten:\n" +
-                "\"C:\\Program Files\\Solibri\\Solibri.exe\" " +
-                "--rest-api-server-port=10876 --rest-api-server-local-content " +
-                "--rest-api-server-http";
-
-            Logger.LogToFile(message);
-
-            if (!IsApiReachable())
-            {
-                Logger.LogToFile(
-                    "Warnung: Solibri läuft nicht oder die REST API ist nicht erreichbar.");
-            }
-            else
-            {
-                Logger.LogToFile($"Solibri REST API erreichbar. Juhu!");
-            }
-        }
+        
 
         // Checks once whether the REST API responds on the configured port
         private static bool IsApiReachable()

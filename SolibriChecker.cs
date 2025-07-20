@@ -140,13 +140,6 @@ namespace SpaceTracker
             await SendWithRetryAsync(() => _client.PostAsJsonAsync($"/models/{modelUuid}/deleteComponents", guids, ct), "Delete Components", ct).ConfigureAwait(false);
         }
 
-        public async Task<string> GetBcfAsync(string modelUuid, string version = "two", string scope = "all", CancellationToken ct = default)
-        {
-            var url = $"/bcfxml/{version}?scope={scope}";
-            var resp = await SendWithRetryAsync(() => _client.GetAsync(url, ct), "Get BCF", ct).ConfigureAwait(false);
-            return await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        }
-
         public async Task ValidateChangesAsync(Stream ifcStream, IEnumerable<string> removedGuids, string name, CancellationToken ct)
         {
             await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
@@ -175,24 +168,6 @@ namespace SpaceTracker
             await api.InstallRulesetLocally(SpaceTrackerClass.SolibriRulesetPath).ConfigureAwait(false);
             await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
         }
-
-        public async Task UpdateLogStatusAsync(string bcfXml, CancellationToken ct)
-        {
-            var doc = XDocument.Parse(bcfXml);
-            foreach (var issue in doc.Descendants("Issue"))
-            {
-                string guid = issue.Attribute("guid")?.Value ?? string.Empty;
-                string sevText = issue.Descendants("Severity").FirstOrDefault()?.Value ?? string.Empty;
-                string status = MapSeverity(sevText);
-                if (!string.IsNullOrEmpty(guid))
-                {
-                    await _connector.RunWriteQueryAsync(
-                        "MATCH (l:LogChange {guid:$guid}) SET l.status=$status",
-                        new { guid, status }).ConfigureAwait(false);
-                }
-            }
-        }
-
         private static string MapSeverity(string sev)
         {
             sev = sev?.Trim().ToUpperInvariant();
@@ -202,11 +177,6 @@ namespace SpaceTracker
                 "GELB" or "YELLOW" or "WARNING" or "MEDIUM" => "YELLOW",
                 _ => "GREEN"
             };
-        }
-
-        public async Task SelectComponentsAsync(IEnumerable<string> guids, CancellationToken ct)
-        {
-            await SendWithRetryAsync(() => _client.PostAsJsonAsync("/selectionBasket", guids, ct), "Select Components", ct).ConfigureAwait(false);
         }
 
         private async Task<HttpResponseMessage> SendWithRetryAsync(Func<Task<HttpResponseMessage>> sender, string label, CancellationToken ct, int retries = 3)
