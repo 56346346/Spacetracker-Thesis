@@ -43,7 +43,7 @@ public static class WallSerializer
             ["z2"] = UnitConversion.ToMm(e.Z),
             ["height_mm"] = UnitConversion.ToMm(height),
             ["thickness_mm"] = UnitConversion.ToMm(thickness),
-            ["structural"] = wall.Structural(),
+            ["structural"] = WallNode.IsStructural(wall),
             ["flipped"] = wall.Flipped,
             ["base_offset_mm"] = UnitConversion.ToMm(baseOffset),
             ["location_line"] = locationLine,
@@ -81,4 +81,5 @@ public static class WallSerializer
             dict.TryGetValue("location_line", out var llObj) ? Convert.ToInt32(llObj) : (int)WallLocationLine.WallCenterline
         );
     }
+    
 }

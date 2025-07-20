@@ -23,7 +23,6 @@ namespace SpaceTracker
         public static IReadOnlyDictionary<string, Session> OpenSessions => _sessions;
         public static string CurrentUserId => CommandManager.Instance.SessionId;
 
-
         public static void AddSession(string id, Session session)
         {
             _sessions[id] = session;
@@ -32,11 +31,6 @@ namespace SpaceTracker
         public static void RemoveSession(string id)
         {
             _sessions.Remove(id);
-        }
-
-        public static Document? GetDocumentForSession(string sessionId)
-        {
-            return _sessions.Values.FirstOrDefault()?.Document;
         }
     }
 }

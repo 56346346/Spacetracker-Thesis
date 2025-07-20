@@ -23,4 +23,17 @@ public record WallNode(
     bool Flipped,
     double BaseOffsetMm,
     int LocationLine
-);
+)
+{
+    // Gibt true zurück, wenn die Wand als tragend markiert ist.
+    public static bool IsStructural(Autodesk.Revit.DB.Wall wall)
+    {
+        var param = wall.get_Parameter(Autodesk.Revit.DB.BuiltInParameter.WALL_STRUCTURAL_USAGE_PARAM);
+        if (param != null)
+        {
+            return param.AsInteger() != 0;
+        }
+        param = wall.get_Parameter(Autodesk.Revit.DB.BuiltInParameter.WALL_STRUCTURAL_SIGNIFICANT);
+        return param?.AsInteger() != 0;
+    }
+}

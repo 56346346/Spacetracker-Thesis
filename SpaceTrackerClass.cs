@@ -50,6 +50,11 @@ namespace SpaceTracker
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
         private GraphPullHandler _graphPullHandler;
+        /// <summary>
+        /// Provides access to the singleton <see cref="GraphPuller"/> instance
+        /// so that other commands can trigger a pull via the same puller.
+        /// </summary>
+        internal static GraphPuller GraphPullerInstance { get; private set; }
         private ExternalEvent _graphPullEvent;
 
         public const int SolibriApiPort = 10876;
@@ -329,6 +334,7 @@ namespace SpaceTracker
                 _extractor = new SpaceExtractor(CommandManager.Instance);
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
                 _graphPuller = new GraphPuller(_neo4jConnector);
+                GraphPullerInstance = _graphPuller;
                 _graphPullHandler = new GraphPullHandler();
                 _graphPullEvent = ExternalEvent.Create(_graphPullHandler);
                 _graphPullHandler.ExternalEvent = _graphPullEvent;
@@ -713,6 +719,7 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentCreated -= documentCreated;
             application.ControlledApplication.DocumentClosing -= documentClosing;
             _neo4jConnector?.Dispose();
+            GraphPullerInstance = null;
             return Result.Succeeded;
 
         }

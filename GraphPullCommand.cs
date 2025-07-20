@@ -16,8 +16,9 @@ namespace SpaceTracker
             if (doc == null)
                 return Result.Failed;
 
-            var puller = new GraphPuller();
-            puller.PullRemoteChanges(doc, CommandManager.Instance.SessionId).GetAwaiter().GetResult();
+            var puller = SpaceTrackerClass.GraphPullerInstance ?? new GraphPuller();
+            puller.PullRemoteChanges(doc, CommandManager.Instance.SessionId)
+                  .GetAwaiter().GetResult();
             return Result.Succeeded;
         }
     }

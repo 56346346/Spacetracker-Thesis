@@ -87,13 +87,11 @@ namespace SpaceTracker
                 }
 
                 // 2. IFC-Subset exportieren
-                SpaceTrackerClass.RequestIfcExport(app.ActiveUIDocument.Document, deltaIds);
-                string ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
-                 if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
+                string ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
+                if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
                 {
                     Logger.LogToFile("IFC-Export fehlgeschlagen. Versuche erneut.", "solibri.log");
-                    SpaceTrackerClass.RequestIfcExport(app.ActiveUIDocument.Document, deltaIds);
-                    ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
+                    ifcPath = _extractor.ExportIfcSubset(app.ActiveUIDocument.Document, deltaIds);
                     if (string.IsNullOrWhiteSpace(ifcPath) || !File.Exists(ifcPath))
                     {
                         Logger.LogToFile("IFC-Export weiterhin fehlgeschlagen, Solibri-Aufrufe werden \u00fcbersprungen.", "solibri.log");
@@ -266,7 +264,7 @@ MERGE (e)-[:HAS_ISSUE]->(i)";
         private enum IssueSeverity { None, Warning, Error }
         // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
         // gibt die schwerste aufgetretene Stufe zurück.
-      
+
 
         // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
         // gibt die schwerste aufgetretene Stufe zurück.
