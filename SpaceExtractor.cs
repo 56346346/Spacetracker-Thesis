@@ -698,7 +698,6 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             var ifcExportOptions = new IFCExportOptions
             {
                 FileVersion = IFCVersion.IFC4,
-                FilterViewId = view.Id,
                 ExportBaseQuantities = true
 
             };
