@@ -8,6 +8,7 @@ using System.IO;
 using Neo4j.Driver;  // für IRecord .As<T> Extensions
 using System.Threading.Tasks;
 using System.Diagnostics;
+using System.Threading;
 using Autodesk.Revit.DB.Architecture;
 using System.Runtime.Versioning;
 using System.Linq;
@@ -33,8 +34,14 @@ public class PullCommand : IExternalCommand
     // angezeigt werden.
     public static Result RunPull(Document doc, bool showDialog = true)
     {
+        return RunPullAsync(doc, showDialog).GetAwaiter().GetResult();
+    }
+
+    private static async Task<Result> RunPullAsync(Document doc, bool showDialog)
+    {
         var cmdMgr = CommandManager.Instance;
         var connector = cmdMgr.Neo4jConnector;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
         List<WallNode> walls;
         List<DoorNode> doors;
@@ -42,19 +49,37 @@ public class PullCommand : IExternalCommand
         List<ProvisionalSpaceNode> provisionalSpaces;
         try
         {
-            // Daten direkt laden (kein Hintergrund-Thread, um Revit API sicher zu nutzen)
-            walls = connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime)
-                .GetAwaiter().GetResult();
-            doors = connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime)
-     .GetAwaiter().GetResult();
-            pipes = connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime)
-                .GetAwaiter().GetResult();
-            provisionalSpaces = connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime)
-                .GetAwaiter().GetResult();
+            var wallsTask = connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime);
+            var doorsTask = connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime);
+            var pipesTask = connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime);
+            var spacesTask = connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime);
+
+            var allTasks = Task.WhenAll(wallsTask, doorsTask, pipesTask, spacesTask);
+            var completed = await Task.WhenAny(allTasks, Task.Delay(Timeout.Infinite, cts.Token));
+            if (completed != allTasks)
+                throw new OperationCanceledException("Pull-Operation wurde nach 10 Sekunden abgebrochen.");
+
+            walls = await wallsTask;
+            doors = await doorsTask;
+            pipes = await pipesTask;
+            provisionalSpaces = await spacesTask;
         }
-        catch (Neo4j.Driver.Neo4jException ex)
+        catch (OperationCanceledException oce)
         {
-            TaskDialog.Show("Neo4j", $"Fehler: {ex.Message}\nBitte erneut versuchen.");
+            Logger.LogCrash("Pull abgebrochen: " + oce.Message, oce);
+            TaskDialog.Show("Neo4j", "Pull-Vorgang abgebrochen (Timeout).");
+            return Result.Cancelled;
+        }
+        catch (Neo4jException ne)
+        {
+            Logger.LogCrash("Neo4j-Fehler beim Pull: " + ne.Message, ne);
+            TaskDialog.Show("Neo4j", $"Fehler beim Datenabruf: {ne.Message}");
+            return Result.Failed;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("Unbekannter Fehler beim Pull: " + ex, ex);
+            TaskDialog.Show("Neo4j", "Unerwarteter Fehler: " + ex.Message);
             return Result.Failed;
         }
         using (var revitTx = new Transaction(doc, "Import Elements"))
@@ -147,7 +172,7 @@ public class PullCommand : IExternalCommand
 
         cmdMgr.LastSyncTime = System.DateTime.UtcNow;
         cmdMgr.PersistSyncTime();
-        connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).GetAwaiter().GetResult();
+        await connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime);
         var key = doc.PathName ?? doc.Title;
         if (SessionManager.OpenSessions.TryGetValue(key, out var session))
             session.LastSyncTime = cmdMgr.LastSyncTime;
