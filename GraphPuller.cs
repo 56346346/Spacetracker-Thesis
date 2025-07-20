@@ -106,7 +106,6 @@ public class GraphPuller
                 Debug.WriteLine($"Build wall {w.ElementId}");
                 RevitElementBuilder.BuildFromNode(doc, w.ToDictionary());
             }
-            doc.Regenerate();
             foreach (var d in doors)
             {
                 Debug.WriteLine($"Build door {d.ElementId}");
@@ -122,6 +121,7 @@ public class GraphPuller
                 Debug.WriteLine($"Build provisional space {ps.Guid}");
                 RevitElementBuilder.BuildFromNode(doc, ps.ToDictionary());
             }
+            doc.Regenerate();
             tx.Commit();
 
             cmdMgr.LastSyncTime = System.DateTime.UtcNow;

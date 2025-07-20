@@ -49,8 +49,7 @@ namespace SpaceTracker
         private Neo4jConnector _neo4jConnector;
         private DatabaseUpdateHandler _databaseUpdateHandler;
         private GraphPuller _graphPuller;
-        private PullEventHandler _pullEventHandler;
-        private PullScheduler _pullScheduler;
+        private GraphPullHandler _graphPullHandler;
         private ExternalEvent _graphPullEvent;
 
         public const int SolibriApiPort = 10876;
@@ -330,10 +329,9 @@ namespace SpaceTracker
                 _extractor = new SpaceExtractor(CommandManager.Instance);
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
                 _graphPuller = new GraphPuller(_neo4jConnector);
-                var graphPullHandler = new GraphPullHandler();
-                _graphPullEvent = ExternalEvent.Create(graphPullHandler);
+                _graphPullEvent = ExternalEvent.Create(_graphPullHandler);
+                _graphPullHandler.ExternalEvent = _graphPullEvent;
                 _cmdManager = CommandManager.Instance;
-                _pullEventHandler = new PullEventHandler();
                 _exportHandler = new IfcExportHandler();
                 _exportEvent = ExternalEvent.Create(_exportHandler);
                 var uiapp = TryGetUIApplication(application);
@@ -432,13 +430,6 @@ namespace SpaceTracker
 
                 }
 
-                // --- AutoPull: Periodisches Pull im Leerlauf (1 s) ---
-                var autoPullHandler = new AutoPullHandler();
-                var autoPullEvent = ExternalEvent.Create(autoPullHandler);
-                if (uiApp != null)
-                    _pullScheduler = new PullScheduler(autoPullEvent, uiApp);
-
-
                 Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
                 return Result.Succeeded;
             }
@@ -525,7 +516,7 @@ namespace SpaceTracker
                 var pullBtnData = new PushButtonData(
                     "PullChangesButton", "Pull Changes",
                     Assembly.GetExecutingAssembly().Location,
-                    "SpaceTracker.PullCommand"
+                    "SpaceTracker.GraphPullCommand"
                 );
                 string pullIconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Pull.png");
                 if (File.Exists(pullIconPath))
@@ -721,7 +712,6 @@ namespace SpaceTracker
             application.ControlledApplication.DocumentCreated -= documentCreated;
             application.ControlledApplication.DocumentClosing -= documentClosing;
             _neo4jConnector?.Dispose();
-            _pullScheduler?.Dispose();
             return Result.Succeeded;
 
         }
@@ -733,7 +723,8 @@ namespace SpaceTracker
         {
             foreach (var openSession in SessionManager.OpenSessions.Values)
             {
-                _pullEventHandler?.RequestPull(openSession.Document);
+                _graphPuller.PullRemoteChanges(openSession.Document, CommandManager.Instance.SessionId)
+                                          .GetAwaiter().GetResult();
             }
         }
 
@@ -875,8 +866,9 @@ namespace SpaceTracker
                 }
                 foreach (var openSession in SessionManager.OpenSessions.Values)
                 {
-                    // trigger pull command via external event to keep sessions in sync
-                    _pullEventHandler?.RequestPull(openSession.Document);
+                    // trigger pull for all open sessions via event
+                    _graphPuller.PullRemoteChanges(openSession.Document, CommandManager.Instance.SessionId)
+                                                  .GetAwaiter().GetResult();
                 }
                 _graphPullEvent.Raise();
             }
@@ -887,7 +879,7 @@ namespace SpaceTracker
             }
         }
 
-    // Wrapper for event subscription as DocumentChangedEventHandler expects a void return type
+        // Wrapper for event subscription as DocumentChangedEventHandler expects a void return type
         private async void documentChangedHandler(object sender, DocumentChangedEventArgs e)
         {
             await documentChanged(sender, e);
@@ -971,7 +963,7 @@ namespace SpaceTracker
                     }
                     // After loading the model trigger a pull to ensure latest changes
                     _graphPuller?.PullRemoteChanges(doc, CommandManager.Instance.SessionId).GetAwaiter().GetResult();
-                   // Trigger Solibri consistency check after pull
+                    // Trigger Solibri consistency check after pull
                     var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
                     solibriClient.CheckModelAsync(SpaceTrackerClass.SolibriModelUUID, SpaceTrackerClass.SolibriRulesetId)
                                  .GetAwaiter().GetResult();

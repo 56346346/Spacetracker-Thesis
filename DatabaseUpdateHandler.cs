@@ -266,85 +266,7 @@ MERGE (e)-[:HAS_ISSUE]->(i)";
         private enum IssueSeverity { None, Warning, Error }
         // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
         // gibt die schwerste aufgetretene Stufe zurück.
-        private static IssueSeverity ProcessBcfAndWriteToNeo4j(string bcfZipPath, Dictionary<string, ElementId> guidMap)
-        {
-            IssueSeverity worst = IssueSeverity.None;
-            var severityMap = new Dictionary<ElementId, string>();
-            var session = SessionManager.OpenSessions.Values.FirstOrDefault();
-            var doc = session?.Document;
-
-            using var archive = ZipFile.OpenRead(bcfZipPath);
-            foreach (var entry in archive.Entries.Where(e => e.Name.Equals("markup.bcf", StringComparison.OrdinalIgnoreCase)))
-            {
-                using var stream = entry.Open();
-                var xdoc = XDocument.Load(stream);
-
-                var components = xdoc.Descendants("Component")
-                    .Select(x => (string)x.Attribute("IfcGuid"))
-                    .Where(g => !string.IsNullOrEmpty(g))
-                    .ToList();
-
-                var title = xdoc.Descendants("Title").FirstOrDefault()?.Value ?? "Issue";
-                var desc = xdoc.Descendants("Description").FirstOrDefault()?.Value ?? "";
-                string sevText = xdoc.Descendants("Severity").FirstOrDefault()?.Value
-                              ?? xdoc.Descendants("Priority").FirstOrDefault()?.Value;
-
-                IssueSeverity sev = IssueSeverity.None;
-                if (!string.IsNullOrEmpty(sevText))
-                {
-                    if (int.TryParse(sevText, out int sevNum))
-                    {
-                        if (sevNum >= 80) sev = IssueSeverity.Error;
-                        else if (sevNum >= 40) sev = IssueSeverity.Warning;
-                    }
-                    else
-                    {
-                        if (sevText.Equals("high", StringComparison.OrdinalIgnoreCase) ||
-                            sevText.Equals("critical", StringComparison.OrdinalIgnoreCase) ||
-                            sevText.Equals("error", StringComparison.OrdinalIgnoreCase))
-                            sev = IssueSeverity.Error;
-                        else if (sevText.Equals("medium", StringComparison.OrdinalIgnoreCase) ||
-                                 sevText.Equals("warning", StringComparison.OrdinalIgnoreCase) ||
-                                 sevText.Equals("moderate", StringComparison.OrdinalIgnoreCase))
-                            sev = IssueSeverity.Warning;
-                    }
-                }
-                if (sev > worst)
-                    worst = sev;
-                foreach (var guid in components)
-                {
-                    guidMap.TryGetValue(guid, out var revitId);
-                    string idPart = revitId != ElementId.InvalidElementId ? $", elementId: {revitId.Value}" : string.Empty;
-                    string cy = $@"
-                MERGE (e {{ ifcGuid: '{guid}'{idPart} }})
-                MERGE (i:Issue {{ title: '{title}', description: '{desc}' }})
-                MERGE (e)-[:HAS_ISSUE]->(i)";
-                    CommandManager.Instance.cypherCommands.Enqueue(cy);
-
-                    if (doc != null)
-                    {
-                        var elem = doc.GetElement(guid);
-                        if (elem != null)
-                        {
-                            string color = sev == IssueSeverity.Error ? "RED" :
-                                sev == IssueSeverity.Warning ? "YELLOW" : "GREEN";
-                            if (severityMap.TryGetValue(elem.Id, out string existing))
-                            {
-                                if (existing == "YELLOW" && color == "RED")
-                                    severityMap[elem.Id] = color;
-                            }
-                            else if (color != "GREEN")
-                            {
-                                severityMap[elem.Id] = color;
-                            }
-                        }
-                    }
-                }
-            }
-            if (severityMap.Count > 0)
-                SpaceTrackerClass.MarkElementsBySeverity(severityMap);
-            return worst;
-        }
+      
 
         // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
         // gibt die schwerste aufgetretene Stufe zurück.
@@ -385,12 +307,7 @@ MERGE (e)-[:HAS_ISSUE]->(i)";
             {
                 _externalEvent.Raise();
             }
-
-
         }
-
-
-
     }
 
     public class ChangeData
