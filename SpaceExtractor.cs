@@ -317,8 +317,6 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             }
         }
 
-
-
         private void ProcessRoom(Element room, Document doc)
         {
             if (room.LevelId == ElementId.InvalidElementId) return;
@@ -339,10 +337,6 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             {
                 Debug.WriteLine($"[Room Processing Error] {ex.Message}");
             }
-        }
-        private static string GetIfcExportClass(Element elem)
-        {
-            return ParameterUtils.GetIfcEntity(elem);
         }
         // Liest alle relevanten Elemente aus dem Dokument und erzeugt erste Neo4j-Knoten.
         public void CreateInitialGraph(Document doc)
@@ -634,54 +628,6 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             {
                 UpdatePipeRelations(pipe, doc);
             }
-        }
-
-        // Ermittelt alle Rohr/ProvisionalSpace-Paare deren Bounding Box
-        // sich mit der des ProvisionalSpace schneidet. Gedacht für Situationen,
-        // die Beziehungen benötigt werden, z.B. beim PushCommand.
-        public List<(string PipeUid, string ProvGuid)> GetPipeProvisionalSpaceRelations(Document doc)
-        {
-            var result = new List<(string PipeUid, string ProvGuid)>();
-
-            var catFilter = new LogicalOrFilter(new List<ElementFilter>
-            {
-                new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
-                new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments)
-            });
-
-            var pipes = new FilteredElementCollector(doc)
-                .WherePasses(catFilter)
-                .OfClass(typeof(MEPCurve))
-                .Cast<MEPCurve>();
-
-            var psCollector = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_GenericModel)
-                .OfClass(typeof(FamilyInstance))
-                .Cast<FamilyInstance>()
-                .Where(ParameterUtils.IsProvisionalSpace)
-                .ToList();
-
-            foreach (var pipe in pipes)
-            {
-                BoundingBoxXYZ bbPipe = pipe.get_BoundingBox(null);
-                if (bbPipe == null) continue;
-
-                foreach (var ps in psCollector)
-                {
-                    BoundingBoxXYZ bbPs = ps.get_BoundingBox(null);
-                    if (bbPs == null) continue;
-
-                    bool intersects =
-                       bbPipe.Min.X <= bbPs.Max.X && bbPipe.Max.X >= bbPs.Min.X &&
-                       bbPipe.Min.Y <= bbPs.Max.Y && bbPipe.Max.Y >= bbPs.Min.Y &&
-                       bbPipe.Min.Z <= bbPs.Max.Z && bbPipe.Max.Z >= bbPs.Min.Z;
-
-                    if (intersects)
-                        result.Add((pipe.UniqueId, ps.UniqueId));
-                }
-            }
-
-            return result;
         }
 
         /// <summary>

@@ -31,41 +31,6 @@ namespace SpaceTracker
             File.WriteAllText(file, JsonSerializer.Serialize(payload));
             return file;
         }
-
-        public static IEnumerable<ChangePayload> ReadChanges()
-        {
-            if (!Directory.Exists(CacheDir))
-                yield break;
-            foreach (var file in Directory.GetFiles(CacheDir, "change_*.json"))
-            {
-                ChangePayload payload = null;
-
-                try
-                {
-                    var json = File.ReadAllText(file);
-                    payload = JsonSerializer.Deserialize<ChangePayload>(json);
-                }
-                catch
-                {
-                    // ignore malformed cache entries
-                }
-
-                if (payload != null)
-                    yield return payload;
-            }
-        }
-
-        public static void ClearCache()
-        {
-            if (!Directory.Exists(CacheDir))
-                return;
-            foreach (var file in Directory.GetFiles(CacheDir, "change_*.json"))
-            {
-                try { File.Delete(file); } catch { }
-            }
-        }
-
-
         private static long ExtractElementId(string cmd)
         {
             var match = Regex.Match(cmd, @"ElementId\D+(\d+)", RegexOptions.IgnoreCase);

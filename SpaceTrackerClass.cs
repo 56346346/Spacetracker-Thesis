@@ -551,29 +551,8 @@ namespace SpaceTracker
                 exportBtn.ToolTip = "Export all data to Neo4j";
             }
 
-            // 3. Push-Button (lokale Änderungen übertragen)
-            if (!_ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "PushChangesButton"))
-            {
-                var pushBtnData = new PushButtonData(
-                    "PushChangesButton", "Push Changes",
-                    Assembly.GetExecutingAssembly().Location,
-                    "SpaceTracker.PushCommand"
-                );
-                // (Optional: Icon für Push laden, z.B. Push.png im Verzeichnis)
-                string pushIconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Push.png");
-                if (File.Exists(pushIconPath))
-                {
-                    var pushIcon = new BitmapImage();
-                    pushIcon.BeginInit();
-                    pushIcon.UriSource = new Uri(pushIconPath, UriKind.Absolute);
-                    pushIcon.EndInit();
-                    pushBtnData.LargeImage = pushIcon;
-                }
-                var pushBtn = _ribbonPanel.AddItem(pushBtnData) as PushButton;
-                pushBtn.ToolTip = "Überträgt lokale Änderungen zum Neo4j-Graph (Push)";
-            }
+            // 3. Pull-Button (entfernte Änderungen holen)
 
-            // 4. Pull-Button (entfernte Änderungen holen)
             if (!_ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "PullChangesButton"))
             {
                 var pullBtnData = new PushButtonData(
@@ -594,7 +573,7 @@ namespace SpaceTracker
                 pullBtn.ToolTip = "Holt neueste Änderungen vom Neo4j-Graph in das lokale Modell (Pull)";
             }
 
-            // 5. Consistency-Check-Button (Ampelanzeige für Status)
+            // 4. Consistency-Check-Button (Ampelanzeige für Status)
             bool checkExists = _ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "ConsistencyCheckButton");
             if (!checkExists)
             {
@@ -903,7 +882,6 @@ namespace SpaceTracker
                 // Direkt nach dem Einreihen einen Push anstoßen, damit die
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
                 _databaseUpdateHandler.TriggerPush();
-                PullChanges();
                 try
                 {
                     string sessionId = CommandManager.Instance.SessionId;
@@ -922,9 +900,7 @@ namespace SpaceTracker
                          await _neo4jConnector.DeleteNodeAsync(id);
                         await _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId);
                     }
-
                     PullChanges();
-
                     var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
                     foreach (var cid in ids)
                         await SolibriChecker.CheckElementAsync(cid, doc);
@@ -939,7 +915,6 @@ namespace SpaceTracker
                     _pullEventHandler?.RequestPull(openSession.Document);
                 }
                 _graphPullEvent.Raise();
-
             }
             catch (Exception ex)
             {
@@ -1071,13 +1046,6 @@ namespace SpaceTracker
                 Logger.LogCrash("DocumentClosing", ex);
             }
         }
-
-
-
         #endregion
     }
-
-
-
-
 }

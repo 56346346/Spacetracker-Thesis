@@ -585,7 +585,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task UpsertDoorAsync(Dictionary<string, object> args)
         {
-                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+            var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
 
             var setParts = new List<string>();
             foreach (var kvp in safeArgs)
@@ -663,8 +663,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         // Erstellt oder aktualisiert eine Wand in Neo4j.
         public async Task UpsertWallAsync(Dictionary<string, object> args)
         {
-                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
-
+            var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
             var setParts = new List<string>();
             foreach (var kvp in safeArgs)
             {
@@ -686,7 +685,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task UpsertPipeAsync(Dictionary<string, object> args)
         {
-                        var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+            var safeArgs = args.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
             var setParts = new List<string>();
             foreach (var kvp in safeArgs)
             {
@@ -709,7 +708,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         public async Task UpsertProvisionalSpaceAsync(string guid, Dictionary<string, object> props)
         {
-                var safeArgs = props.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
+            var safeArgs = props.ToDictionary(kv => kv.Key.Replace("/", "_"), kv => kv.Value);
             var setParts = safeArgs.Keys
               .Where(k => k != "guid")
               .Select(k => $"p.{k} = ${k}")

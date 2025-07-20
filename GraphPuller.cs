@@ -19,6 +19,8 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public class GraphPuller
 {
+    private bool _pullInProgress = false;
+
     private static readonly string _logDir =
        Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
        "SpaceTracker", "log");
@@ -49,83 +51,94 @@ public class GraphPuller
     // directly instead of relying on change log relationships.
     public async Task PullRemoteChanges(Document doc, string currentUserId)
     {
-        LogMethodCall(nameof(PullRemoteChanges), new()
+        if (_pullInProgress)
+            return; // Verhindert erneutes Reentry beim Hängen
+
+        _pullInProgress = true;
+        try
         {
-            ["doc"] = doc?.Title,
-            ["currentUserId"] = currentUserId
-        });
-        var cmdMgr = CommandManager.Instance;
+            LogMethodCall(nameof(PullRemoteChanges), new()
+            {
+                ["doc"] = doc?.Title,
+                ["currentUserId"] = currentUserId
+            });
+            var cmdMgr = CommandManager.Instance;
 
-        var walls = await _connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-        var doors = await _connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-        var pipes = await _connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-        var provisionalSpaces = await _connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+            var walls = await _connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+            var doors = await _connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+            var pipes = await _connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+            var provisionalSpaces = await _connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
 
-        var validDoorTypes = new HashSet<ElementId>(new FilteredElementCollector(doc)
-            .OfCategory(BuiltInCategory.OST_Doors)
-            .OfClass(typeof(FamilySymbol))
-            .Select(fs => fs.Id));
-        doors = doors
-            .Where(d => validDoorTypes.Contains(new ElementId((int)d.TypeId)))
-            .ToList();
+            var validDoorTypes = new HashSet<ElementId>(new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_Doors)
+                .OfClass(typeof(FamilySymbol))
+                .Select(fs => fs.Id));
+            doors = doors
+                .Where(d => validDoorTypes.Contains(new ElementId((int)d.TypeId)))
+                .ToList();
 
-        var validPipeTypes = new HashSet<ElementId>(new FilteredElementCollector(doc)
-            .OfClass(typeof(PipeType))
-            .Select(pt => pt.Id));
-        pipes = pipes
-            .Where(p => validPipeTypes.Contains(new ElementId((int)p.TypeId)))
-            .ToList();
+            var validPipeTypes = new HashSet<ElementId>(new FilteredElementCollector(doc)
+                .OfClass(typeof(PipeType))
+                .Select(pt => pt.Id));
+            pipes = pipes
+                .Where(p => validPipeTypes.Contains(new ElementId((int)p.TypeId)))
+                .ToList();
 
-        provisionalSpaces = provisionalSpaces
-            .Where(ps => ParameterUtils.IsProvisionalSpace(ps.ToDictionary()))
-            .ToList();
+            provisionalSpaces = provisionalSpaces
+                .Where(ps => ParameterUtils.IsProvisionalSpace(ps.ToDictionary()))
+                .ToList();
 
-        string pullInfo = $"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces";
-        Debug.WriteLine(pullInfo);
-        Logger.LogToFile($"GraphPuller.PullRemoteChanges: {pullInfo}", "sync.log");
+            string pullInfo = $"Pulled {walls.Count} walls, {doors.Count} doors, {pipes.Count} pipes, {provisionalSpaces.Count} provisional spaces";
+            Debug.WriteLine(pullInfo);
+            Logger.LogToFile($"GraphPuller.PullRemoteChanges: {pullInfo}", "sync.log");
 
-        if (doc.IsReadOnly || doc.IsModifiable)
-        {
-            Logger.LogToFile("PullRemoteChanges skipped: document not ready for transaction", "sync.log");
-            return;
+            if (doc.IsReadOnly || doc.IsModifiable)
+            {
+                Logger.LogToFile("PullRemoteChanges skipped: document not ready for transaction", "sync.log");
+                return;
+            }
+
+            using var tx = new Transaction(doc, "Auto Sync");
+            tx.Start();
+
+            foreach (var w in walls)
+            {
+                Debug.WriteLine($"Build wall {w.ElementId}");
+                RevitElementBuilder.BuildFromNode(doc, w.ToDictionary());
+            }
+            doc.Regenerate();
+            foreach (var d in doors)
+            {
+                Debug.WriteLine($"Build door {d.ElementId}");
+                RevitElementBuilder.BuildFromNode(doc, d.ToDictionary());
+            }
+            foreach (var p in pipes)
+            {
+                Debug.WriteLine($"Build pipe {p.ElementId}");
+                RevitElementBuilder.BuildFromNode(doc, p.ToDictionary());
+            }
+            foreach (var ps in provisionalSpaces)
+            {
+                Debug.WriteLine($"Build provisional space {ps.Guid}");
+                RevitElementBuilder.BuildFromNode(doc, ps.ToDictionary());
+            }
+            tx.Commit();
+
+            cmdMgr.LastSyncTime = System.DateTime.UtcNow;
+            cmdMgr.LastPulledAt = cmdMgr.LastSyncTime;
+            LastPulledAt = cmdMgr.LastPulledAt;
+            cmdMgr.PersistSyncTime();
+            await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
+            // Prevent endless pull loops by acknowledging remote changelogs
+            await _connector.AcknowledgeAllAsync(cmdMgr.SessionId).ConfigureAwait(false);
+            var key = doc.PathName ?? doc.Title;
+            if (SessionManager.OpenSessions.TryGetValue(key, out var session))
+                session.LastSyncTime = cmdMgr.LastSyncTime;
         }
-
-        using var tx = new Transaction(doc, "Auto Sync");
-        tx.Start();
-
-        foreach (var w in walls)
+        finally
         {
-            Debug.WriteLine($"Build wall {w.ElementId}");
-            RevitElementBuilder.BuildFromNode(doc, w.ToDictionary());
+            _pullInProgress = false;
         }
-        doc.Regenerate();
-        foreach (var d in doors)
-        {
-            Debug.WriteLine($"Build door {d.ElementId}");
-            RevitElementBuilder.BuildFromNode(doc, d.ToDictionary());
-        }
-        foreach (var p in pipes)
-        {
-            Debug.WriteLine($"Build pipe {p.ElementId}");
-            RevitElementBuilder.BuildFromNode(doc, p.ToDictionary());
-        }
-        foreach (var ps in provisionalSpaces)
-        {
-            Debug.WriteLine($"Build provisional space {ps.Guid}");
-            RevitElementBuilder.BuildFromNode(doc, ps.ToDictionary());
-        }
-        tx.Commit();
-
-        cmdMgr.LastSyncTime = System.DateTime.UtcNow;
-        cmdMgr.LastPulledAt = cmdMgr.LastSyncTime;
-        LastPulledAt = cmdMgr.LastPulledAt;
-        cmdMgr.PersistSyncTime();
-        await _connector.UpdateSessionLastSyncAsync(cmdMgr.SessionId, cmdMgr.LastSyncTime).ConfigureAwait(false);
-        // Prevent endless pull loops by acknowledging remote changelogs
-        await _connector.AcknowledgeAllAsync(cmdMgr.SessionId).ConfigureAwait(false);
-        var key = doc.PathName ?? doc.Title;
-        if (SessionManager.OpenSessions.TryGetValue(key, out var session))
-            session.LastSyncTime = cmdMgr.LastSyncTime;
-
     }
+
 }
