@@ -887,17 +887,14 @@ namespace SpaceTracker
                     string sessionId = CommandManager.Instance.SessionId;
                     foreach (var el in addedElements)
                     {
-                         await _neo4jConnector.UpsertNodeAsync(el);
                         await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId);
                     }
                     foreach (var el in modifiedElements)
                     {
-                       await _neo4jConnector.UpsertNodeAsync(el);
                         await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Modify, sessionId);
                     }
                     foreach (var id in deletedIds)
                     {
-                         await _neo4jConnector.DeleteNodeAsync(id);
                         await _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId);
                     }
                     PullChanges();
