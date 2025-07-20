@@ -90,7 +90,9 @@ namespace SpaceTracker
                     $"w.location_line = {data["location_line"]}",
                     $"w.user = '{ParameterUtils.EscapeForCypher(data["user"].ToString())}'",
                     $"w.created = datetime('{((DateTime)data["created"]).ToString("o")}')",
-                    $"w.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')"
+                    $"w.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')",
+                    $"w.lastModifiedUtc = datetime('{((DateTime)data["modified"]).ToString("o")}')"
+
                 };
 
                 string cy =
@@ -1067,16 +1069,16 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                         Debug.WriteLine($"[WARN] Wall {wall.Id} has invalid LevelId.");
                     }
 
-  // Create or update wall node with all properties
+                    // Create or update wall node with all properties
                     ProcessWall(wall, doc);
-   // Link wall to adjacent rooms
+                    // Link wall to adjacent rooms
                     IList<Element> rooms = getRoomFromWall(doc, wall);
                     foreach (var roomElement in rooms)
                     {
                         if (roomElement is Room r)
                         {
                             string cyRel =
- $"MATCH (w:Wall {{ElementId: {wall.Id.Value}}}), (r:Room {{ElementId: {r.Id.Value}}}) MERGE (w)-[:BOUNDS]->(r)";                            _cmdManager.cypherCommands.Enqueue(cyRel);
+ $"MATCH (w:Wall {{ElementId: {wall.Id.Value}}}), (r:Room {{ElementId: {r.Id.Value}}}) MERGE (w)-[:BOUNDS]->(r)"; _cmdManager.cypherCommands.Enqueue(cyRel);
                             Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cyRel);
                         }
                     }
