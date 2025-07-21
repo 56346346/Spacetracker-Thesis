@@ -19,5 +19,5 @@ public record DoorNode(
     double Rotation,
     double Width,
     double Height,
-    double Thickness
-);
+    double Thickness,
+    string RvtClass = "Door");

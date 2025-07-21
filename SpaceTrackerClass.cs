@@ -634,7 +634,7 @@ namespace SpaceTracker
     new ElementCategoryFilter(BuiltInCategory.OST_Rooms),
     new ElementCategoryFilter(BuiltInCategory.OST_Levels),
     new ElementCategoryFilter(BuiltInCategory.OST_Doors),
-      new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
+    new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
     new ElementCategoryFilter(BuiltInCategory.OST_PipeSegments),
     new ElementCategoryFilter(BuiltInCategory.OST_Stairs),
     new ElementCategoryFilter(BuiltInCategory.OST_GenericModel)
@@ -874,11 +874,9 @@ namespace SpaceTracker
                 }
                 foreach (var openSession in SessionManager.OpenSessions.Values)
                 {
-                    // trigger pull for all open sessions via event
-                    _graphPuller.PullRemoteChanges(openSession.Document, CommandManager.Instance.SessionId)
-                                                  .GetAwaiter().GetResult();
+                    // Trigger pull asynchronously via external event
+                    _graphPullHandler.RequestPull(openSession.Document);
                 }
-                _graphPullEvent.Raise();
             }
             catch (Exception ex)
             {

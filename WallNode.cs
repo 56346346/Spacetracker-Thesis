@@ -22,8 +22,8 @@ public record WallNode(
     bool Structural,
     bool Flipped,
     double BaseOffsetMm,
-    int LocationLine
-)
+  int LocationLine,
+    string RvtClass = "Wall")
 {
     // Gibt true zurück, wenn die Wand als tragend markiert ist.
     public static bool IsStructural(Autodesk.Revit.DB.Wall wall)

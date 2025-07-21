@@ -203,7 +203,7 @@ namespace SpaceTracker
                 Logger.LogToFile($"Starte Solibri Check f\u00fcr Modell {modelId}", "solibri.log");
                 using var response = await Http.PostAsync(
                       "http://localhost:10876/solibri/v1/checking?checkSelected=false",
-                    null)
+                    null);
 
                 if (!response.IsSuccessStatusCode) 
                 {

@@ -15,5 +15,5 @@ public record PipeNode(
     double X2,
     double Y2,
     double Z2,
-    double Diameter
-);
+  double Diameter,
+    string RvtClass = "Pipe");

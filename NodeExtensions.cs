@@ -6,7 +6,7 @@ public static class NodeExtensions
 {
     public static Dictionary<string, object> ToDictionary(this WallNode w) => new()
     {
-        ["rvtClass"] = "Wall",
+        ["rvtClass"] = w.RvtClass,
         ["uid"] = w.Uid,
         ["elementId"] = w.ElementId,
         ["typeId"] = w.TypeId,
@@ -30,7 +30,7 @@ public static class NodeExtensions
     public static Dictionary<string, object> ToDictionary(this DoorNode d) => new()
     {
         ["name"] = d.Name,
-        ["rvtClass"] = "Door",
+        ["rvtClass"] = d.RvtClass,
         ["uid"] = d.Uid,
         ["elementId"] = d.ElementId,
         ["typeId"] = d.TypeId,
@@ -50,7 +50,7 @@ public static class NodeExtensions
 
     public static Dictionary<string, object> ToDictionary(this PipeNode p) => new()
     {
-        ["rvtClass"] = "Pipe",
+        ["rvtClass"] = p.RvtClass,
         ["uid"] = p.Uid,
         ["elementId"] = p.ElementId,
         ["typeId"] = p.TypeId,
@@ -67,7 +67,7 @@ public static class NodeExtensions
 
     public static Dictionary<string, object> ToDictionary(this ProvisionalSpaceNode ps) => new()
     {
-        ["rvtClass"] = "ProvisionalSpace",
+        ["rvtClass"] = ps.RvtClass,
         ["guid"] = ps.Guid,
         ["name"] = ps.Name,
         ["familyName"] = ps.FamilyName,

@@ -28,5 +28,5 @@ public record ProvisionalSpaceNode(
     double BbMinZ,
     double BbMaxX,
     double BbMaxY,
-    double BbMaxZ
-);
+double BbMaxZ,
+    string RvtClass = "ProvisionalSpace");

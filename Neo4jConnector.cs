@@ -462,8 +462,8 @@ RETURN w";
                     node.Properties["structural"].As<bool>(),
                     node.Properties.TryGetValue("flipped", out var flipped) && flipped.As<bool>(),
                     node.Properties.TryGetValue("base_offset_mm", out var baseOffset) ? baseOffset.As<double>() : 0.0,
-                    node.Properties.TryGetValue("location_line", out var locLine) ? locLine.As<int>() : (int)WallLocationLine.WallCenterline
-                    );
+ node.Properties.TryGetValue("location_line", out var locLine) ? locLine.As<int>() : (int)WallLocationLine.WallCenterline,
+                    node.Properties.TryGetValue("rvtClass", out var cls) ? cls.As<string>() : "Wall");
             }).ConfigureAwait(false);
             _logger.LogInformation("Pulled {Count} walls", list.Count);
             return list;
@@ -496,8 +496,8 @@ RETURN d";
                     node.Properties.TryGetValue("rotation", out var rot) ? rot.As<double>() : 0.0,
                     node.Properties.TryGetValue("width", out var width) ? width.As<double>() : 0.0,
                     node.Properties.TryGetValue("height", out var height) ? height.As<double>() : 0.0,
-                    node.Properties.TryGetValue("thickness", out var thickness) ? thickness.As<double>() : 0.0
-                );
+                    node.Properties.TryGetValue("thickness", out var thickness) ? thickness.As<double>() : 0.0,
+                    node.Properties.TryGetValue("rvtClass", out var cls) ? cls.As<string>() : "Door");
             }).ConfigureAwait(false);
             _logger.LogInformation("Pulled {Count} doors", list.Count);
             return list;
@@ -525,7 +525,8 @@ RETURN p";
                     node.Properties["x2"].As<double>(),
                     node.Properties["y2"].As<double>(),
                     node.Properties["z2"].As<double>(),
-                    node.Properties.TryGetValue("diameter", out var dia) ? dia.As<double>() : 0.0
+                    node.Properties.TryGetValue("diameter", out var dia) ? dia.As<double>() : 0.0,
+                       node.Properties.TryGetValue("rvtClass", out var cls) ? cls.As<string>() : "Pipe"
                 );
             }).ConfigureAwait(false);
             _logger.LogInformation("Pulled {Count} pipes", list.Count);
@@ -567,8 +568,8 @@ RETURN ps";
                     node.Properties.TryGetValue("bbMinZ", out var bbMinZ) ? bbMinZ.As<double>() : 0.0,
                     node.Properties.TryGetValue("bbMaxX", out var bbMaxX) ? bbMaxX.As<double>() : 0.0,
                     node.Properties.TryGetValue("bbMaxY", out var bbMaxY) ? bbMaxY.As<double>() : 0.0,
-                    node.Properties.TryGetValue("bbMaxZ", out var bbMaxZ) ? bbMaxZ.As<double>() : 0.0
-                );
+          node.Properties.TryGetValue("bbMaxZ", out var bbMaxZ) ? bbMaxZ.As<double>() : 0.0,
+                    node.Properties.TryGetValue("rvtClass", out var cls) ? cls.As<string>() : "ProvisionalSpace"                );
             }).ConfigureAwait(false);
             _logger.LogInformation("Pulled {Count} provisional spaces", list.Count);
             return list;
