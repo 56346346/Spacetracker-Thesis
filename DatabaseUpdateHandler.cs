@@ -289,6 +289,7 @@ MERGE (e)-[:HAS_ISSUE]->(i)";
             _extractor = extractor;
             _externalEvent = ExternalEvent.Create(this);
             _pushEvent = ExternalEvent.Create(_pushHandler);
+            _markEvent = ExternalEvent.Create(_markHandler);
         }
 
         // Hebt das ExternalEvent an, falls es nicht bereits aussteht

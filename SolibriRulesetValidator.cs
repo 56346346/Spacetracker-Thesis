@@ -80,6 +80,8 @@ namespace SpaceTracker
                 var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
                 string bcfZip = await client.ExportBcfAsync(bcfDir).ConfigureAwait(false);
                 errors = ParseBcfResults(bcfZip);
+                Logger.LogToFile($"BCF bei:{bcfZip} ", "solibri.log");
+
                 foreach (var err in errors)
                     Logger.LogToFile($"Solibri Issue: {err.Severity} - {err.Message}", "solibri.log");
                 Logger.LogToFile($"Solibri Check f\u00fcr Modell {doc.Title} abgeschlossen", "solibri.log");

@@ -557,20 +557,8 @@ namespace SpaceTracker
                 {
                     Logger.LogCrash("Parse Rulesets", ex);
                 }
-
-                if (!string.IsNullOrEmpty(deltaId) && !active)
-                {
-                    Logger.LogToFile($"Aktiviere Ruleset {deltaId}", "solibri.log");
-                    using var actResp = await Http.PostAsync($"{_baseUrl}/models/{modelId}/rulesets/{deltaId}/activate", null);
-                    if (!actResp.IsSuccessStatusCode)
-                    {
-                        Logger.LogToFile($"SOLIBRI {actResp.StatusCode} bei {actResp.RequestMessage.RequestUri}", "crash.log");
-                    }
-                    actResp.EnsureSuccessStatusCode();
-                }
-
                 Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
-                using var checkResp = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", null);
+                using var checkResp = await Http.PostAsync($"{_baseUrl}/checking?checkSelected=false'", null);
                 if (!checkResp.IsSuccessStatusCode)
                 {
                     Logger.LogToFile($"SOLIBRI {checkResp.StatusCode} bei {checkResp.RequestMessage.RequestUri}", "crash.log");
