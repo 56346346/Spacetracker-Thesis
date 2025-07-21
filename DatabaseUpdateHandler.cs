@@ -256,10 +256,6 @@ MERGE (e)-[:HAS_ISSUE]->(i)";
         private enum IssueSeverity { None, Warning, Error }
         // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
         // gibt die schwerste aufgetretene Stufe zurück.
-
-
-        // Wertet eine BCF-Datei aus, schreibt gefundene Issues nach Neo4j und
-        // gibt die schwerste aufgetretene Stufe zurück.
         public void Initialize()
         {
             _externalEvent = ExternalEvent.Create(this);
