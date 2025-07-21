@@ -373,7 +373,55 @@ namespace SpaceTracker
                 throw;
             }
         }
-       
+        // Exportiert die BCF-Ergebnisse des aktuell aktiven Modells in ein Verzeichnis.
+        // Seit Solibri 9.13 erfolgt der Export über einen globalen Endpunkt,
+        // daher wird keine Modell-ID mehr benötigt.
+        public async Task<string> ExportBcfAsync(string outDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(outDirectory))
+                throw new ArgumentException("Ausgabeverzeichnis darf nicht leer sein.", nameof(outDirectory));
+            SolibriProcessManager.EnsureStarted();
+            if (!await PingAsync().ConfigureAwait(false))
+                throw new Exception("Solibri REST API nicht erreichbar");
+
+            try
+            {
+                if (!Directory.Exists(outDirectory))
+                    Directory.CreateDirectory(outDirectory);
+
+                Logger.LogToFile("Exportiere BCF für aktives Modell");
+                var response = await Http.GetAsync($"{_baseUrl}/bcfxml/two_one?scope=all");
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {response.StatusCode} bei {response.RequestMessage.RequestUri}", "crash.log");
+                }
+                response.EnsureSuccessStatusCode();
+
+                var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                var filePath = Path.Combine(outDirectory, $"result_{timestamp}.bcfzip"); using (var fs = File.Create(filePath))
+                {
+                    await response.Content.CopyToAsync(fs);
+                }
+                return filePath;
+            }
+            catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
+            {
+                Logger.LogCrash("Solibri Export BCF", ex);
+                throw new Exception($"Verbindung zu Solibri fehlgeschlagen: {sockEx.Message}. Bitte prüfen Sie, ob der Dienst auf Port {SolibriProcessManager.Port} läuft.", ex);
+            }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogCrash("Solibri Export BCF", ex);
+
+                throw new Exception($"Fehler beim Exportieren des BCF-Ergebnisses: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Solibri Export BCF", ex);
+
+                throw;
+            }
+        }
         // Testet, ob die REST-API erreichbar ist.
         public async Task<bool> PingAsync()
         {
