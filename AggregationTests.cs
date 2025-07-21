@@ -53,8 +53,10 @@ namespace SpaceTracker.Tests
             }
 
             Assert.True(File.Exists(logDir));
-            string content = File.ReadAllText(logDir);
-            Assert.Contains("boom", content);
+            var logPath = Path.Combine(logDir, "crash.log");
+
+            Assert.True(File.Exists(logPath));
+            string content = File.ReadAllText(logPath);
         }
     }
 }

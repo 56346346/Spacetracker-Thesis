@@ -10,6 +10,7 @@ namespace SpaceTracker
     {
         private readonly ConcurrentQueue<Document> _queue = new();
         internal ExternalEvent? ExternalEvent { get; set; }
+        private readonly GraphPullEvent _pullEvent = new();
 
         public void RequestPull(Document doc)
         {
@@ -22,15 +23,10 @@ namespace SpaceTracker
         {
             while (_queue.TryDequeue(out var doc))
             {
-                if (doc != null && !doc.IsReadOnly && !doc.IsModifiable)
+                if (doc != null)
                 {
-                    new GraphPuller().PullRemoteChanges(doc, CommandManager.Instance.SessionId).GetAwaiter().GetResult();
+                    _pullEvent.Raise(doc);
 
-                    var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
-                    solibriClient.CheckModelAsync(SpaceTrackerClass.SolibriModelUUID, SpaceTrackerClass.SolibriRulesetId)
-                                 .GetAwaiter().GetResult();
-                    solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(2))
-                                 .GetAwaiter().GetResult();
                 }
             }
 

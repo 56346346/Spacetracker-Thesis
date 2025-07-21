@@ -33,21 +33,6 @@ public static class ParameterUtils
         if (p != null && !p.IsReadOnly)
             p.Set(uid);
     }
-
-    
-    /// <summary>
-    /// Searches the document for an element whose parameter <see cref="Neo4jUidParam"/>
-    /// matches the provided uid.
-    /// </summary>
-    public static Element? FindElementByNeo4jUid(Document doc, string uid)
-    {
-        if (string.IsNullOrEmpty(uid))
-            return null;
-
-        return new FilteredElementCollector(doc)
-            .WhereElementIsNotElementType()
-            .FirstOrDefault(e => e.LookupParameter(Neo4jUidParam)?.AsString() == uid);
-    }
     /// <summary>
     /// Escapes a string for safe usage inside Cypher queries.
     /// Removes backslashes and doubles single quotes.

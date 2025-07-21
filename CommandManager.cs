@@ -180,7 +180,7 @@ namespace SpaceTracker
             }
             catch { }
 
-            return DateTime.Now;
+            return DateTime.MinValue;
         }
 
     }

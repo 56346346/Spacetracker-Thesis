@@ -16,9 +16,7 @@ namespace SpaceTracker;
 [SupportedOSPlatform("windows")]
 public static class RevitElementBuilder
 {
-    private const string ProvLog = "provisional_spaces.log";
-
-    
+    private const string ProvLog = "provisional_spaces.log"; 
     private static double RoundValue(double v)
     {
         return Math.Abs(v - Math.Round(v)) < 0.001 ? Math.Round(v, 1) : v;
@@ -202,7 +200,6 @@ public static class RevitElementBuilder
             return fi;
         }
     
-    
     // Legt einen ProvisionalSpace im Modell an.
     private static FamilyInstance BuildProvisionalSpace(Document doc, Dictionary<string, object> node)
     {
@@ -254,7 +251,4 @@ public static class RevitElementBuilder
         Logger.LogToFile($"Finished BuildProvisionalSpace {guid}", ProvLog);
         return inst;
     }
-  
-        
-    
 }

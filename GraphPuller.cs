@@ -63,26 +63,22 @@ public class GraphPuller
                 ["currentUserId"] = currentUserId
             });
             var cmdMgr = CommandManager.Instance;
+            var lastSync = cmdMgr.LastSyncTime;
 
-            var walls = await _connector.GetUpdatedWallsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-            var doors = await _connector.GetUpdatedDoorsAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-            var pipes = await _connector.GetUpdatedPipesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
-            var provisionalSpaces = await _connector.GetUpdatedProvisionalSpacesAsync(cmdMgr.LastSyncTime).ConfigureAwait(false);
+            var wallsTask = _connector.GetUpdatedWallsAsync(lastSync);
+            var doorsTask = _connector.GetUpdatedDoorsAsync(lastSync);
+            var pipesTask = _connector.GetUpdatedPipesAsync(lastSync);
+            var provisionalSpacesTask = _connector.GetUpdatedProvisionalSpacesAsync(lastSync);
 
-            var validDoorTypes = new HashSet<ElementId>(new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_Doors)
-                .OfClass(typeof(FamilySymbol))
-                .Select(fs => fs.Id));
-            doors = doors
-                .Where(d => validDoorTypes.Contains(new ElementId((int)d.TypeId)))
-                .ToList();
+            await Task.WhenAll(wallsTask, doorsTask, pipesTask, provisionalSpacesTask);
 
-            var validPipeTypes = new HashSet<ElementId>(new FilteredElementCollector(doc)
-                .OfClass(typeof(PipeType))
-                .Select(pt => pt.Id));
-            pipes = pipes
-                .Where(p => validPipeTypes.Contains(new ElementId((int)p.TypeId)))
-                .ToList();
+            var walls = await wallsTask;
+            var doors = await doorsTask;
+            var pipes = await pipesTask;
+            var provisionalSpaces = await provisionalSpacesTask;
+            // Rely solely on the information provided by Neo4j.  Types are
+            // validated while creating the elements and missing types will be
+            // looked up by name where possible.
 
             provisionalSpaces = provisionalSpaces
                 .Where(ps => ParameterUtils.IsProvisionalSpace(ps.ToDictionary()))

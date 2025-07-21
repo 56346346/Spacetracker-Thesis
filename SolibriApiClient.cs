@@ -64,8 +64,10 @@ namespace SpaceTracker
                 var modelName = Path.GetFileNameWithoutExtension(ifcFilePath);
                 modelName = WebUtility.UrlEncode(modelName);
                 var response = await Http.PostAsync($"{_baseUrl}/models?name={modelName}", content).ConfigureAwait(false);
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                    Logger.LogToFile("Import endpoint not found when uploading IFC model.", "solibri.log");
                 response.EnsureSuccessStatusCode();
-                string? modelId = null;
+                string modelId = null;
                 try
                 {
                     var info = await response.Content.ReadFromJsonAsync<ModelInfo>().ConfigureAwait(false);
@@ -185,10 +187,14 @@ namespace SpaceTracker
             try
             {
 
-                var json = $"{{\"rulesetIds\":[\"{rulesetId}\"]}}";
-                using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                Logger.LogToFile($"Starte Modellprüfung für {modelId}");
-                var response = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", content).ConfigureAwait(false); response.EnsureSuccessStatusCode();
+                using var response = await Http.PostAsync(
+                      "http://localhost:10876/solibri/v1/checking?checkSelected=true",
+                      null).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                Logger.LogToFile("Solibri check gestartet", "solibri.log");
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                    Logger.LogToFile($"Model {modelId} not found when running check.", "solibri.log");
+                response.EnsureSuccessStatusCode();
             }
             catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
             {

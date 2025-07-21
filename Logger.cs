@@ -11,13 +11,13 @@ namespace SpaceTracker
             "SpaceTracker",
             "log"
         );
-         private static readonly string _logPath =
-            Path.Combine(_logDir, nameof(Logger) + ".log");
+        private static readonly string _logPath =
+           Path.Combine(_logDir, nameof(Logger) + ".log");
         private static readonly object _logLock = new object();
         // Legt das Log-Verzeichnis an und initialisiert den Serilog-Logger
         static Logger()
         {
-             if (!Directory.Exists(_logDir))
+            if (!Directory.Exists(_logDir))
                 Directory.CreateDirectory(_logDir);
 
             Log.Logger = new LoggerConfiguration()
@@ -32,7 +32,7 @@ namespace SpaceTracker
             if (!Directory.Exists(_logDir))
                 Directory.CreateDirectory(_logDir);
         }
-         // Hilfsmethode zum Schreiben mit gemeinsamem Dateizugriff
+        // Hilfsmethode zum Schreiben mit gemeinsamem Dateizugriff
         private static void AppendLine(string path, string message)
         {
             lock (_logLock)
@@ -53,13 +53,13 @@ namespace SpaceTracker
 
         public static void LogCrash(string label, Exception ex)
         {
-            
+
             var path = Path.Combine(_logDir, "crash.log");
             AppendLine(path, $"{DateTime.Now:O} [{label}] {ex}");
         }
 
         // Protokolliert eine beliebige Meldung in eine Datei
-                // Fügt eine beliebige Textzeile an die angegebene Logdatei an.
+        // Fügt eine beliebige Textzeile an die angegebene Logdatei an.
 
         public static void LogToFile(string message, string fileName = "main.log")
         {
