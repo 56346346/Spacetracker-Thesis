@@ -10,7 +10,7 @@ namespace SpaceTracker
 {
     public class CypherPushHandler : IExternalEventHandler
     {
-        public void Execute(UIApplication app)
+        public async void Execute(UIApplication app)
         {
             try
             {
@@ -20,7 +20,7 @@ namespace SpaceTracker
 
                 if (doc != null)
                 {
-                     await SpaceTrackerClass.SolibriLock.WaitAsync();
+                    await SpaceTrackerClass.SolibriLock.WaitAsync();
                     try
                     {
                         var errs = await SolibriRulesetValidator.Validate(doc);
