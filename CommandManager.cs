@@ -125,6 +125,7 @@ namespace SpaceTracker
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Neo4j-Error] {ex.Message}");
+                Logger.LogCrash("ProcessCypherQueueAsync", ex);
             }
             finally
             {

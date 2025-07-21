@@ -25,13 +25,6 @@ namespace SpaceTracker
                 .WriteTo.File(Path.Combine(_logDir, "main.log"), shared: true)
                 .CreateLogger();
         }
-
-        // Interne Helferfunktion, stellt das Log-Verzeichnis sicher.
-        private static void EnsureLogDir()
-        {
-            if (!Directory.Exists(_logDir))
-                Directory.CreateDirectory(_logDir);
-        }
         // Hilfsmethode zum Schreiben mit gemeinsamem Dateizugriff
         private static void AppendLine(string path, string message)
         {

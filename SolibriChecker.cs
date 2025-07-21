@@ -48,6 +48,7 @@ namespace SpaceTracker
                 return;
             try
             {
+                Logger.LogToFile($"Starte Solibri Elementpr\u00fcfung f\u00fcr Element {id}", "solibri.log");
                 SpaceTrackerClass.RequestIfcExport(doc, new List<ElementId> { id });
                 string ifcPath = SpaceTrackerClass.ExportHandler.ExportedPath;
                 if (string.IsNullOrEmpty(ifcPath) || !File.Exists(ifcPath))
@@ -56,6 +57,7 @@ namespace SpaceTracker
                 using var fs = File.OpenRead(ifcPath);
                 await Instance.ValidateChangesAsync(fs, Enumerable.Empty<string>(), Path.GetFileName(ifcPath), CancellationToken.None)
                     .ConfigureAwait(false);
+                Logger.LogToFile($"Solibri Elementpr\u00fcfung f\u00fcr Element {id} abgeschlossen", "solibri.log");
             }
             catch (Exception ex)
             {
@@ -76,7 +78,7 @@ namespace SpaceTracker
         {
             while (true)
             {
-                 try
+                try
                 {
                     var resp = await _client.GetAsync("/ping", ct).ConfigureAwait(false);
                     if ((int)resp.StatusCode == 404)
@@ -142,6 +144,7 @@ namespace SpaceTracker
 
         public async Task ValidateChangesAsync(Stream ifcStream, IEnumerable<string> removedGuids, string name, CancellationToken ct)
         {
+            Logger.LogToFile($"Starte Solibri Delta-Check f\u00fcr IFC {name}", "solibri.log");
             await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
 
             string id = await UploadIfcAsync(ifcStream, name, _modelUuid != null, ct).ConfigureAwait(false);
@@ -167,6 +170,7 @@ namespace SpaceTracker
             }
             await api.InstallRulesetLocally(SpaceTrackerClass.SolibriRulesetPath).ConfigureAwait(false);
             await EnsureSolibriReadyAsync(ct).ConfigureAwait(false);
+                        Logger.LogToFile($"Solibri Delta-Check f\u00fcr IFC {name} abgeschlossen", "solibri.log");
         }
         private static string MapSeverity(string sev)
         {
@@ -186,7 +190,7 @@ namespace SpaceTracker
                 try
                 {
                     var resp = await sender().ConfigureAwait(false);
-                  if ((int)resp.StatusCode == 404)
+                    if ((int)resp.StatusCode == 404)
                     {
                         if (attempt < retries)
                         {
@@ -205,7 +209,7 @@ namespace SpaceTracker
                     resp.EnsureSuccessStatusCode();
                     return resp;
                 }
-                 catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound && attempt < retries)
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound && attempt < retries)
                 {
                     Logger.LogToFile($"HTTP 404 on {label}, retry {attempt}", "solibri.log");
                     await Task.Delay(500, ct).ConfigureAwait(false);

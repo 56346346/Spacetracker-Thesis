@@ -186,15 +186,15 @@ namespace SpaceTracker
 
             try
             {
-
+                Logger.LogToFile($"Starte Solibri Check f\u00fcr Modell {modelId}", "solibri.log");
                 using var response = await Http.PostAsync(
-                      "http://localhost:10876/solibri/v1/checking?checkSelected=true",
+                      "http://localhost:10876/solibri/v1/checking?checkSelected=false",
                       null).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                Logger.LogToFile("Solibri check gestartet", "solibri.log");
                 if (response.StatusCode == HttpStatusCode.NotFound)
                     Logger.LogToFile($"Model {modelId} not found when running check.", "solibri.log");
                 response.EnsureSuccessStatusCode();
+                Logger.LogToFile($"Solibri Check f\u00fcr Modell {modelId} abgeschlossen", "solibri.log");
             }
             catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
             {
@@ -417,14 +417,13 @@ namespace SpaceTracker
                 try
                 {
                     using var doc = JsonDocument.Parse(json);
-                    if (doc.RootElement.TryGetProperty("state", out var state))
+                    // Solibri's status endpoint exposes a "busy" flag. The
+                    // polling should stop as soon as Solibri is no longer busy.
+                    if (doc.RootElement.TryGetProperty("busy", out var busyElem) &&
+                        !busyElem.GetBoolean())
                     {
-                        var val = state.GetString();
-                        if (string.Equals(val, "IDLE", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(val, "READY", StringComparison.OrdinalIgnoreCase))
-                        {
-                            return true;
-                        }
+                        Logger.LogToFile("Solibri Pr\u00fcfung abgeschlossen", "solibri.log");
+                        return true; // Solibri is idle/ready
                     }
                 }
                 catch
@@ -522,7 +521,7 @@ namespace SpaceTracker
                 {
                     Logger.LogCrash("Parse Check Results", ex);
                 }
-
+                Logger.LogToFile($"Solibri Check f\u00fcr Modell {modelId} abgeschlossen", "solibri.log");
                 return results ?? new List<ClashResult>();
             }
             catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
@@ -539,6 +538,10 @@ namespace SpaceTracker
             {
                 Logger.LogCrash("Solibri RunRulesetCheck", ex);
                 throw;
+            }
+            finally
+            {
+                Logger.LogToFile($"Solibri Check für Modell {modelId} abgeschlossen", "solibri.log");
             }
         }
 

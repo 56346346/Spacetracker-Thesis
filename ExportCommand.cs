@@ -15,7 +15,7 @@ namespace SpaceTracker
     [Regeneration(RegenerationOption.Manual)]
     public class ExportCommand : IExternalCommand
     {
-        
+
         // Exportiert das komplette Modell nach Neo4j und legt die erzeugten
         // Cypher-Befehle optional im Benutzerprofil ab.
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -86,6 +86,7 @@ namespace SpaceTracker
             {
                 Autodesk.Revit.UI.TaskDialog.Show("Push-Fehler",
                     $"Export nach Neo4j fehlgeschlagen: {ex.Message}");
+                Logger.LogCrash("ExportCommand", ex);
             }
 
 

@@ -21,6 +21,7 @@ namespace SpaceTracker
             catch (Exception ex)
             {
                 Autodesk.Revit.UI.TaskDialog.Show("IFC Export Fehler", ex.Message);
+                Logger.LogCrash("IFC Export", ex);
             }
         }
 

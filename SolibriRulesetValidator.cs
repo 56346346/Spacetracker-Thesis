@@ -33,6 +33,7 @@ namespace SpaceTracker
             var errors = new List<ValidationError>();
             try
             {
+                Logger.LogToFile($"Starte Solibri Check f\u00fcr Modell {doc.Title}", "solibri.log");
                 if (doc.IsReadOnly)
                 {
                     Autodesk.Revit.UI.TaskDialog.Show("Solibri", "Dokument ist schreibgesch\u00fctzt. IFC-Export nicht m\u00f6glich.");
@@ -68,6 +69,7 @@ namespace SpaceTracker
 
                 modelId = client.PartialUpdateAsync(modelId, ifcPath).GetAwaiter().GetResult();
                 SpaceTrackerClass.SolibriModelUUID = modelId;
+                Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
                 client.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).GetAwaiter().GetResult();
                 bool done = client.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5)).GetAwaiter().GetResult();
                 if (!done)
@@ -80,6 +82,7 @@ namespace SpaceTracker
                 errors = ParseBcfResults(bcfZip);
                 foreach (var err in errors)
                     Logger.LogToFile($"Solibri Issue: {err.Severity} - {err.Message}", "solibri.log");
+                Logger.LogToFile($"Solibri Check f\u00fcr Modell {doc.Title} abgeschlossen", "solibri.log");
             }
             catch (Exception ex)
             {

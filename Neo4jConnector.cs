@@ -103,6 +103,7 @@ namespace SpaceTracker
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Neo4j-Fehler] Lese-Query fehlgeschlagen: {ex.Message}");
+                Logger.LogCrash("RunReadQueryAsync", ex);
                 throw;
             }
         }
@@ -264,7 +265,7 @@ MERGE (l)-[:CONTAINS]->(w)";
                 // 7) Session schließen
                 await session.CloseAsync().ConfigureAwait(false);
             }
-        }      
+        }
         // Markiert alle fremden ChangeLogs als gelesen.
         public async Task AcknowledgeAllAsync(string currentSession)
         {

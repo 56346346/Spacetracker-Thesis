@@ -146,7 +146,9 @@ namespace SpaceTracker
                       SpaceTrackerClass.SolibriModelUUID = modelId;
                       if (removedGuids.Count > 0)
                           await _solibriClient.DeleteComponentsAsync(modelId, removedGuids).ConfigureAwait(false);
+                      Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
                       var results = await _solibriClient.RunRulesetCheckAsync(modelId).ConfigureAwait(false);
+                      Logger.LogToFile($"Solibri Check für Modell {modelId} abgeschlossen", "solibri.log");
                       var severity = ProcessClashResults(results, guidMap);
                       switch (severity)
                       {
