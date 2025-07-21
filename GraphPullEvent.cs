@@ -37,10 +37,12 @@ namespace SpaceTracker
                 if (doc == null)
                     continue;
 
-                    ExternalEvent.Create(
-                         new GraphPullEventHandler(_puller, doc, CommandManager.Instance.SessionId),
-                         "GraphPull")
-                         .Raise();
+                // ExternalEvent nur mit dem Handler erzeugen
+                var evt = ExternalEvent.Create(
+                    new GraphPullEventHandler(_puller, doc, CommandManager.Instance.SessionId)
+                );
+
+                evt.Raise();
             }
         }
 
