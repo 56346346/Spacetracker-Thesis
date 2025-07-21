@@ -157,6 +157,7 @@ namespace SpaceTracker
                     catch (Exception ex)
                     {
                         Logger.LogToFile($"ERROR {ex.Message} for {cmd}", CommandLogFile);
+                        Logger.LogCrash("PushChangesAsync", ex);
                         throw;
                     }
                     // 4.2) Änderungstyp bestimmen (Insert/Modify/Delete)
@@ -251,6 +252,7 @@ MERGE (l)-[:CONTAINS]->(w)";
             {
                 Debug.WriteLine($"[Neo4j Push Fehler] {ex.Message}");
                 Logger.LogToFile($"FAIL {ex.Message}", CommandLogFile);
+                Logger.LogCrash("PushChangesAsync", ex);
 
                 // 6) Bei Fehler: Rollback
                 try

@@ -166,37 +166,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             }
         }
 
-        private void ProcessWindow(Element window, Document doc)
-        {
-            if (window.Category?.Id.Value != (int)BuiltInCategory.OST_Windows)
-                return;
-
-            try
-            {
-                var winInstance = window as FamilyInstance;
-                Element hostWall = winInstance?.Host;
-                string winName = ParameterUtils.EscapeForCypher(window.Name);
-
-                string cyBase = $"MATCH (l:Level {{ElementId: {window.LevelId.Value}}})";
-                if (hostWall != null)
-                    cyBase += $", (w:Wall {{ElementId: {hostWall.Id.Value}}})";
-
-                string cyNode =
-                    $"{cyBase} MERGE (wi:Window {{ElementId: {window.Id.Value}}}) SET wi.Name = '{winName}'";
-
-                cyNode += " MERGE (l)-[:CONTAINS]->(wi)";
-                if (hostWall != null)
-                    cyNode += " MERGE (wi)-[:INSTALLED_IN]->(w)";
-
-                _cmdManager.cypherCommands.Enqueue(cyNode);
-                Debug.WriteLine("[Neo4j] Created Window node: " + cyNode);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Window Processing Error] {ex.Message}");
-            }
-        }
-
+       
 
         private void ProcessProvisionalSpace(FamilyInstance inst, Document doc)
         {
@@ -471,14 +441,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 {
                     ProcessDoor(door, doc);
                 }
-                var windowCollector = new FilteredElementCollector(doc)
-                 .OfCategory(BuiltInCategory.OST_Windows).OfClass(typeof(FamilyInstance)).WherePasses(lvlFilter);
-
-                var windows = windowCollector.ToElements();
-                foreach (var win in windows)
-                {
-                    ProcessWindow(win, doc);
-                }
+             
                 ProcessPipes(doc, lvl);
             }
             ProcessProvisionalSpaces(doc);
@@ -844,11 +807,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     cy = $"MATCH (l:Level {{ElementId: {intId}}}) " +
  $"SET l.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
                 }
-                else if (e is FamilyInstance win && win.Category.Id.Value == (int)BuiltInCategory.OST_Windows)
-                {
-                    cy = $"MATCH (wi:Window {{ElementId: {intId}}}) " +
-                         $"SET wi.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
-                }
+              
                 else
                 {
                     // unbekannter Typ überspringen
@@ -904,15 +863,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                                 Debug.WriteLine($"Modified Room with ID: {id} and Name: {e.Name}");
                             }
                         }
-                        if (e is FamilyInstance wfi && wfi.Category.Id.Value == (int)BuiltInCategory.OST_Windows)
-                        {
-                            Element host = wfi.Host;
-                            cy = $"MATCH (wi:Window{{ElementId: {intId}}}), (l:Level{{ElementId: {wfi.LevelId.Value}}}) MERGE (l)-[:CONTAINS]->(wi)";
-                            if (host is Wall hw)
-                                cy += $" WITH wi MATCH (w:Wall{{ElementId: {hw.Id.Value}}}) MERGE (wi)-[:INSTALLED_IN]->(w)";
-                            _cmdManager.cypherCommands.Enqueue(cy);
-                            Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
-                        }
+                      
                     }
                 }
                 if (typeof(Wall).IsAssignableFrom(e.GetType()))
@@ -989,9 +940,6 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                         break;
                     case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
                         ProcessDoor(fi, doc);
-                        break;
-                    case FamilyInstance wi when wi.Category.Id.Value == (int)BuiltInCategory.OST_Windows:
-                        ProcessWindow(wi, doc);
                         break;
                     case Element st when st.Category.Id.Value == (int)BuiltInCategory.OST_Stairs:
                         // Directly process the stair element. Level information
@@ -1082,22 +1030,6 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                         }
                     }
                 }
-                if (e is FamilyInstance wfi && wfi.Category.Id.Value == (int)BuiltInCategory.OST_Windows)
-                {
-                    string escapedName = ParameterUtils.EscapeForCypher(wfi.Name);
-                    Element host = wfi.Host;
-                    cy = $"MATCH (l:Level{{ElementId:{wfi.LevelId.Value}}})";
-                    if (host is Wall hw)
-                        cy += $", (w:Wall {{ElementId:{hw.Id.Value}}})";
-                    cy += $" MERGE (wi:Window {{ElementId:{wfi.Id.Value}, Name:'{escapedName}'}})";
-                    cy += " MERGE (l)-[:CONTAINS]->(wi)";
-                    if (host is Wall)
-                        cy += " MERGE (wi)-[:INSTALLED_IN]->(w)";
-                    _cmdManager.cypherCommands.Enqueue(cy);
-                    Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
-                }
-
-
             }
 
 

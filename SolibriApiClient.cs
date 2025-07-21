@@ -12,6 +12,7 @@ using SpaceTracker;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text.Json;
+using Autodesk.Revit.UI;
 
 
 
@@ -19,21 +20,25 @@ namespace SpaceTracker
 {
     public class SolibriApiClient
     {
+        public record CheckingError(
+        string Name,
+        string Location,
+        string Severity,
+        string Description,
+        string UniqueKey);
+
         private readonly string _baseUrl;
         // Holds the last successfully imported model ID to allow partial
         // updates across multiple calls.
         private string _currentModelId = string.Empty;
-        // Static HttpClient instance to avoid socket exhaustion. Timeout is set
-        // once in the static constructor before any requests are sent.
-        private static readonly HttpClient Http;
-
-        static SolibriApiClient()
+        // Shared HttpClient instance so that connections are reused across
+        // requests. A default base address is configured to allow using
+        // relative request URIs.
+        private static readonly HttpClient Http = new HttpClient
         {
-            Http = new HttpClient
-            {
-                Timeout = TimeSpan.FromMinutes(5)
-            };
-        }
+            BaseAddress = new Uri("http://localhost:10876/solibri/v1"),
+            Timeout = TimeSpan.FromMinutes(5)
+        };
         // Initialisiert den Client mit dem REST-Port von Solibri.
         public SolibriApiClient(int port)
         {
@@ -52,7 +57,7 @@ namespace SpaceTracker
             if (string.IsNullOrWhiteSpace(ifcFilePath))
                 throw new ArgumentException("Pfad zur IFC-Datei darf nicht leer sein.", nameof(ifcFilePath));
             SolibriProcessManager.EnsureStarted();
-            if (!await PingAsync().ConfigureAwait(false))
+            if (!await PingAsync())
                 throw new Exception("Solibri REST API nicht erreichbar");
 
             try
@@ -63,7 +68,11 @@ namespace SpaceTracker
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
                 var modelName = Path.GetFileNameWithoutExtension(ifcFilePath);
                 modelName = WebUtility.UrlEncode(modelName);
-                var response = await Http.PostAsync($"{_baseUrl}/models?name={modelName}", content).ConfigureAwait(false);
+                var response = await Http.PostAsync($"{_baseUrl}/models?name={modelName}", content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {response.StatusCode} bei {response.RequestMessage.RequestUri}", "crash.log");
+                }
                 if (response.StatusCode == HttpStatusCode.NotFound)
                     Logger.LogToFile("Import endpoint not found when uploading IFC model.", "solibri.log");
                 response.EnsureSuccessStatusCode();
@@ -123,7 +132,11 @@ namespace SpaceTracker
             if (string.IsNullOrEmpty(_currentModelId))
             {
                 // create empty model to obtain an id
-                var createResp = await Http.PostAsync($"{_baseUrl}/models", null).ConfigureAwait(false);
+                var createResp = await Http.PostAsync($"{_baseUrl}/models", null);
+                if (!createResp.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {createResp.StatusCode} bei {createResp.RequestMessage.RequestUri}", "crash.log");
+                }
                 if (createResp.IsSuccessStatusCode)
                 {
                     var uri = createResp.Headers.Location?.ToString();
@@ -157,7 +170,7 @@ namespace SpaceTracker
             if (string.IsNullOrWhiteSpace(csetFilePath))
                 throw new ArgumentException("Pfad zur Ruleset-Datei darf nicht leer sein.", nameof(csetFilePath));
             SolibriProcessManager.EnsureStarted();
-            if (!await PingAsync().ConfigureAwait(false))
+            if (!await PingAsync())
                 throw new Exception("Solibri REST API nicht erreichbar");
 
             try
@@ -181,20 +194,54 @@ namespace SpaceTracker
             if (string.IsNullOrWhiteSpace(rulesetId))
                 throw new ArgumentException("Regelsatz-ID darf nicht leer sein.", nameof(rulesetId));
             SolibriProcessManager.EnsureStarted();
-            if (!await PingAsync().ConfigureAwait(false))
+            if (!await PingAsync())
                 throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
+                Logger.LogToFile($"Starte {nameof(CheckModelAsync)} für Modell {modelId}", "solibri.log");
                 Logger.LogToFile($"Starte Solibri Check f\u00fcr Modell {modelId}", "solibri.log");
                 using var response = await Http.PostAsync(
                       "http://localhost:10876/solibri/v1/checking?checkSelected=false",
-                      null).ConfigureAwait(false);
+                    null)
+
+                if (!response.IsSuccessStatusCode) 
+                {
+                    string content = await response.Content.ReadAsStringAsync();
+                    try
+                    {
+                        var errors = JsonSerializer.Deserialize<List<CheckingError>>(content);
+                        if (errors != null && errors.Count > 0)
+                        {
+                            bool hasFields = !string.IsNullOrEmpty(errors[0].Name) &&
+                                             !string.IsNullOrEmpty(errors[0].Location) &&
+                                             !string.IsNullOrEmpty(errors[0].Severity) &&
+                                             !string.IsNullOrEmpty(errors[0].Description) &&
+                                             !string.IsNullOrEmpty(errors[0].UniqueKey);
+                            if (hasFields)
+                            {
+                                var msg = new StringBuilder();
+                                foreach (var e in errors)
+                                    msg.AppendLine(e.Description);
+                                Autodesk.Revit.UI.TaskDialog.Show("Solibri", msg.ToString());
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogCrash("Parse Solibri Error", ex);
+                    }
+                }
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {response.StatusCode} bei {response.RequestMessage.RequestUri}", "crash.log");
+                }
                 response.EnsureSuccessStatusCode();
                 if (response.StatusCode == HttpStatusCode.NotFound)
                     Logger.LogToFile($"Model {modelId} not found when running check.", "solibri.log");
                 response.EnsureSuccessStatusCode();
                 Logger.LogToFile($"Solibri Check f\u00fcr Modell {modelId} abgeschlossen", "solibri.log");
+                Logger.LogToFile($"{nameof(CheckModelAsync)} erfolgreich", "solibri.log");
             }
             catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
             {
@@ -227,23 +274,30 @@ namespace SpaceTracker
                     Logger.LogToFile(
                         "Model ID empty. Importing IFC model before partial update.",
                         "solibri.log");
-                    return await ImportIfcAsync(ifcFilePath).ConfigureAwait(false);
+                    Logger.LogToFile($"Starte {nameof(PartialUpdateAsync)} für Modell {modelId}", "solibri.log");
+                    var resultId = await ImportIfcAsync(ifcFilePath);
+                    Logger.LogToFile($"{nameof(PartialUpdateAsync)} erfolgreich", "solibri.log");
+                    return resultId;
                 }
             }
             if (string.IsNullOrWhiteSpace(ifcFilePath))
                 throw new ArgumentException("Pfad zur IFC-Datei darf nicht leer sein.", nameof(ifcFilePath));
             SolibriProcessManager.EnsureStarted();
-            if (!await PingAsync().ConfigureAwait(false))
+            if (!await PingAsync())
                 throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
-                Logger.LogToFile($"Partielles Update für Modell {modelId}");
+                Logger.LogToFile($"Starte {nameof(PartialUpdateAsync)} für Modell {modelId}", "solibri.log");
 
                 using var fs = File.OpenRead(ifcFilePath);
                 var content = new StreamContent(fs);
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                var response = await Http.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content).ConfigureAwait(false);
+                var response = await Http.PutAsync($"{_baseUrl}/models/{modelId}/partialUpdate", content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {response.StatusCode} bei {response.RequestMessage.RequestUri}", "crash.log");
+                }
                 if (response.StatusCode == HttpStatusCode.NotFound)
                 {
                     // Modell existiert nicht mehr in Solibri -> neu importieren
@@ -251,10 +305,13 @@ namespace SpaceTracker
                     string newId = await ImportIfcAsync(ifcFilePath).ConfigureAwait(false);
                     SpaceTrackerClass.SolibriModelUUID = newId;
                     _currentModelId = newId;
+                    Logger.LogToFile($"{nameof(PartialUpdateAsync)} erfolgreich", "solibri.log");
+
                     return newId;
                 }
                 response.EnsureSuccessStatusCode();
                 _currentModelId = modelId;
+                Logger.LogToFile($"{nameof(PartialUpdateAsync)} erfolgreich", "solibri.log");
                 return modelId;
 
             }
@@ -285,14 +342,20 @@ namespace SpaceTracker
                 throw new ArgumentNullException(nameof(guids));
 
             SolibriProcessManager.EnsureStarted();
-            if (!await PingAsync().ConfigureAwait(false))
+            if (!await PingAsync())
                 throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
+                Logger.LogToFile($"Starte {nameof(DeleteComponentsAsync)} für Modell {modelId}", "solibri.log");
                 Logger.LogToFile($"Lösche {guids.Count()} Komponenten in Modell {modelId}");
-                using var response = await Http.PostAsJsonAsync($"{_baseUrl}/models/{modelId}/deleteComponents", guids).ConfigureAwait(false);
+                using var response = await Http.PostAsJsonAsync($"{_baseUrl}/models/{modelId}/deleteComponents", guids);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {response.StatusCode} bei {response.RequestMessage.RequestUri}", "crash.log");
+                }
                 response.EnsureSuccessStatusCode();
+                Logger.LogToFile($"{nameof(DeleteComponentsAsync)} erfolgreich", "solibri.log");
             }
             catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
             {
@@ -327,7 +390,11 @@ namespace SpaceTracker
                     Directory.CreateDirectory(outDirectory);
 
                 Logger.LogToFile("Exportiere BCF für aktives Modell");
-                var response = await Http.GetAsync($"{_baseUrl}/bcfxml/two_one?scope=all").ConfigureAwait(false);
+                var response = await Http.GetAsync($"{_baseUrl}/bcfxml/two_one?scope=all");
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {response.StatusCode} bei {response.RequestMessage.RequestUri}", "crash.log");
+                }
                 response.EnsureSuccessStatusCode();
 
                 var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
@@ -362,7 +429,11 @@ namespace SpaceTracker
 
             try
             {
-                var response = await Http.GetAsync($"{_baseUrl}/ping").ConfigureAwait(false);
+                var response = await Http.GetAsync($"{_baseUrl}/ping");
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {response.StatusCode} bei {response.RequestMessage.RequestUri}", "crash.log");
+                }
                 response.EnsureSuccessStatusCode();
                 return true;
             }
@@ -385,7 +456,11 @@ namespace SpaceTracker
 
             try
             {
-                var response = await Http.GetAsync($"{_baseUrl}/status").ConfigureAwait(false);
+                var response = await Http.GetAsync($"{_baseUrl}/status");
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {response.StatusCode} bei {response.RequestMessage.RequestUri}", "crash.log");
+                }
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadAsStringAsync();
             }
@@ -444,13 +519,18 @@ namespace SpaceTracker
                 throw new ArgumentException("Modell-ID darf nicht leer sein.", nameof(modelId));
 
             SolibriProcessManager.EnsureStarted();
-            if (!await PingAsync().ConfigureAwait(false))
+            if (!await PingAsync())
                 throw new Exception("Solibri REST API nicht erreichbar");
 
             try
             {
+                Logger.LogToFile($"Starte {nameof(RunRulesetCheckAsync)} für Modell {modelId}", "solibri.log");
                 Logger.LogToFile($"Hole Rulesets für Modell {modelId}", "solibri.log");
-                using var rsResp = await Http.GetAsync($"{_baseUrl}/models/{modelId}/rulesets").ConfigureAwait(false);
+                using var rsResp = await Http.GetAsync($"{_baseUrl}/models/{modelId}/rulesets");
+                if (!rsResp.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {rsResp.StatusCode} bei {rsResp.RequestMessage.RequestUri}", "crash.log");
+                }
                 rsResp.EnsureSuccessStatusCode();
                 string rsJson = await rsResp.Content.ReadAsStringAsync().ConfigureAwait(false);
                 string? deltaId = null;
@@ -481,12 +561,20 @@ namespace SpaceTracker
                 if (!string.IsNullOrEmpty(deltaId) && !active)
                 {
                     Logger.LogToFile($"Aktiviere Ruleset {deltaId}", "solibri.log");
-                    using var actResp = await Http.PostAsync($"{_baseUrl}/models/{modelId}/rulesets/{deltaId}/activate", null).ConfigureAwait(false);
+                    using var actResp = await Http.PostAsync($"{_baseUrl}/models/{modelId}/rulesets/{deltaId}/activate", null);
+                    if (!actResp.IsSuccessStatusCode)
+                    {
+                        Logger.LogToFile($"SOLIBRI {actResp.StatusCode} bei {actResp.RequestMessage.RequestUri}", "crash.log");
+                    }
                     actResp.EnsureSuccessStatusCode();
                 }
 
                 Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
-                using var checkResp = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", null).ConfigureAwait(false);
+                using var checkResp = await Http.PostAsync($"{_baseUrl}/models/{modelId}/check", null);
+                if (!checkResp.IsSuccessStatusCode)
+                {
+                    Logger.LogToFile($"SOLIBRI {checkResp.StatusCode} bei {checkResp.RequestMessage.RequestUri}", "crash.log");
+                }
                 checkResp.EnsureSuccessStatusCode();
 
                 var sw = Stopwatch.StartNew();
@@ -494,9 +582,13 @@ namespace SpaceTracker
                 do
                 {
                     await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-                    using var statusResp = await Http.GetAsync($"{_baseUrl}/models/{modelId}/status").ConfigureAwait(false);
+                    using var statusResp = await Http.GetAsync($"{_baseUrl}/models/{modelId}/status");
+                    if (!statusResp.IsSuccessStatusCode)
+                    {
+                        Logger.LogToFile($"SOLIBRI {statusResp.StatusCode} bei {statusResp.RequestMessage.RequestUri}", "crash.log");
+                    }
                     statusResp.EnsureSuccessStatusCode();
-                    string statusJson = await statusResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    string statusJson = await statusResp.Content.ReadAsStringAsync();
                     try
                     {
                         using var doc = JsonDocument.Parse(statusJson);
@@ -522,6 +614,7 @@ namespace SpaceTracker
                     Logger.LogCrash("Parse Check Results", ex);
                 }
                 Logger.LogToFile($"Solibri Check f\u00fcr Modell {modelId} abgeschlossen", "solibri.log");
+                Logger.LogToFile($"{nameof(RunRulesetCheckAsync)} erfolgreich", "solibri.log");
                 return results ?? new List<ClashResult>();
             }
             catch (HttpRequestException ex) when (ex.InnerException is SocketException sockEx)
