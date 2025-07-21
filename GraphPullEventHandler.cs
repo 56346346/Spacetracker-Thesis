@@ -17,7 +17,7 @@ public class GraphPullEventHandler : IExternalEventHandler
         _sessionId = sessionId;
     }
 
-    public async void Execute(UIApplication app)
+    public void Execute(UIApplication app)
     {
         if (_doc.IsReadOnly || _doc.IsModifiable)
         {
@@ -25,7 +25,7 @@ public class GraphPullEventHandler : IExternalEventHandler
             return;
         }
 
-        await _puller.PullRemoteChanges(_doc, _sessionId);
+        _puller.PullRemoteChanges(_doc, _sessionId).GetAwaiter().GetResult();
 
         var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
         _ = Task.Run(async () =>

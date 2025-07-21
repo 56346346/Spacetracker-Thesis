@@ -11,6 +11,7 @@ using System.Xml.Linq;
 using System.IO;                     // für Path
 using Autodesk.Revit.DB.Architecture;// für Room
 using SpaceTracker;
+using System.Threading;
 
 namespace SpaceTracker
 {
@@ -22,8 +23,9 @@ namespace SpaceTracker
 
         private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
 
-        private static readonly object _lockObj = new object();
-        private static bool _solibriBusy;
+
+        private static MarkSeverityHandler _markHandler = new MarkSeverityHandler();
+        private ExternalEvent _markEvent;
 
         private ExternalEvent _externalEvent;
         private readonly CypherPushHandler _pushHandler = new CypherPushHandler();
@@ -104,18 +106,11 @@ namespace SpaceTracker
                 _ = Task.Run(async () =>
               {
                   Logger.LogToFile("Solibri async task start", "concurrency.log");
-                  bool runSolibri = false;
+                  Dictionary<ElementId, string> severityMap = new();
 
                   try
                   {
-                      lock (_lockObj)
-                      {
-                          if (_solibriBusy)
-                          {
-                              Logger.LogToFile("Solibri-Prüfung ausgelassen, da bereits aktiv.");
-                              return;
-                          }
-                      }
+
 
                       if (!await _solibriClient.PingAsync().ConfigureAwait(false))
                       {
@@ -131,42 +126,40 @@ namespace SpaceTracker
                               .ConfigureAwait(false);
                       }
 
-                      lock (_lockObj)
+                      await SpaceTrackerClass.SolibriLock.WaitAsync().ConfigureAwait(false);
+                      try
                       {
-                          if (_solibriBusy)
+                          modelId = await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
+                          SpaceTrackerClass.SolibriModelUUID = modelId;
+                          if (removedGuids.Count > 0)
+                              await _solibriClient.DeleteComponentsAsync(modelId, removedGuids).ConfigureAwait(false);
+                          Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
+                          var results = await _solibriClient.RunRulesetCheckAsync(modelId).ConfigureAwait(false);
+                          Logger.LogToFile($"Solibri Check für Modell {modelId} abgeschlossen", "solibri.log");
+                          var (severity, map) = ProcessClashResults(results, guidMap);
+                          severityMap = map;
+                          switch (severity)
+
                           {
-                              Logger.LogToFile("Solibri-Prüfung ausgelassen, da bereits aktiv.");
-                              return;
+                              case IssueSeverity.Error:
+                                  SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
+                                  Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: error");
+                                  break;
+                              case IssueSeverity.Warning:
+                                  SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
+                                  Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: warning");
+                                  break;
+                              default:
+                                  SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
+                                  Debug.WriteLine("[DatabaseUpdateHandler] No Solibri issues detected");
+                                  break;
                           }
-                          _solibriBusy = true;
-                          runSolibri = true;
                       }
+                      finally
 
-                      modelId = await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
-                      SpaceTrackerClass.SolibriModelUUID = modelId;
-                      if (removedGuids.Count > 0)
-                          await _solibriClient.DeleteComponentsAsync(modelId, removedGuids).ConfigureAwait(false);
-                      Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
-                      var results = await _solibriClient.RunRulesetCheckAsync(modelId).ConfigureAwait(false);
-                      Logger.LogToFile($"Solibri Check für Modell {modelId} abgeschlossen", "solibri.log");
-                      var severity = ProcessClashResults(results, guidMap);
-                      switch (severity)
                       {
-                          case IssueSeverity.Error:
-                              SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
-                              Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: error");
+                          SpaceTrackerClass.SolibriLock.Release();
 
-                              break;
-                          case IssueSeverity.Warning:
-                              SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
-                              Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: warning");
-
-                              break;
-                          default:
-                              SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
-                              Debug.WriteLine("[DatabaseUpdateHandler] No Solibri issues detected");
-
-                              break;
                       }
                   }
                   catch (Exception ex)
@@ -175,12 +168,10 @@ namespace SpaceTracker
                   }
                   finally
                   {
-                      if (runSolibri)
+                      if (severityMap.Count > 0 && _markEvent != null && !_markEvent.IsPending)
                       {
-                          lock (_lockObj)
-                          {
-                              _solibriBusy = false;
-                          }
+                          _markHandler.SeverityMap = severityMap;
+                          _markEvent.Raise();
                       }
                       if (_pushEvent != null && !_pushEvent.IsPending)
                           _pushEvent.Raise();
@@ -196,7 +187,7 @@ namespace SpaceTracker
             Logger.LogToFile("DatabaseUpdateHandler Execute finished", "concurrency.log");
         }
 
-        private static IssueSeverity ProcessClashResults(IEnumerable<ClashResult> results, Dictionary<string, ElementId> guidMap)
+        private static (IssueSeverity Severity, Dictionary<ElementId, string> Map) ProcessClashResults(IEnumerable<ClashResult> results, Dictionary<string, ElementId> guidMap)
         {
             IssueSeverity worst = IssueSeverity.None;
             var severityMap = new Dictionary<ElementId, string>();
@@ -247,9 +238,8 @@ MERGE (e)-[:HAS_ISSUE]->(i)";
                 }
             }
 
-            if (severityMap.Count > 0)
-                SpaceTrackerClass.MarkElementsBySeverity(severityMap);
-            return worst;
+            return (worst, severityMap);
+
         }
 
 
@@ -274,6 +264,7 @@ MERGE (e)-[:HAS_ISSUE]->(i)";
         {
             _externalEvent = ExternalEvent.Create(this);
             _pushEvent = ExternalEvent.Create(_pushHandler);
+            _markEvent = ExternalEvent.Create(_markHandler);
         }
 
         /// <summary>

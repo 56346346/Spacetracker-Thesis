@@ -28,7 +28,7 @@ namespace SpaceTracker
         // Transaktionen gestartet werden.
         // Exportiert das Modell, prüft es mit Solibri und liefert gefundene Fehler.
 
-        public static List<ValidationError> Validate(Document doc)
+        public static async Task<List<ValidationError>> Validate(Document doc)
         {
             var errors = new List<ValidationError>();
             try
@@ -62,23 +62,23 @@ namespace SpaceTracker
 
                 if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
                 {
-                    SpaceTrackerClass.SolibriRulesetId = client
+                    SpaceTrackerClass.SolibriRulesetId = await client
                       .ImportRulesetAsync(SpaceTrackerClass.SolibriRulesetPath)
-                      .GetAwaiter().GetResult();
+                      .ConfigureAwait(false);
                 }
 
-                modelId = client.PartialUpdateAsync(modelId, ifcPath).GetAwaiter().GetResult();
+                modelId = await client.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
                 SpaceTrackerClass.SolibriModelUUID = modelId;
                 Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
-                client.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).GetAwaiter().GetResult();
-                bool done = client.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5)).GetAwaiter().GetResult();
+                    await client.CheckModelAsync(modelId, SpaceTrackerClass.SolibriRulesetId).ConfigureAwait(false);
+                bool done = await client.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5)).ConfigureAwait(false);
                 if (!done)
                 {
                     Logger.LogToFile("Solibri Prüfung hat das Zeitlimit überschritten", "solibri.log");
                     return errors;
                 }
                 var bcfDir = Path.Combine(Path.GetTempPath(), CommandManager.Instance.SessionId);
-                string bcfZip = client.ExportBcfAsync(bcfDir).GetAwaiter().GetResult();
+                string bcfZip = await client.ExportBcfAsync(bcfDir).ConfigureAwait(false);
                 errors = ParseBcfResults(bcfZip);
                 foreach (var err in errors)
                     Logger.LogToFile($"Solibri Issue: {err.Severity} - {err.Message}", "solibri.log");

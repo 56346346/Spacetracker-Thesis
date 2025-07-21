@@ -76,7 +76,7 @@ namespace SpaceTracker
                 connector.PushChangesAsync(changes, sessionId, doc).GetAwaiter().GetResult();
                 connector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
 
-                var errs = SolibriRulesetValidator.Validate(doc);
+                var errs = SolibriRulesetValidator.Validate(doc).GetAwaiter().GetResult();
                 var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                 SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
 

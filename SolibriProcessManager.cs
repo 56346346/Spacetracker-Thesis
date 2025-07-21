@@ -72,7 +72,6 @@ namespace SpaceTracker
                 {
                     // ignore and retry
                 }
-                Thread.Sleep(1000);
             }
 
             Logger.LogToFile("Solibri REST API not reachable after waiting.");

@@ -116,8 +116,12 @@ namespace SpaceTracker
                 await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
                 if (currentDoc != null)
                 {
-                    var checkTasks = ids.Select(id => SolibriChecker.CheckElementAsync(new ElementId((int)id), currentDoc));
-                    await Task.WhenAll(checkTasks);
+                    foreach (var id in ids)
+                    {
+                        await SolibriChecker
+                            .CheckElementAsync(new ElementId((int)id), currentDoc)
+                            .ConfigureAwait(false);
+                    }
                 }
                 Logger.LogToFile("ProcessCypherQueueAsync completed", "concurrency.log");
 

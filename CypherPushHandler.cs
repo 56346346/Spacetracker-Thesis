@@ -10,19 +10,27 @@ namespace SpaceTracker
 {
     public class CypherPushHandler : IExternalEventHandler
     {
-        public async void Execute(UIApplication app)
+        public void Execute(UIApplication app)
         {
             try
             {
                 var doc = app.ActiveUIDocument?.Document;
- await CommandManager.Instance.ProcessCypherQueueAsync(doc);
-                // Nach dem Push sofort die Solibri-Regeln validieren und die Ampel anpassen
+                await CommandManager.Instance.ProcessCypherQueueAsync(doc);
+
 
                 if (doc != null)
                 {
-                    var errs = SolibriRulesetValidator.Validate(doc);
-                    var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
-                    SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
+                     await SpaceTrackerClass.SolibriLock.WaitAsync();
+                    try
+                    {
+                        var errs = await SolibriRulesetValidator.Validate(doc);
+                        var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
+                        SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
+                    }
+                    finally
+                    {
+                        SpaceTrackerClass.SolibriLock.Release();
+                    }
                 }
             }
             catch (Exception ex)

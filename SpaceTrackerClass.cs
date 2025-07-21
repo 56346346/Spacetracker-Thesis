@@ -44,6 +44,7 @@ namespace SpaceTracker
         private static readonly object _logLock = new object();
 
         private RibbonPanel _ribbonPanel;
+        internal static readonly SemaphoreSlim SolibriLock = new SemaphoreSlim(1, 1);
 
 
         private Neo4jConnector _neo4jConnector;
@@ -183,7 +184,7 @@ namespace SpaceTracker
             // Fehlerstufe setzen
             try
             {
-                var errs = SolibriRulesetValidator.Validate(doc);
+                var errs = SolibriRulesetValidator.Validate(doc).GetAwaiter().GetResult();
                 var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                 UpdateConsistencyCheckerButton(sev);
 
@@ -952,7 +953,7 @@ namespace SpaceTracker
                             _neo4jConnector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
 
                             // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
-                            var errs = SolibriRulesetValidator.Validate(doc);
+                            var errs = SolibriRulesetValidator.Validate(doc).GetAwaiter().GetResult();
                             var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                             SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
 
