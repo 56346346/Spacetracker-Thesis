@@ -418,7 +418,7 @@ namespace SpaceTracker
             catch (Exception ex)
             {
                 Logger.LogCrash("Solibri Export BCF", ex);
-
+  
                 throw;
             }
         }
