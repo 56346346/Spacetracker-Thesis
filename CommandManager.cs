@@ -23,6 +23,23 @@ namespace SpaceTracker
         private Neo4jConnector _neo4jConnector;
         public Neo4jConnector Neo4jConnector => _neo4jConnector;
 
+        // NEU: Pull-Modus Flag
+        private bool _isPullInProgress = false;
+        
+        /// <summary>
+        /// Indicates if a pull operation is currently in progress.
+        /// During pull, no automatic push operations should be triggered.
+        /// </summary>
+        public bool IsPullInProgress 
+        { 
+            get => _isPullInProgress;
+            set 
+            {
+                _isPullInProgress = value;
+                Logger.LogToFile($"PULL MODE: {(value ? "ENABLED" : "DISABLED")} - Automatic push operations {(value ? "SUPPRESSED" : "ALLOWED")}", "sync.log");
+            }
+        }
+
 
 
 

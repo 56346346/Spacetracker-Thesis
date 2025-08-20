@@ -20,6 +20,15 @@ namespace SpaceTracker
         // Cypher-Befehle optional im Benutzerprofil ab.
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            // Warn user if they try to push during pull
+            if (CommandManager.Instance.IsPullInProgress)
+            {
+                Logger.LogToFile("PUSH BLOCKED: Manual push attempted during pull operation", "sync.log");
+                Autodesk.Revit.UI.TaskDialog.Show("SpaceTracker", 
+                    "Push-Operation nicht möglich während Pull-Vorgang.\n" +
+                    "Bitte warten Sie bis der Pull abgeschlossen ist.");
+                return Result.Cancelled;
+            }
 
             UIApplication uiApp = commandData.Application;
             // UIDocument und Document daraus:

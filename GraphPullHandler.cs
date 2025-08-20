@@ -64,6 +64,10 @@ namespace SpaceTracker
         public void Handle(Document doc, string sessionId)
         {
             var startTime = DateTime.Now;
+            
+            // KRITISCH: Pull-Modus aktivieren VOR der Transaction
+            CommandManager.Instance.IsPullInProgress = true;
+            
             try
             {
                 // Check document state before starting
@@ -111,6 +115,12 @@ namespace SpaceTracker
                 // Show critical error dialog but don't crash Revit
                 Autodesk.Revit.UI.TaskDialog.Show("SpaceTracker Critical Error", 
                     $"Critical error in pull handler: {ex.Message}\n\nRevit should remain stable. Check logs for details.");
+            }
+            finally
+            {
+                // KRITISCH: Pull-Modus deaktivieren NACH der Transaction
+                CommandManager.Instance.IsPullInProgress = false;
+                Logger.LogToFile("PULL TRANSACTION: Pull transaction completed, automatic push re-enabled", "sync.log");
             }
         }
 

@@ -411,6 +411,9 @@ public class GraphPuller
             {
                 Logger.LogToFile($"Successfully created wall {wall.Id}", "sync.log");
 
+                // KRITISCH: Markiere die Wand als SpaceTracker-Element um Feedback-Loops zu vermeiden
+                MarkWallWithRemoteId(wall, Convert.ToInt32(w["ElementId"]));
+
                 // Set location line
                 if (w.ContainsKey("location_line"))
                 {
@@ -612,12 +615,36 @@ public class GraphPuller
 
     private void MarkWallWithRemoteId(Wall wall, int remoteId)
     {
-        var p = wall.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-        if (p != null && !p.IsReadOnly)
+        try
         {
-            var current = p.AsString();
-            var tag = $"SpaceTracker:ElementId={remoteId}";
-            p.Set(string.IsNullOrEmpty(current) ? tag : $"{current}; {tag}");
+            var p = wall.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+            if (p != null && !p.IsReadOnly)
+            {
+                var current = p.AsString();
+                var tag = $"SpaceTracker:ElementId={remoteId}";
+                
+                // Zusätzlich: Pull-Marker hinzufügen
+                var pullMarker = $"SpaceTracker:PulledFrom={CommandManager.Instance.SessionId}";
+                
+                if (string.IsNullOrEmpty(current))
+                {
+                    p.Set($"{tag}; {pullMarker}");
+                }
+                else if (!current.Contains(tag))
+                {
+                    p.Set($"{current}; {tag}; {pullMarker}");
+                }
+                
+                Logger.LogToFile($"WALL MARKING: Marked wall {wall.Id} with remoteId {remoteId} and pull marker", "sync.log");
+            }
+            else
+            {
+                Logger.LogToFile($"WARNING: Could not mark wall {wall.Id} - Comments parameter is not available or read-only", "sync.log");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogToFile($"ERROR: Failed to mark wall {wall.Id} with remoteId {remoteId} - {ex.Message}", "sync.log");
         }
     }
 
@@ -730,6 +757,13 @@ public class GraphPuller
         var startTime = DateTime.Now;
         Logger.LogToFile($"PULL REMOTE STARTED: PullRemoteChanges called for document '{doc.Title}' with user {currentUserId} at {startTime:yyyy-MM-dd HH:mm:ss.fff}", "sync.log");
 
+        // KRITISCH: Pull-Modus aktivieren für direkte PullRemoteChanges Aufrufe
+        bool wasPullInProgress = CommandManager.Instance.IsPullInProgress;
+        if (!wasPullInProgress)
+        {
+            CommandManager.Instance.IsPullInProgress = true;
+        }
+
         // For MVP, redirect to ChangeLog-based wall synchronization only
         try
         {
@@ -750,6 +784,15 @@ public class GraphPuller
             Logger.LogToFile($"PULL REMOTE FAILED: PullRemoteChanges failed after {duration.TotalMilliseconds:F0}ms - {ex.Message}", "sync.log");
             Logger.LogCrash("PullRemoteChanges fallback failed", ex);
             throw;
+        }
+        finally
+        {
+            // KRITISCH: Pull-Modus nur deaktivieren wenn wir ihn aktiviert haben
+            if (!wasPullInProgress)
+            {
+                CommandManager.Instance.IsPullInProgress = false;
+                Logger.LogToFile("PULL REMOTE: Pull mode deactivated after direct PullRemoteChanges call", "sync.log");
+            }
         }
     }
 

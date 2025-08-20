@@ -755,6 +755,33 @@ namespace SpaceTracker
         }
 
         /// <summary>
+        /// Checks if an element was created by SpaceTracker to prevent feedback loops
+        /// </summary>
+        private bool IsSpaceTrackerElement(Element element)
+        {
+            try
+            {
+                var commentsParam = element.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                var comments = commentsParam?.AsString() ?? "";
+                
+                // Element stammt von SpaceTracker wenn es SpaceTracker-Marker hat
+                bool isFromSpaceTracker = comments.Contains("SpaceTracker:ElementId=") || 
+                                         comments.Contains("SpaceTracker:PulledFrom=");
+                
+                if (isFromSpaceTracker)
+                {
+                    Logger.LogToFile($"ELEMENT FILTER: Skipping SpaceTracker element {element.Id.Value} - already managed", "sync.log");
+                }
+                
+                return isFromSpaceTracker;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Triggers a pull of the latest changes for all open sessions.
         /// </summary>
         private void PullChanges()
@@ -828,6 +855,14 @@ namespace SpaceTracker
         private async Task documentChanged(object sender, DocumentChangedEventArgs e)
         {
             var startTime = DateTime.Now;
+            
+            // KRITISCH: Während Pull-Operationen keine automatischen Pushes
+            if (CommandManager.Instance.IsPullInProgress)
+            {
+                Logger.LogToFile("PUSH SUPPRESSED: Document change detected during pull operation - skipping automatic push", "sync.log");
+                return;
+            }
+            
             try
             {
                 Document doc = e.GetDocument();
@@ -863,9 +898,13 @@ namespace SpaceTracker
 
                 // 3. Early Exit bei keinen relevanten Änderungen
 
-                // 4. Elemente aus Dokument holen (mit Null-Check)
-                var addedElements = GetAddedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
-                var modifiedElements = GetModifiedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
+                // 4. Elemente aus Dokument holen (mit Null-Check) - Filterung für SpaceTracker-Elemente
+                var addedElements = GetAddedElements(e, doc)
+                    .Where(el => filter.PassesFilter(el) && !IsSpaceTrackerElement(el))
+                    .ToList();
+                var modifiedElements = GetModifiedElements(e, doc)
+                    .Where(el => filter.PassesFilter(el) && !IsSpaceTrackerElement(el))
+                    .ToList();
                 
                 if (addedElements.Count == 0 &&
                  modifiedElements.Count == 0 &&
@@ -877,7 +916,7 @@ namespace SpaceTracker
                     return;
                 }
 
-                Logger.LogToFile($"DOCUMENT CHANGE PROCESSING: Processing {addedElements.Count} added, {modifiedElements.Count} modified, {deletedIds.Count} deleted elements", "sync.log");
+                Logger.LogToFile($"DOCUMENT CHANGE PROCESSING: Processing {addedElements.Count} added, {modifiedElements.Count} modified, {deletedIds.Count} deleted native elements (SpaceTracker elements filtered out)", "sync.log");
 
                 // 5. Element-Cache aktualisieren
                 UpdateElementCache(addedElements, modifiedElements, deletedIds.ToList());
