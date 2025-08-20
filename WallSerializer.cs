@@ -25,6 +25,11 @@ public static class WallSerializer
                     ?? string.Empty;
         double baseOffset = wall.get_Parameter(BuiltInParameter.WALL_BASE_OFFSET)?.AsDouble() ?? 0;
         int locationLine = wall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM)?.AsInteger() ?? (int)WallLocationLine.WallCenterline;
+        
+        // Get Level information - critical for reconstruction
+        Level level = wall.Document.GetElement(wall.LevelId) as Level;
+        string baseLevelUid = level?.UniqueId ?? string.Empty;
+        
         var dict = new Dictionary<string, object>
         {
             ["rvtClass"] = "Wall",
@@ -35,12 +40,19 @@ public static class WallSerializer
             ["familyName"] = wall.WallType.FamilyName,
             ["Name"] = name,
             ["levelId"] = wall.LevelId.Value,
-            ["x1"] = UnitConversion.ToMm(s.X),
-            ["y1"] = UnitConversion.ToMm(s.Y),
-            ["z1"] = UnitConversion.ToMm(s.Z),
-            ["x2"] = UnitConversion.ToMm(e.X),
-            ["y2"] = UnitConversion.ToMm(e.Y),
-            ["z2"] = UnitConversion.ToMm(e.Z),
+            // Store coordinates in meters for ChangeLog compatibility
+            ["x1"] = UnitConversion.ToMeters(s.X),
+            ["y1"] = UnitConversion.ToMeters(s.Y),
+            ["z1"] = UnitConversion.ToMeters(s.Z),
+            ["x2"] = UnitConversion.ToMeters(e.X),
+            ["y2"] = UnitConversion.ToMeters(e.Y),
+            ["z2"] = UnitConversion.ToMeters(e.Z),
+            // Critical: Store baseLevelUid for reconstruction
+            ["baseLevelUid"] = baseLevelUid,
+            // Store height in meters for consistency
+            ["height"] = UnitConversion.ToMeters(height),
+            ["thickness_m"] = UnitConversion.ToMeters(thickness),
+            // Keep mm versions for compatibility
             ["height_mm"] = UnitConversion.ToMm(height),
             ["thickness_mm"] = UnitConversion.ToMm(thickness),
             ["structural"] = WallNode.IsStructural(wall),
@@ -51,6 +63,39 @@ public static class WallSerializer
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow
         };
+
+        // Add room bounding property
+        var roomBoundingParam = wall.get_Parameter(BuiltInParameter.WALL_ATTR_ROOM_BOUNDING);
+        if (roomBoundingParam != null)
+        {
+            dict["roomBounding"] = roomBoundingParam.AsInteger() == 1;
+        }
+
+        // Add top constraint information
+        var topConstraintParam = wall.get_Parameter(BuiltInParameter.WALL_HEIGHT_TYPE);
+        var topOffsetParam = wall.get_Parameter(BuiltInParameter.WALL_TOP_OFFSET);
+        
+        if (topConstraintParam != null && topConstraintParam.AsElementId() != ElementId.InvalidElementId)
+        {
+            var topLevel = wall.Document.GetElement(topConstraintParam.AsElementId()) as Level;
+            if (topLevel != null)
+            {
+                dict["topLevelUid"] = topLevel.UniqueId;
+                dict["topLevelId"] = topLevel.Id.Value;
+            }
+        }
+        
+        if (topOffsetParam != null)
+        {
+            dict["top_offset_m"] = UnitConversion.ToMeters(topOffsetParam.AsDouble());
+        }
+
+        // Add unconnected height if wall uses it
+        var unconnectedHeightParam = wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM);
+        if (unconnectedHeightParam != null)
+        {
+            dict["unconnected_height_m"] = UnitConversion.ToMeters(unconnectedHeightParam.AsDouble());
+        }
 
         SerializeParameters(wall, dict);
         return dict;

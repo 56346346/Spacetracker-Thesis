@@ -110,25 +110,34 @@ namespace SpaceTracker
 
         // Schreibt alle Änderungen in einer Transaktion nach Neo4j und legt für
         // jedes Element einen Log-Eintrag an.
-        public async Task PushChangesAsync(IEnumerable<(string Command, string CachePath)> changes, string sessionId, Autodesk.Revit.DB.Document currentDocument = null)
+        public async Task PushChangesAsync(IEnumerable<string> cypherCommands, string sessionId, Autodesk.Revit.DB.Document currentDocument = null)
         {
+            var startTime = DateTime.Now;
+            var commandList = cypherCommands.ToList();
+            
+            Logger.LogToFile($"PUSH STARTED: Session {sessionId} with {commandList.Count} commands at {startTime:yyyy-MM-dd HH:mm:ss.fff}", "sync.log");
+            
             LogMethodCall(nameof(PushChangesAsync), new()
             {
-                ["changeCount"] = changes?.Count(),
+                ["commandCount"] = commandList.Count,
                 ["sessionId"] = sessionId
             });
+            
             // 1) Asynchrone Neo4j-Session öffnen
             await using var session = _driver.AsyncSession();
-            Logger.LogToFile($"BEGIN push {changes.Count()} commands", CommandLogFile);
+            Logger.LogToFile($"PUSH NEO4J SESSION: Opened database session for {commandList.Count} commands", "sync.log");
+            Logger.LogToFile($"BEGIN push {commandList.Count} commands", CommandLogFile);
             try
             {
                 // 2) Transaction starten
+                Logger.LogToFile("PUSH TRANSACTION: Starting Neo4j transaction", "sync.log");
                 var tx = await session.BeginTransactionAsync().ConfigureAwait(false);
 
                 // ─────────────────────────────────────────────────────────
                 // ► SESSION-KNOTEN ERSTELLEN / UPDATEN (MERGE ganz am Anfang)
                 // ─────────────────────────────────────────────────────────
                 var initTime = DateTime.Now.ToString("o");
+                Logger.LogToFile($"PUSH SESSION UPDATE: Creating/updating session node {sessionId}", "sync.log");
                 await tx.RunAsync(
                   @"MERGE (s:Session { id: $session })
                SET s.lastSync = datetime($time),
@@ -140,22 +149,24 @@ namespace SpaceTracker
                   }
               ).ConfigureAwait(false);
 
-                // 3) Regex zum Extrahieren der ElementId aus dem Cypher-String
-                var idRegex = new Regex(@"ElementId\D+(\d+)", RegexOptions.IgnoreCase);
+                // 3) Improved Regex zum Extrahieren der ElementId aus dem Cypher-String
+                var idRegex = new Regex(@"elementId[:\s]*(\d+)", RegexOptions.IgnoreCase);
                 // 4) Alle Commands durchlaufen
-                foreach (var change in changes)
+                int commandIndex = 0;
+                foreach (var cmd in commandList)
                 {
-                    string cmd = change.Command;
-                    string cachePath = change.CachePath;
-
+                    commandIndex++;
+                    Logger.LogToFile($"PUSH COMMAND {commandIndex}/{commandList.Count}: Executing Cypher command", "sync.log");
                     Logger.LogToFile($"RUN {cmd}", CommandLogFile);
                     try
                     {
                         // 4.1) Änderungsbefehl ausführen – jetzt mit $session-Parameter
                         await tx.RunAsync(cmd, new { session = sessionId }).ConfigureAwait(false);
+                        Logger.LogToFile($"PUSH COMMAND {commandIndex} SUCCESS: Command executed successfully", "sync.log");
                     }
                     catch (Exception ex)
                     {
+                        Logger.LogToFile($"PUSH COMMAND {commandIndex} ERROR: {ex.Message} for {cmd}", "sync.log");
                         Logger.LogToFile($"ERROR {ex.Message} for {cmd}", CommandLogFile);
                         Logger.LogCrash("PushChangesAsync", ex);
                         throw;
@@ -184,7 +195,7 @@ namespace SpaceTracker
                     {
                         logQuery = @"MATCH (s:Session { id: $session })
 MERGE (cl:ChangeLog { sessionId: $session, elementId: $eid, type: $type })
-ON CREATE SET cl.user = $user, cl.timestamp = datetime($time), cl.cachePath = $path, cl.acknowledged = false
+ON CREATE SET cl.user = $user, cl.timestamp = datetime($time), cl.acknowledged = false
 MERGE (s)-[:HAS_LOG]->(cl)";
                     }
                     else
@@ -196,7 +207,6 @@ CREATE (cl:ChangeLog {
     timestamp: datetime($time),
     type: $type,
     elementId: $eid,
-    cachePath: $path,
     acknowledged: false
 })
 MERGE (s)-[:HAS_LOG]->(cl)";
@@ -209,8 +219,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                             user = sessionId,
                             time = logTime,
                             type = changeType,
-                            eid = elementId,
-                            path = cachePath
+                            eid = elementId
                         }).ConfigureAwait(false);
 
                     // lastModifiedUtc setzen
@@ -243,20 +252,26 @@ MERGE (l)-[:CONTAINS]->(w)";
                 }
 
                 // 5) Transaction committen
+                Logger.LogToFile("PUSH TRANSACTION COMMIT: Committing Neo4j transaction", "sync.log");
                 await tx.CommitAsync().ConfigureAwait(false);
-                Logger.LogToFile($"COMMIT {changes.Count()} commands", CommandLogFile);
-                Debug.WriteLine($"[Neo4j] PushChanges: {changes.Count()} Änderungen übertragen und protokolliert.");
+                var duration = DateTime.Now - startTime;
+                Logger.LogToFile($"PUSH COMPLETED: Successfully committed {commandList.Count} commands in {duration.TotalMilliseconds:F0}ms", "sync.log");
+                Logger.LogToFile($"COMMIT {commandList.Count} commands", CommandLogFile);
+                Debug.WriteLine($"[Neo4j] PushChanges: {commandList.Count} Änderungen übertragen und protokolliert.");
 
             }
             catch (Exception ex)
             {
+                var duration = DateTime.Now - startTime;
                 Debug.WriteLine($"[Neo4j Push Fehler] {ex.Message}");
+                Logger.LogToFile($"PUSH FAILED: Transaction failed after {duration.TotalMilliseconds:F0}ms - {ex.Message}", "sync.log");
                 Logger.LogToFile($"FAIL {ex.Message}", CommandLogFile);
                 Logger.LogCrash("PushChangesAsync", ex);
 
                 // 6) Bei Fehler: Rollback
                 try
                 {
+                    Logger.LogToFile("PUSH ROLLBACK: Attempting to close session after error", "sync.log");
                     await session.CloseAsync().ConfigureAwait(false); // Session sauber schließen
                 }
                 catch { /* ignore */ }
@@ -265,6 +280,7 @@ MERGE (l)-[:CONTAINS]->(w)";
             finally
             {
                 // 7) Session schließen
+                Logger.LogToFile("PUSH CLEANUP: Closing Neo4j session", "sync.log");
                 await session.CloseAsync().ConfigureAwait(false);
             }
         }
@@ -446,7 +462,8 @@ RETURN w";
                 return new WallNode
                 (
                     node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty,
-                    node.Properties.TryGetValue("elementId", out var elemId) ? elemId.As<long>() : -1,
+                    node.Properties.ContainsKey("elementId") ? node.Properties["elementId"].As<long>() : 
+                        (node.Properties.ContainsKey("ElementId") ? node.Properties["ElementId"].As<long>() : -1),
                     node.Properties["typeId"].As<long>(),
                     node.Properties.TryGetValue("typeName", out var typeName) ? typeName.As<string>() : string.Empty,
                     node.Properties.TryGetValue("familyName", out var familyName) ? familyName.As<string>() : string.Empty,
@@ -483,7 +500,8 @@ RETURN d";
                 (
                                         node.Properties.TryGetValue("name", out var name) ? name.As<string>() : string.Empty,
                     node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty,
-                    node.Properties.TryGetValue("elementId", out var elemId) ? elemId.As<long>() : -1,
+                    node.Properties.ContainsKey("elementId") ? node.Properties["elementId"].As<long>() : 
+                        (node.Properties.ContainsKey("ElementId") ? node.Properties["ElementId"].As<long>() : -1),
                     node.Properties["typeId"].As<long>(),
                     node.Properties.TryGetValue("familyName", out var famName) ? famName.As<string>() : string.Empty,
                     node.Properties.TryGetValue("symbolName", out var symName) ? symName.As<string>() : string.Empty,
@@ -515,7 +533,8 @@ RETURN p";
                 var node = r["p"].As<INode>();
                 return new PipeNode(
                     node.Properties.ContainsKey("uid") ? node.Properties["uid"].As<string>() : string.Empty,
-                    node.Properties.TryGetValue("elementId", out var elemId) ? elemId.As<long>() : -1,
+                    node.Properties.ContainsKey("elementId") ? node.Properties["elementId"].As<long>() : 
+                        (node.Properties.ContainsKey("ElementId") ? node.Properties["ElementId"].As<long>() : -1),
                     node.Properties["typeId"].As<long>(),
                     node.Properties.TryGetValue("systemTypeId", out var sysId) ? sysId.As<long>() : -1,
                     node.Properties["levelId"].As<long>(),
@@ -580,6 +599,275 @@ RETURN ps";
             LogMethodCall(nameof(Dispose), new());
             _driver?.Dispose();
             GC.SuppressFinalize(this);
+        }
+
+        // NEW CHANGELOG-BASED SYNCHRONIZATION METHODS
+        
+        /// <summary>
+        /// Creates a ChangeLog entry for an element change (using existing schema compatibility)
+        /// </summary>
+        public async Task CreateChangeLogEntryAsync(int elementId, string operation, string targetSessionId)
+        {
+            // Create ChangeLog entry directly with string type to match existing data
+            const string cypher = @"MERGE (s:Session { id:$session })
+CREATE (cl:ChangeLog {
+    sessionId:$session,
+    user:$session,
+    timestamp: datetime(),
+    type:$type,
+    elementId:$eid,
+    acknowledged:false
+})
+MERGE (s)-[:HAS_LOG]->(cl)";
+
+            try
+            {
+                await RunWriteQueryAsync(cypher, new { session = targetSessionId, type = operation, eid = elementId }).ConfigureAwait(false);
+                Logger.LogToFile($"Created ChangeLog entry for ElementId {elementId}, operation {operation}, target session {targetSessionId}", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash($"Failed to create ChangeLog entry for ElementId {elementId}", ex);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Gets pending ChangeLog entries for a specific session (using existing schema)
+        /// Filters out Level/Building/Room entries but acknowledges them
+        /// </summary>
+        public async Task<List<(int changeId, string op, Dictionary<string, object> wall)>> GetPendingChangeLogsAsync(string sessionId)
+        {
+            try
+            {
+                Logger.LogToFile($"Starting GetPendingChangeLogsAsync for session {sessionId}", "sync.log");
+                
+                // Step 1: Auto-acknowledge non-Wall ChangeLog entries from other sessions
+                await AcknowledgeNonWallChangeLogsAsync(sessionId).ConfigureAwait(false);
+
+                // Step 2: Get all unacknowledged ChangeLog entries from other sessions
+                const string debugQuery = @"
+                    MATCH (c:ChangeLog)
+                    WHERE c.acknowledged = false AND c.sessionId <> $sessionId
+                    RETURN c.acknowledged as acknowledged, c.sessionId as sessionId, c.type as type, c.elementId as elementId
+                    LIMIT 20";
+                
+                var debugResult = await RunQueryAsync(debugQuery, new { sessionId }, record =>
+                {
+                    var acknowledged = record["acknowledged"]?.As<bool>() ?? true;
+                    var changeSessionId = record["sessionId"]?.As<string>() ?? "null";
+                    var type = record["type"]?.As<string>() ?? "null";
+                    var elementId = record["elementId"]?.As<long>() ?? -1;
+                    return new { acknowledged, changeSessionId, type, elementId };
+                }).ConfigureAwait(false);
+                
+                Logger.LogToFile($"Debug: Found {debugResult.Count} unacknowledged ChangeLog entries from other sessions:", "sync.log");
+                foreach (var entry in debugResult)
+                {
+                    Logger.LogToFile($"  - sessionId:{entry.changeSessionId}, type:{entry.type}, elementId:{entry.elementId}", "sync.log");
+                }
+
+                // Step 3: Get only Wall ChangeLog entries that have corresponding Wall nodes
+                const string cypher = @"
+                    MATCH (c:ChangeLog)
+                    WHERE c.acknowledged = false AND c.sessionId <> $sessionId
+                    MATCH (w:Wall)
+                    WHERE w.ElementId = c.elementId
+                    RETURN id(c) AS changeId, c.type AS op, c.elementId AS elementId, w AS wall
+                    ORDER BY c.timestamp ASC";
+
+                var result = await RunQueryAsync(cypher, new { sessionId }, record =>
+                {
+                    var changeId = record["changeId"].As<int>();
+                    var op = record["op"].As<string>();
+                    var elementId = record["elementId"].As<long>();
+                    
+                    Dictionary<string, object> wallProperties = new Dictionary<string, object>();
+                    
+                    try
+                    {
+                        // Since we use MATCH (not OPTIONAL MATCH), wall should always exist
+                        var wallNode = record["wall"].As<INode>();
+                        if (wallNode?.Properties != null)
+                        {
+                            wallProperties = wallNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
+                            Logger.LogToFile($"Successfully loaded wall properties for ElementId {elementId}: {wallProperties.Keys.Count} properties", "sync.log");
+                        }
+                        else
+                        {
+                            Logger.LogToFile($"WARNING: Wall node is null for ElementId {elementId}", "sync.log");
+                            wallProperties["ElementId"] = elementId;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogToFile($"ERROR: Failed to process wall node for ElementId {elementId}: {ex.Message}", "sync.log");
+                        // Create minimal fallback properties
+                        wallProperties["ElementId"] = elementId;
+                    }
+                    
+                    // Ensure ElementId is always present and correct
+                    wallProperties["ElementId"] = elementId;
+                    
+                    return (changeId, op, wallProperties);
+                }).ConfigureAwait(false);
+
+                Logger.LogToFile($"Retrieved {result.Count} pending Wall ChangeLog entries for session {sessionId}", "sync.log");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash($"Failed to get pending ChangeLogs for session {sessionId}", ex);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Acknowledges ChangeLog entries for Level/Building/Room elements from other sessions
+        /// </summary>
+        private async Task AcknowledgeNonWallChangeLogsAsync(string currentSessionId)
+        {
+            try
+            {
+                Logger.LogToFile($"Starting AcknowledgeNonWallChangeLogsAsync for session {currentSessionId}", "sync.log");
+                
+                // Find ChangeLog entries that don't have corresponding Wall nodes
+                const string cypher = @"
+                    MATCH (c:ChangeLog)
+                    WHERE c.acknowledged = false AND c.sessionId <> $sessionId
+                    OPTIONAL MATCH (w:Wall)
+                    WHERE w.ElementId = c.elementId
+                    WITH c, w
+                    WHERE w IS NULL
+                    SET c.acknowledged = true, 
+                        c.ackBy = 'AutoAck_NonWall',
+                        c.ackTs = datetime()
+                    RETURN count(c) as acknowledgedCount";
+
+                await using var session = _driver.AsyncSession();
+                var result = await session.RunAsync(cypher, new { sessionId = currentSessionId }).ConfigureAwait(false);
+                var record = await result.SingleAsync().ConfigureAwait(false);
+                var count = record["acknowledgedCount"].As<int>();
+                
+                if (count > 0)
+                {
+                    Logger.LogToFile($"Auto-acknowledged {count} non-Wall ChangeLog entries (Level/Building/Room)", "sync.log");
+                }
+                else
+                {
+                    Logger.LogToFile("No non-Wall ChangeLog entries found to acknowledge", "sync.log");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Failed to acknowledge non-Wall ChangeLogs", ex);
+                // Don't throw - this is not critical for wall synchronization
+            }
+        }
+
+        /// <summary>
+        /// Acknowledges a specific ChangeLog entry (using existing schema)
+        /// </summary>
+        public async Task AcknowledgeChangeLogAsync(int changeId)
+        {
+            const string cypher = @"
+                MATCH (c:ChangeLog)
+                WHERE id(c) = $changeId
+                SET c.acknowledged = true, c.ackTs = datetime()
+                RETURN c.elementId as elementId";
+
+            try
+            {
+                await RunWriteQueryAsync(cypher, new { changeId }).ConfigureAwait(false);
+                Logger.LogToFile($"Acknowledged ChangeLog entry {changeId}", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash($"Failed to acknowledge ChangeLog {changeId}", ex);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Acknowledges ALL ChangeLog entries regardless of session (using existing schema)
+        /// </summary>
+        public async Task AcknowledgeAllChangeLogsAsync()
+        {
+            try
+            {
+                Logger.LogToFile("Starting AcknowledgeAllChangeLogsAsync for ALL sessions", "sync.log");
+                
+                // First check what exists (using correct field names)
+                var checkQuery = @"
+                    MATCH (c:ChangeLog)
+                    RETURN count(c) as totalCount, 
+                           sum(CASE WHEN c.acknowledged = false THEN 1 ELSE 0 END) as unacknowledgedCount";
+                
+                await using var session = _driver.AsyncSession();
+                var checkResult = await session.RunAsync(checkQuery, new { }).ConfigureAwait(false);
+                var checkRecord = await checkResult.SingleAsync().ConfigureAwait(false);
+                var totalCount = checkRecord["totalCount"].As<int>();
+                var unacknowledgedCount = checkRecord["unacknowledgedCount"].As<int>();
+                
+                Logger.LogToFile($"Found {totalCount} total ChangeLog entries, {unacknowledgedCount} unacknowledged", "sync.log");
+
+                // Update using correct field names
+                const string cypher = @"
+                    MATCH (c:ChangeLog)
+                    WHERE c.acknowledged = false
+                    SET c.acknowledged = true, 
+                        c.ackBy = 'AcknowledgeAll', 
+                        c.ackTs = datetime()
+                    RETURN count(c) as acknowledgedCount";
+
+                var result = await session.RunAsync(cypher, new { }).ConfigureAwait(false);
+                var record = await result.SingleAsync().ConfigureAwait(false);
+                var count = record["acknowledgedCount"].As<int>();
+                
+                Logger.LogToFile($"Successfully acknowledged {count} ChangeLog entries from ALL sessions", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Failed to acknowledge all ChangeLogs", ex);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Creates test ChangeLog entries for debugging (uses existing ChangeLog format)
+        /// </summary>
+        public async Task CreateTestChangeLogEntriesAsync(string targetSessionId)
+        {
+            try
+            {
+                Logger.LogToFile($"Creating test ChangeLog entries for target session {targetSessionId}", "sync.log");
+                
+                // Create test ChangeLog entries using the existing schema format
+                const string createChangeLogQuery = @"
+                    MERGE (s:Session { id: $sessionId })
+                    CREATE (c:ChangeLog {
+                        elementId: 999,
+                        type: 'Insert',
+                        sessionId: $sessionId,
+                        user: $sessionId,
+                        timestamp: datetime(),
+                        acknowledged: false
+                    })
+                    MERGE (s)-[:HAS_LOG]->(c)
+                    RETURN id(c) as changeId";
+                
+                await using var session = _driver.AsyncSession();
+                var result = await session.RunAsync(createChangeLogQuery, new { sessionId = targetSessionId }).ConfigureAwait(false);
+                var record = await result.SingleAsync().ConfigureAwait(false);
+                var changeId = record["changeId"].As<int>();
+                
+                Logger.LogToFile($"Created test ChangeLog entry {changeId} for ElementId 999, target session {targetSessionId}", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Failed to create test ChangeLog entries", ex);
+                throw;
+            }
         }
     }
 }

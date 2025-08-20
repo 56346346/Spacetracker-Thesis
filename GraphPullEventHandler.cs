@@ -25,7 +25,7 @@ public class GraphPullEventHandler : IExternalEventHandler
             return;
         }
 
-        _puller.PullRemoteChanges(_doc, _sessionId).GetAwaiter().GetResult();
+        _puller.PullRemoteChanges(_doc, _sessionId);
     }
 
     public string GetName() => "GraphPullEventHandler";

@@ -97,19 +97,18 @@ namespace SpaceTracker
                 if (cypherCommands.IsEmpty)
                     return;
                 Logger.LogToFile($"Processing {cypherCommands.Count} cypher commands", "concurrency.log");
-                var changes = new List<(string Command, string Path)>();
+                var commands = new List<string>();
                 var ids = new HashSet<long>();
                 var idRegex = new Regex(@"ElementId\D+(\d+)", RegexOptions.IgnoreCase);
                 while (cypherCommands.TryDequeue(out string cyCommand))
                 {
-                    string cache = ChangeCacheHelper.WriteChange(cyCommand);
-                    changes.Add((cyCommand, cache));
+                    commands.Add(cyCommand);
                     var match = idRegex.Match(cyCommand);
                     if (match.Success && long.TryParse(match.Groups[1].Value, out long parsed))
                         ids.Add(parsed);
                 }
 
-                await _neo4jConnector.PushChangesAsync(changes, SessionId, currentDoc).ConfigureAwait(false);
+                await _neo4jConnector.PushChangesAsync(commands, SessionId, currentDoc).ConfigureAwait(false);
                 LastSyncTime = DateTime.UtcNow;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);

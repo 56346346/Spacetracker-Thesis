@@ -43,14 +43,6 @@ namespace SpaceTracker
             var commands = cmdMgr.cypherCommands.Distinct().ToList();
             cmdMgr.cypherCommands = new ConcurrentQueue<string>();
 
-            var changes = new List<(string Command, string Path)>();
-            foreach (var cmd in commands)
-            {
-                string cachePath = ChangeCacheHelper.WriteChange(cmd);
-                changes.Add((cmd, cachePath));
-            }
-
-
             if (commands.Count == 0)
             {
                 Autodesk.Revit.UI.TaskDialog.Show("Push", "Keine Änderungen zum Übertragen vorhanden.");
@@ -73,7 +65,7 @@ namespace SpaceTracker
 
             try
             {
-                connector.PushChangesAsync(changes, sessionId, doc).GetAwaiter().GetResult();
+                connector.PushChangesAsync(commands, sessionId, doc).GetAwaiter().GetResult();
                 connector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
 
                 var errs = SolibriRulesetValidator.Validate(doc).GetAwaiter().GetResult();

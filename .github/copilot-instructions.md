@@ -42,6 +42,12 @@ Required attributes (all in meters):
 - **Run**: Launch via Visual Studio or Revit add-in loader. Ensure Revit and Neo4j are running locally.
 - **Debug**: Use Visual Studio debugger. Logging output is in `%APPDATA%/SpaceTracker/log/`.
 - **Pull Testing**: Use pull button in Revit to trigger `GraphPullHandler.RequestPull()`
+- **Reset Sync State**: Use "Acknowledge All" button to mark all ChangeLog entries as acknowledged (prevents pull loops)
+
+## Troubleshooting
+- **Revit Hangs During Pull**: Use "Acknowledge All" button to reset ChangeLog state and prevent infinite loops
+- **Solibri API Errors**: Check if Solibri is running on port 10876; these are non-critical for wall synchronization
+- **Pull Failures**: Check `%APPDATA%/SpaceTracker/log/sync.log` for detailed error messages
 
 ## Project-Specific Conventions
 - **Units**: Store all measurements in meters in Neo4j, convert to feet for Revit API using `UnitUtils.ConvertToInternalUnits(meters, UnitTypeId.Meters)`

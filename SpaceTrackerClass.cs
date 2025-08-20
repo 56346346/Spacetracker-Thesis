@@ -15,7 +15,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Autodesk.Revit.Exceptions;
 using Autodesk.Revit.UI;
 using System.Reflection;
-using Newtonsoft.Json;
 using Neo4j.Driver;
 using System.Windows.Forms;
 using System.IO;
@@ -56,6 +55,12 @@ namespace SpaceTracker
         /// so that other commands can trigger a pull via the same puller.
         /// </summary>
         internal static GraphPuller GraphPullerInstance { get; private set; }
+        
+        /// <summary>
+        /// Provides access to the singleton <see cref="GraphPullHandler"/> instance
+        /// so that other commands can trigger a pull via the same handler.
+        /// </summary>
+        internal static GraphPullHandler GraphPullHandlerInstance { get; private set; }
         private ExternalEvent _graphPullEvent;
 
         public const int SolibriApiPort = 10876;
@@ -84,8 +89,8 @@ namespace SpaceTracker
             {
                 if (v == null) return "null";
                 if (v is string) return $"\"{v}\"";
-                try { return JsonConvert.SerializeObject(v); }
-                catch { return v.ToString(); }
+                try { return v.ToString(); }
+                catch { return "ToString() failed"; }
             }
 
             var line = methodName + "(" +
@@ -337,6 +342,7 @@ namespace SpaceTracker
                 _graphPuller = new GraphPuller(_neo4jConnector);
                 GraphPullerInstance = _graphPuller;
                 _graphPullHandler = new GraphPullHandler();
+                GraphPullHandlerInstance = _graphPullHandler;
                 _graphPullEvent = ExternalEvent.Create(_graphPullHandler);
                 _graphPullHandler.ExternalEvent = _graphPullEvent;
                 _cmdManager = CommandManager.Instance;
@@ -613,7 +619,30 @@ namespace SpaceTracker
                 if (infoBtn != null)
                     infoBtn.ToolTip = "Zeigt eine kurze Beschreibung der SpaceTracker-Buttons";
             }
+
+            // 7. AcknowledgeAll-Button (setzt alle ChangeLog-Einträge auf acknowledged)
+            if (!_ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "AcknowledgeAllButton"))
+            {
+                var ackAllBtnData = new PushButtonData(
+                    "AcknowledgeAllButton", "Acknowledge All",
+                    Assembly.GetExecutingAssembly().Location,
+                    "SpaceTracker.AcknowledgeAllCommand"
+                );
+                string ackAllIconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Green.png");
+                if (File.Exists(ackAllIconPath))
+                {
+                    var ackAllIcon = new BitmapImage();
+                    ackAllIcon.BeginInit();
+                    ackAllIcon.UriSource = new Uri(ackAllIconPath, UriKind.Absolute);
+                    ackAllIcon.EndInit();
+                    ackAllBtnData.LargeImage = ackAllIcon;
+                }
+                var ackAllBtn = _ribbonPanel.AddItem(ackAllBtnData) as PushButton;
+                if (ackAllBtn != null)
+                    ackAllBtn.ToolTip = "Setzt alle ChangeLog-Einträge in Neo4j auf acknowledged (verhindert Pull-Loops)";
+            }
         }
+
         private void RegisterDocumentEvents(UIControlledApplication app)
         {
             var ctrl = app.ControlledApplication;
@@ -730,11 +759,17 @@ namespace SpaceTracker
         /// </summary>
         private void PullChanges()
         {
+            Logger.LogToFile($"PULL CHANGES: Starting PullChanges() for {SessionManager.OpenSessions.Count} open sessions", "sync.log");
+            
+            int sessionIndex = 0;
             foreach (var openSession in SessionManager.OpenSessions.Values)
             {
-                _graphPuller.PullRemoteChanges(openSession.Document, CommandManager.Instance.SessionId)
-                                          .GetAwaiter().GetResult();
+                sessionIndex++;
+                Logger.LogToFile($"PULL CHANGES {sessionIndex}/{SessionManager.OpenSessions.Count}: Calling PullRemoteChanges for document '{openSession.Document.Title}'", "sync.log");
+                _graphPuller.PullRemoteChanges(openSession.Document, CommandManager.Instance.SessionId);
             }
+            
+            Logger.LogToFile($"PULL CHANGES COMPLETED: Finished pulling changes for all {sessionIndex} sessions", "sync.log");
         }
 
         // Exportiert das gesamte aktuelle Modell nach IFC und importiert es in
@@ -792,10 +827,17 @@ namespace SpaceTracker
 
         private async Task documentChanged(object sender, DocumentChangedEventArgs e)
         {
+            var startTime = DateTime.Now;
             try
             {
                 Document doc = e.GetDocument();
-                if (doc == null || doc.IsLinked) return;
+                if (doc == null || doc.IsLinked) 
+                {
+                    Logger.LogToFile("DOCUMENT CHANGE SKIPPED: Document is null or linked", "sync.log");
+                    return;
+                }
+
+                Logger.LogToFile($"DOCUMENT CHANGE DETECTED: Document '{doc.Title}' changed at {startTime:yyyy-MM-dd HH:mm:ss.fff}", "sync.log");
 
                 var filter = new LogicalOrFilter(new List<ElementFilter>{
     new ElementCategoryFilter(BuiltInCategory.OST_Walls),
@@ -817,20 +859,25 @@ namespace SpaceTracker
                    .ToList();
                 var modifiedIds = e.GetModifiedElementIds(filter);
 
-                // 3. Early Exit bei keinen relevanten Änderungen
+                Logger.LogToFile($"DOCUMENT CHANGE ANALYSIS: Added={addedIds.Count}, Modified={modifiedIds.Count}, Deleted={deletedIds.Count}", "sync.log");
 
+                // 3. Early Exit bei keinen relevanten Änderungen
 
                 // 4. Elemente aus Dokument holen (mit Null-Check)
                 var addedElements = GetAddedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
-
                 var modifiedElements = GetModifiedElements(e, doc).Where(el => filter.PassesFilter(el)).ToList();
+                
                 if (addedElements.Count == 0 &&
                  modifiedElements.Count == 0 &&
                  deletedIds.Count == 0 &&
                  addedIds.Count == 0 &&
                  modifiedIds.Count == 0)
+                {
+                    Logger.LogToFile("DOCUMENT CHANGE SKIPPED: No relevant changes detected", "sync.log");
                     return;
+                }
 
+                Logger.LogToFile($"DOCUMENT CHANGE PROCESSING: Processing {addedElements.Count} added, {modifiedElements.Count} modified, {deletedIds.Count} deleted elements", "sync.log");
 
                 // 5. Element-Cache aktualisieren
                 UpdateElementCache(addedElements, modifiedElements, deletedIds.ToList());
@@ -845,13 +892,19 @@ namespace SpaceTracker
                 };
 
                 // 7. Änderungen zur Verarbeitung einreihen
+                Logger.LogToFile("DOCUMENT CHANGE ENQUEUE: Enqueueing changes to DatabaseUpdateHandler", "sync.log");
                 _databaseUpdateHandler.EnqueueChange(changeData);
+                
                 // Direkt nach dem Einreihen einen Push anstoßen, damit die
                 // Änderungen ohne manuelle Aktion nach Neo4j gelangen
+                Logger.LogToFile("DOCUMENT CHANGE PUSH: Triggering immediate push of changes", "sync.log");
                 _databaseUpdateHandler.TriggerPush();
+                
                 try
                 {
                     string sessionId = CommandManager.Instance.SessionId;
+                    Logger.LogToFile($"DOCUMENT CHANGE LOGGING: Creating ChangeLog entries for session {sessionId}", "sync.log");
+                    
                     foreach (var el in addedElements)
                     {
                         await _neo4jConnector.CreateLogChangeAsync(el.Id.Value, ChangeType.Add, sessionId);
@@ -864,24 +917,37 @@ namespace SpaceTracker
                     {
                         await _neo4jConnector.CreateLogChangeAsync(id.Value, ChangeType.Delete, sessionId);
                     }
+                    
+                    Logger.LogToFile("DOCUMENT CHANGE AUTO-PULL: Triggering automatic pull after logging changes", "sync.log");
                     PullChanges();
+                    
+                    Logger.LogToFile("DOCUMENT CHANGE SOLIBRI: Starting Solibri element checks", "sync.log");
                     var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
                     foreach (var cid in ids)
                         await SolibriChecker.CheckElementAsync(cid, doc);
                 }
                 catch (Exception ex)
                 {
+                    Logger.LogToFile($"DOCUMENT CHANGE ERROR: Error during ChangeLog creation or Solibri checks - {ex.Message}", "sync.log");
                     Logger.LogCrash("RealtimeSync", ex);
                 }
+                
+                Logger.LogToFile("DOCUMENT CHANGE FINAL PULL: Triggering pull requests for all open sessions", "sync.log");
                 foreach (var openSession in SessionManager.OpenSessions.Values)
                 {
                     // Trigger pull asynchronously via external event
+                    Logger.LogToFile($"DOCUMENT CHANGE SESSION PULL: Requesting pull for session document '{openSession.Document.Title}'", "sync.log");
                     _graphPullHandler.RequestPull(openSession.Document);
                 }
+                
+                var totalDuration = DateTime.Now - startTime;
+                Logger.LogToFile($"DOCUMENT CHANGE COMPLETED: Finished processing document changes in {totalDuration.TotalMilliseconds:F0}ms", "sync.log");
             }
             catch (Exception ex)
             {
+                var totalDuration = DateTime.Now - startTime;
                 Debug.WriteLine($"[Critical Error] documentChanged: {ex.Message}");
+                Logger.LogToFile($"DOCUMENT CHANGE CRITICAL ERROR: Failed after {totalDuration.TotalMilliseconds:F0}ms - {ex.Message}", "sync.log");
                 Logger.LogToFile($"DocumentChanged Exception: {ex}\n", "crash");
             }
         }
@@ -929,30 +995,31 @@ namespace SpaceTracker
                     // Neo4j-Graph ist leer: initialen Graph aus Revit-Daten erzeugen und pushen
                     Debug.WriteLine("[SpaceTracker] Neuer Graph - initialer Upload der Modelldaten.");
                     _extractor.CreateInitialGraph(doc);  // alle vorhandenen Elemente ins Queue einreihen
-                                                         // Änderungen in einem Batch an Neo4j senden (Push)
+                    // Änderungen in einem Batch an Neo4j senden (Push)
                     if (!CommandManager.Instance.cypherCommands.IsEmpty)
                     {
                         // Befehle kopieren, damit die Queue sofort wieder benutzt werden kann
                         var cmds = CommandManager.Instance.cypherCommands.ToList();
+                        
+                        Logger.LogToFile($"PUSH TRIGGERED: Document '{doc.Title}' has {cmds.Count} pending commands to push", "sync.log");
 
                         // Asynchron pushen, da die Methode bereits async ist und await verwendet werden kann
                         try
                         {
-                            var changes = new List<(string Command, string Path)>();
-                            foreach (var c in cmds)
-                            {
-                                string cache = ChangeCacheHelper.WriteChange(c);
-                                changes.Add((c, cache));
-                            }
+                            Logger.LogToFile($"PUSH EXECUTING: Calling PushChangesAsync for session {CommandManager.Instance.SessionId}", "sync.log");
                             _neo4jConnector.PushChangesAsync(
-                                changes,
-
+                                cmds,
                                 CommandManager.Instance.SessionId, doc).GetAwaiter().GetResult();
+                            
+                            Logger.LogToFile("PUSH SUCCESS: Commands pushed successfully, clearing command queue", "sync.log");
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
+                            
+                            Logger.LogToFile("PUSH CLEANUP: Running cleanup of obsolete ChangeLogs", "sync.log");
                             _neo4jConnector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
 
                             // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
+                            Logger.LogToFile("PUSH POST-PROCESSING: Running Solibri validation", "sync.log");
                             var errs = SolibriRulesetValidator.Validate(doc).GetAwaiter().GetResult();
                             var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                             SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
@@ -960,22 +1027,29 @@ namespace SpaceTracker
                         }
                         catch (Exception ex)
                         {
-                            Logger.LogCrash("DocumentOpened", ex);
+                            Logger.LogToFile($"PUSH FAILED: Error during push operation - {ex.Message}", "sync.log");
+                            Logger.LogCrash("DocumentOpened - Push Operation", ex);
                         }
                     }
                     else
                     {
+                        Logger.LogToFile("PUSH SKIPPED: No pending commands in queue", "sync.log");
                         // Neo4j-Graph enthält bereits Daten
 
                     }
                     // After loading the model trigger a pull to ensure latest changes
-                    _graphPuller?.PullRemoteChanges(doc, CommandManager.Instance.SessionId).GetAwaiter().GetResult();
+                    Logger.LogToFile("AUTO PULL: Triggering automatic pull after document load", "sync.log");
+                    _graphPuller?.PullRemoteChanges(doc, CommandManager.Instance.SessionId);
+                    
                     // Trigger Solibri consistency check after pull
+                    Logger.LogToFile("AUTO PULL: Starting Solibri consistency check after pull", "sync.log");
                     var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
                     solibriClient.CheckModelAsync(SpaceTrackerClass.SolibriModelUUID, SpaceTrackerClass.SolibriRulesetId)
                                  .GetAwaiter().GetResult();
                     solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(2))
                                  .GetAwaiter().GetResult();
+                    
+                    Logger.LogToFile("AUTO PULL: Calling PullChanges() after Solibri check", "sync.log");
                     PullChanges();
 
                     string key = doc.PathName ?? doc.Title;

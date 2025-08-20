@@ -11,4 +11,10 @@ public static class UnitConversion
     public static double ToMm(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Millimeters);
        // Wandelt Millimeter in Revit-Fuß um.
     public static double ToFt(double mm) => UnitUtils.ConvertToInternalUnits(mm, UnitTypeId.Millimeters);
+    
+    // Wandelt Fuß in Meter um.
+    public static double ToMeters(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
+    
+    // Wandelt Meter in Revit-Fuß um.
+    public static double FromMeters(double meters) => UnitUtils.ConvertToInternalUnits(meters, UnitTypeId.Meters);
 }
