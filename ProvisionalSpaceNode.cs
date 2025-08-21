@@ -18,7 +18,7 @@ public record ProvisionalSpaceNode(
     double Z,
     double Rotation,
     long HostId,
-    int RevitId,
+    int ElementId,  // FIXED: Changed from RevitId to ElementId for consistency
     string IfcType,
     string? Category,
     int PhaseCreated,

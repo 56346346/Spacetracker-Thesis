@@ -153,8 +153,9 @@ namespace SpaceTracker
                   }
               ).ConfigureAwait(false);
 
-                // 3) Improved Regex zum Extrahieren der ElementId aus dem Cypher-String
-                var idRegex = new Regex(@"elementId[:\s]*(\d+)", RegexOptions.IgnoreCase);
+                // 3) Improved Regex zum Extrahieren der ElementId aus dem Cypher-String  
+                // Handles patterns like: "elementId = 123", "p.elementId = 456", "elementId: 789"
+                var idRegex = new Regex(@"(?:\.)?elementId\s*[=:]\s*(\d+)", RegexOptions.IgnoreCase);
                 // 4) Alle Commands durchlaufen
                 int commandIndex = 0;
                 foreach (var cmd in commandList)
@@ -188,7 +189,20 @@ namespace SpaceTracker
                     long elementId = -1;
                     var match = idRegex.Match(cmd);
                     if (match.Success && long.TryParse(match.Groups[1].Value, out var parsedId))
+                    {
                         elementId = parsedId;
+                        Logger.LogToFile($"ELEMENT ID EXTRACTION SUCCESS: Found elementId {elementId} in command: {cmd.Substring(0, Math.Min(100, cmd.Length))}...", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"ELEMENT ID EXTRACTION FAILED: No elementId found in command: {cmd.Substring(0, Math.Min(150, cmd.Length))}...", "sync.log");
+                        Logger.LogToFile($"REGEX DEBUG: Pattern='{idRegex}', Success={match.Success}, Groups={match.Groups.Count}", "sync.log");
+                        if (match.Groups.Count > 1)
+                        {
+                            Logger.LogToFile($"REGEX GROUPS: Group1='{match.Groups[1].Value}', TryParse={long.TryParse(match.Groups[1].Value, out var testValue)}", "sync.log");
+                        }
+                        Logger.LogToFile("ELEMENT ID FALLBACK: Using elementId = -1", "sync.log");
+                    }
 
                     // 4.4) Audit-Log-Einträge erzeugen. Bei "Insert" nur ein Log
                     //      pro ElementId und Session erlauben
@@ -200,7 +214,18 @@ namespace SpaceTracker
                         logQuery = @"MATCH (s:Session { id: $session })
 MERGE (cl:ChangeLog { sessionId: $session, elementId: $eid, type: $type })
 ON CREATE SET cl.user = $user, cl.timestamp = datetime($time), cl.acknowledged = false
-MERGE (s)-[:HAS_LOG]->(cl)";
+MERGE (s)-[:HAS_LOG]->(cl)
+WITH cl
+OPTIONAL MATCH (wall:Wall { elementId: $eid })
+OPTIONAL MATCH (door:Door { elementId: $eid })
+OPTIONAL MATCH (pipe:Pipe { elementId: $eid })
+OPTIONAL MATCH (space:ProvisionalSpace { elementId: $eid })
+WITH cl, wall, door, pipe, space
+WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL
+FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))";
                     }
                     else
                     {
@@ -213,7 +238,18 @@ CREATE (cl:ChangeLog {
     elementId: $eid,
     acknowledged: false
 })
-MERGE (s)-[:HAS_LOG]->(cl)";
+MERGE (s)-[:HAS_LOG]->(cl)
+WITH cl
+OPTIONAL MATCH (wall:Wall { elementId: $eid })
+OPTIONAL MATCH (door:Door { elementId: $eid })
+OPTIONAL MATCH (pipe:Pipe { elementId: $eid })
+OPTIONAL MATCH (space:ProvisionalSpace { elementId: $eid })
+WITH cl, wall, door, pipe, space
+WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL
+FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))";
                     }
 
                     await tx.RunAsync(logQuery,
@@ -230,7 +266,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     if (elementId >= 0)
                     {
                         await tx.RunAsync(
-                            "MATCH (e { ElementId: $id }) SET e.lastModifiedUtc = datetime($time)",
+                            "MATCH (e { elementId: $id }) SET e.lastModifiedUtc = datetime($time)",
                             new { id = elementId, time = logTime }).ConfigureAwait(false);
 
                         // Level-Beziehungen und ChangeLogs für verschiedene Element-Typen aktualisieren
@@ -579,7 +615,7 @@ RETURN ps";
                     node.Properties.TryGetValue("z", out var z) ? z.As<double>() : 0.0,
                     node.Properties.TryGetValue("rotation", out var rot) ? rot.As<double>() : 0.0,
                     node.Properties.TryGetValue("hostId", out var hostId) ? hostId.As<long>() : -1,
-                    node.Properties.TryGetValue("revitId", out var revId) ? (int)revId.As<int>() : -1,
+                    node.Properties.TryGetValue("elementId", out var elemId) ? elemId.As<int>() : -1,  // FIXED: Changed from revitId to elementId for consistency
                     node.Properties.TryGetValue("ifcType", out var ifc) ? ifc.As<string>() : string.Empty,
                     node.Properties.TryGetValue("category", out var cat) ? cat.As<string>() : null,
                     node.Properties.TryGetValue("phaseCreated", out var pc) ? pc.As<int>() : -1,
@@ -620,7 +656,18 @@ CREATE (cl:ChangeLog {
     elementId:$eid,
     acknowledged:false
 })
-MERGE (s)-[:HAS_LOG]->(cl)";
+MERGE (s)-[:HAS_LOG]->(cl)
+WITH cl
+OPTIONAL MATCH (wall:Wall { elementId: $eid })
+OPTIONAL MATCH (door:Door { elementId: $eid })
+OPTIONAL MATCH (pipe:Pipe { elementId: $eid })
+OPTIONAL MATCH (space:ProvisionalSpace { elementId: $eid })
+WITH cl, wall, door, pipe, space
+WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL
+FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))";
 
             try
             {
@@ -636,16 +683,16 @@ MERGE (s)-[:HAS_LOG]->(cl)";
 
         /// <summary>
         /// Gets pending ChangeLog entries for a specific session (using existing schema)
-        /// Filters out Level/Building/Room entries but acknowledges them
+        /// Returns Wall, Door, Pipe, and ProvisionalSpace elements. Architectural elements are auto-acknowledged.
         /// </summary>
-        public async Task<List<(int changeId, string op, Dictionary<string, object> wall)>> GetPendingChangeLogsAsync(string sessionId)
+        public async Task<List<(int changeId, string op, Dictionary<string, object> element)>> GetPendingChangeLogsAsync(string sessionId)
         {
             try
             {
                 Logger.LogToFile($"Starting GetPendingChangeLogsAsync for session {sessionId}", "sync.log");
                 
-                // Step 1: Auto-acknowledge non-Wall ChangeLog entries from other sessions
-                await AcknowledgeNonWallChangeLogsAsync(sessionId).ConfigureAwait(false);
+                // Step 1: Auto-acknowledge architectural element ChangeLog entries from other sessions
+                await AcknowledgeNonBuildingElementChangeLogsAsync(sessionId).ConfigureAwait(false);
 
                 // Step 2: Get all unacknowledged ChangeLog entries from other sessions
                 const string debugQuery = @"
@@ -669,13 +716,55 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     Logger.LogToFile($"  - sessionId:{entry.changeSessionId}, type:{entry.type}, elementId:{entry.elementId}", "sync.log");
                 }
 
-                // Step 3: Get only Wall ChangeLog entries that have corresponding Wall nodes
+                // Additional debug: Check what nodes actually exist in Neo4j
+                const string nodeCheckCypher = @"
+                    OPTIONAL MATCH (w:Wall) 
+                    OPTIONAL MATCH (d:Door)
+                    OPTIONAL MATCH (p:Pipe) 
+                    OPTIONAL MATCH (ps:ProvisionalSpace)
+                    RETURN count(w) as wallCount, count(d) as doorCount, count(p) as pipeCount, count(ps) as psCount,
+                           collect(DISTINCT w.elementId)[0..5] as sampleWallIds,
+                           collect(DISTINCT d.elementId)[0..5] as sampleDoorIds, 
+                           collect(DISTINCT p.elementId)[0..5] as samplePipeIds,
+                           collect(DISTINCT ps.elementId)[0..5] as samplePsIds";
+                
+                var nodeCheckResult = await RunQueryAsync(nodeCheckCypher, new {}, record =>
+                {
+                    return new
+                    {
+                        wallCount = record["wallCount"].As<int>(),
+                        doorCount = record["doorCount"].As<int>(),
+                        pipeCount = record["pipeCount"].As<int>(),
+                        psCount = record["psCount"].As<int>(),
+                        sampleWallIds = record["sampleWallIds"].As<List<object>>(),
+                        sampleDoorIds = record["sampleDoorIds"].As<List<object>>(),
+                        samplePipeIds = record["samplePipeIds"].As<List<object>>(),
+                        samplePsIds = record["samplePsIds"].As<List<object>>()
+                    };
+                }).ConfigureAwait(false);
+                
+                if (nodeCheckResult.Count > 0)
+                {
+                    var nodeStats = nodeCheckResult[0];
+                    Logger.LogToFile($"NEO4J NODE STATS: Walls={nodeStats.wallCount}, Doors={nodeStats.doorCount}, Pipes={nodeStats.pipeCount}, ProvisionalSpaces={nodeStats.psCount}", "sync.log");
+                    Logger.LogToFile($"SAMPLE WALL IDs: {string.Join(", ", nodeStats.sampleWallIds)}", "sync.log");
+                    Logger.LogToFile($"SAMPLE DOOR IDs: {string.Join(", ", nodeStats.sampleDoorIds)}", "sync.log");
+                    Logger.LogToFile($"SAMPLE PIPE IDs: {string.Join(", ", nodeStats.samplePipeIds)}", "sync.log");
+                    Logger.LogToFile($"SAMPLE PS IDs: {string.Join(", ", nodeStats.samplePsIds)}", "sync.log");
+                }
+
+                // Step 3: Get Wall, Door, Pipe, and ProvisionalSpace ChangeLog entries that have corresponding nodes
                 const string cypher = @"
                     MATCH (c:ChangeLog)
                     WHERE c.acknowledged = false AND c.sessionId <> $sessionId
-                    MATCH (w:Wall)
-                    WHERE w.ElementId = c.elementId
-                    RETURN id(c) AS changeId, c.type AS op, c.elementId AS elementId, w AS wall
+                    OPTIONAL MATCH (w:Wall) WHERE w.elementId = c.elementId
+                    OPTIONAL MATCH (d:Door) WHERE d.elementId = c.elementId  
+                    OPTIONAL MATCH (p:Pipe) WHERE p.elementId = c.elementId
+                    OPTIONAL MATCH (ps:ProvisionalSpace) WHERE ps.elementId = c.elementId
+                    WITH c, w, d, p, ps
+                    WHERE w IS NOT NULL OR d IS NOT NULL OR p IS NOT NULL OR ps IS NOT NULL
+                    RETURN id(c) AS changeId, c.type AS op, c.elementId AS elementId, 
+                           w AS wall, d AS door, p AS pipe, ps AS provisionalSpace
                     ORDER BY c.timestamp ASC";
 
                 var result = await RunQueryAsync(cypher, new { sessionId }, record =>
@@ -684,37 +773,62 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     var op = record["op"].As<string>();
                     var elementId = record["elementId"].As<long>();
                     
-                    Dictionary<string, object> wallProperties = new Dictionary<string, object>();
+                    Dictionary<string, object> elementProperties = new Dictionary<string, object>();
                     
                     try
                     {
-                        // Since we use MATCH (not OPTIONAL MATCH), wall should always exist
-                        var wallNode = record["wall"].As<INode>();
+                        // Check which type of node we have and extract properties
+                        var wallNode = record["wall"]?.As<INode>();
+                        var doorNode = record["door"]?.As<INode>(); 
+                        var pipeNode = record["pipe"]?.As<INode>();
+                        var provisionalSpaceNode = record["provisionalSpace"]?.As<INode>();
+                        
                         if (wallNode?.Properties != null)
                         {
-                            wallProperties = wallNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
-                            Logger.LogToFile($"Successfully loaded wall properties for ElementId {elementId}: {wallProperties.Keys.Count} properties", "sync.log");
+                            elementProperties = wallNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
+                            elementProperties["__element_type__"] = "Wall";
+                            Logger.LogToFile($"Successfully loaded wall properties for ElementId {elementId}: {elementProperties.Keys.Count} properties", "sync.log");
+                        }
+                        else if (doorNode?.Properties != null)
+                        {
+                            elementProperties = doorNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
+                            elementProperties["__element_type__"] = "Door";
+                            Logger.LogToFile($"Successfully loaded door properties for ElementId {elementId}: {elementProperties.Keys.Count} properties", "sync.log");
+                        }
+                        else if (pipeNode?.Properties != null)
+                        {
+                            elementProperties = pipeNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
+                            elementProperties["__element_type__"] = "Pipe";
+                            Logger.LogToFile($"Successfully loaded pipe properties for ElementId {elementId}: {elementProperties.Keys.Count} properties", "sync.log");
+                        }
+                        else if (provisionalSpaceNode?.Properties != null)
+                        {
+                            elementProperties = provisionalSpaceNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
+                            elementProperties["__element_type__"] = "ProvisionalSpace";
+                            Logger.LogToFile($"Successfully loaded provisional space properties for ElementId {elementId}: {elementProperties.Keys.Count} properties", "sync.log");
                         }
                         else
                         {
-                            Logger.LogToFile($"WARNING: Wall node is null for ElementId {elementId}", "sync.log");
-                            wallProperties["ElementId"] = elementId;
+                            Logger.LogToFile($"WARNING: No element node found for ElementId {elementId}", "sync.log");
+                            elementProperties["elementId"] = elementId;
+                            elementProperties["__element_type__"] = "Unknown";
                         }
                     }
                     catch (Exception ex)
                     {
-                        Logger.LogToFile($"ERROR: Failed to process wall node for ElementId {elementId}: {ex.Message}", "sync.log");
+                        Logger.LogToFile($"ERROR: Failed to process element node for ElementId {elementId}: {ex.Message}", "sync.log");
                         // Create minimal fallback properties
-                        wallProperties["ElementId"] = elementId;
+                        elementProperties["elementId"] = elementId;
+                        elementProperties["__element_type__"] = "Unknown";
                     }
                     
-                    // Ensure ElementId is always present and correct
-                    wallProperties["ElementId"] = elementId;
+                    // Ensure elementId is always present and correct
+                    elementProperties["elementId"] = elementId;
                     
-                    return (changeId, op, wallProperties);
+                    return (changeId, op, elementProperties);
                 }).ConfigureAwait(false);
 
-                Logger.LogToFile($"Retrieved {result.Count} pending Wall ChangeLog entries for session {sessionId}", "sync.log");
+                Logger.LogToFile($"Retrieved {result.Count} pending ChangeLog entries (Wall/Door/Pipe/ProvisionalSpace) for session {sessionId}", "sync.log");
                 return result;
             }
             catch (Exception ex)
@@ -725,45 +839,43 @@ MERGE (s)-[:HAS_LOG]->(cl)";
         }
 
         /// <summary>
-        /// Acknowledges ChangeLog entries for Level/Building/Room elements from other sessions
+        /// DISABLED: Auto-acknowledge functionality temporarily disabled to fix synchronization issues.
+        /// The pull algorithm should handle all ChangeLog entries for building elements.
         /// </summary>
-        private async Task AcknowledgeNonWallChangeLogsAsync(string currentSessionId)
+        private Task AcknowledgeNonBuildingElementChangeLogsAsync(string currentSessionId)
         {
             try
             {
-                Logger.LogToFile($"Starting AcknowledgeNonWallChangeLogsAsync for session {currentSessionId}", "sync.log");
+                Logger.LogToFile($"AcknowledgeNonBuildingElementChangeLogsAsync called but DISABLED to fix sync issues", "sync.log");
                 
-                // Find ChangeLog entries that don't have corresponding Wall nodes
+                // TEMPORARILY DISABLED - This was acknowledging ChangeLog entries before their corresponding 
+                // element nodes were pushed to Neo4j, causing doors/pipes/provisional spaces to never sync
+                
+                /*
                 const string cypher = @"
                     MATCH (c:ChangeLog)
                     WHERE c.acknowledged = false AND c.sessionId <> $sessionId
-                    OPTIONAL MATCH (w:Wall)
-                    WHERE w.ElementId = c.elementId
-                    WITH c, w
-                    WHERE w IS NULL
+                    OPTIONAL MATCH (w:Wall) WHERE w.elementId = c.elementId
+                    OPTIONAL MATCH (d:Door) WHERE d.elementId = c.elementId  
+                    OPTIONAL MATCH (p:Pipe) WHERE p.elementId = c.elementId
+                    OPTIONAL MATCH (ps:ProvisionalSpace) WHERE ps.elementId = c.elementId
+                    WITH c, w, d, p, ps
+                    WHERE w IS NULL AND d IS NULL AND p IS NULL AND ps IS NULL
                     SET c.acknowledged = true, 
-                        c.ackBy = 'AutoAck_NonWall',
+                        c.ackBy = 'AutoAck_ArchitecturalElements',
                         c.ackTs = datetime()
                     RETURN count(c) as acknowledgedCount";
+                */
 
-                await using var session = _driver.AsyncSession();
-                var result = await session.RunAsync(cypher, new { sessionId = currentSessionId }).ConfigureAwait(false);
-                var record = await result.SingleAsync().ConfigureAwait(false);
-                var count = record["acknowledgedCount"].As<int>();
-                
-                if (count > 0)
-                {
-                    Logger.LogToFile($"Auto-acknowledged {count} non-Wall ChangeLog entries (Level/Building/Room)", "sync.log");
-                }
-                else
-                {
-                    Logger.LogToFile("No non-Wall ChangeLog entries found to acknowledge", "sync.log");
-                }
+                // DISABLED: Return early without executing any database operations
+                Logger.LogToFile("Auto-acknowledge temporarily disabled - allowing pull algorithm to handle all ChangeLog entries", "sync.log");
+                return Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                Logger.LogCrash("Failed to acknowledge non-Wall ChangeLogs", ex);
-                // Don't throw - this is not critical for wall synchronization
+                Logger.LogCrash("Failed to acknowledge architectural element ChangeLogs", ex);
+                // Don't throw - this is not critical for synchronization
+                return Task.CompletedTask;
             }
         }
 
@@ -856,6 +968,17 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                         acknowledged: false
                     })
                     MERGE (s)-[:HAS_LOG]->(c)
+                    WITH c
+                    OPTIONAL MATCH (wall:Wall { elementId: 999 })
+                    OPTIONAL MATCH (door:Door { elementId: 999 })
+                    OPTIONAL MATCH (pipe:Pipe { elementId: 999 })
+                    OPTIONAL MATCH (space:ProvisionalSpace { elementId: 999 })
+                    WITH c, wall, door, pipe, space
+                    WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL
+                    FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (c)-[:GOT_CHANGED]->(elem))
+                    FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (c)-[:GOT_CHANGED]->(elem))
+                    FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (c)-[:GOT_CHANGED]->(elem))
+                    FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (c)-[:GOT_CHANGED]->(elem))
                     RETURN id(c) as changeId";
                 
                 await using var session = _driver.AsyncSession();
@@ -939,7 +1062,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     {
                         // Only for Insert: create level relationship
                         const string relCypher = @"
-                            MATCH (l:Level {ElementId: $levelId}), (w:Wall {ElementId: $wallId})
+                            MATCH (l:Level {elementId: $levelId}), (w:Wall {elementId: $wallId})
                             MERGE (l)-[:CONTAINS]->(w)";
                         await tx.RunAsync(relCypher,
                             new { levelId = level.Id.Value, wallId = elementId }).ConfigureAwait(false);
@@ -950,8 +1073,8 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             {
                 // For Delete: find level via existing Neo4j relationship
                 const string findLevelQuery = @"
-                    MATCH (l:Level)-[:CONTAINS]->(w:Wall {ElementId: $wallId})
-                    RETURN l.ElementId as levelId";
+                    MATCH (l:Level)-[:CONTAINS]->(w:Wall {elementId: $wallId})
+                    RETURN l.elementId as levelId";
                     
                 var levelResult = await tx.RunAsync(findLevelQuery, new { wallId = elementId }).ConfigureAwait(false);
                 var levelRecords = await levelResult.ToListAsync().ConfigureAwait(false);
@@ -964,7 +1087,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     
                     // Delete level relationship
                     const string deleteRelCypher = @"
-                        MATCH (l:Level {ElementId: $levelId})-[r:CONTAINS]->(w:Wall {ElementId: $wallId})
+                        MATCH (l:Level {elementId: $levelId})-[r:CONTAINS]->(w:Wall {elementId: $wallId})
                         DELETE r";
                     await tx.RunAsync(deleteRelCypher,
                         new { levelId = levelId, wallId = elementId }).ConfigureAwait(false);
@@ -997,7 +1120,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     {
                         // Create Door-Wall and Level-Door relationships
                         const string relCypher = @"
-                            MATCH (l:Level {ElementId: $levelId}), (w:Wall {ElementId: $wallId}), (d:Door {ElementId: $doorId})
+                            MATCH (l:Level {elementId: $levelId}), (w:Wall {elementId: $wallId}), (d:Door {elementId: $doorId})
                             MERGE (w)-[:HOSTS]->(d)
                             MERGE (l)-[:CONTAINS]->(d)";
                         await tx.RunAsync(relCypher,
@@ -1009,8 +1132,8 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             {
                 // For Delete: find level via existing Neo4j relationships
                 const string findLevelQuery = @"
-                    MATCH (l:Level)-[:CONTAINS]->(d:Door {ElementId: $doorId})
-                    RETURN l.ElementId as levelId";
+                    MATCH (l:Level)-[:CONTAINS]->(d:Door {elementId: $doorId})
+                    RETURN l.elementId as levelId";
                     
                 var levelResult = await tx.RunAsync(findLevelQuery, new { doorId = elementId }).ConfigureAwait(false);
                 var levelRecords = await levelResult.ToListAsync().ConfigureAwait(false);
@@ -1023,7 +1146,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     
                     // Delete door relationships
                     const string deleteRelCypher = @"
-                        MATCH (l:Level)-[r1:CONTAINS]->(d:Door {ElementId: $doorId})
+                        MATCH (l:Level)-[r1:CONTAINS]->(d:Door {elementId: $doorId})
                         MATCH (w:Wall)-[r2:HOSTS]->(d)
                         DELETE r1, r2";
                     await tx.RunAsync(deleteRelCypher, new { doorId = elementId }).ConfigureAwait(false);
@@ -1056,7 +1179,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     {
                         // Create Level-Pipe relationship
                         const string relCypher = @"
-                            MATCH (l:Level {ElementId: $levelId}), (p:Pipe {ElementId: $pipeId})
+                            MATCH (l:Level {elementId: $levelId}), (p:Pipe {elementId: $pipeId})
                             MERGE (l)-[:CONTAINS]->(p)";
                         await tx.RunAsync(relCypher,
                             new { levelId = level.Id.Value, pipeId = elementId }).ConfigureAwait(false);
@@ -1067,8 +1190,8 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             {
                 // For Delete: find level via existing Neo4j relationship
                 const string findLevelQuery = @"
-                    MATCH (l:Level)-[:CONTAINS]->(p:Pipe {ElementId: $pipeId})
-                    RETURN l.ElementId as levelId";
+                    MATCH (l:Level)-[:CONTAINS]->(p:Pipe {elementId: $pipeId})
+                    RETURN l.elementId as levelId";
                     
                 var levelResult = await tx.RunAsync(findLevelQuery, new { pipeId = elementId }).ConfigureAwait(false);
                 var levelRecords = await levelResult.ToListAsync().ConfigureAwait(false);
@@ -1081,7 +1204,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     
                     // Delete level relationship
                     const string deleteRelCypher = @"
-                        MATCH (l:Level {ElementId: $levelId})-[r:CONTAINS]->(p:Pipe {ElementId: $pipeId})
+                        MATCH (l:Level {elementId: $levelId})-[r:CONTAINS]->(p:Pipe {elementId: $pipeId})
                         DELETE r";
                     await tx.RunAsync(deleteRelCypher,
                         new { levelId = levelId, pipeId = elementId }).ConfigureAwait(false);
@@ -1119,7 +1242,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     {
                         // Create Level-ProvisionalSpace relationship
                         const string relCypher = @"
-                            MATCH (l:Level {ElementId: $levelId}), (ps:ProvisionalSpace {ElementId: $spaceId})
+                            MATCH (l:Level {elementId: $levelId}), (ps:ProvisionalSpace {elementId: $spaceId})
                             MERGE (l)-[:CONTAINS]->(ps)";
                         await tx.RunAsync(relCypher,
                             new { levelId = level.Id.Value, spaceId = elementId }).ConfigureAwait(false);
@@ -1133,7 +1256,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                         foreach (var wall in nearbyWalls)
                         {
                             const string wallRelCypher = @"
-                                MATCH (w:Wall {ElementId: $wallId}), (ps:ProvisionalSpace {ElementId: $spaceId})
+                                MATCH (w:Wall {elementId: $wallId}), (ps:ProvisionalSpace {elementId: $spaceId})
                                 MERGE (ps)-[:ADJACENT_TO]->(w)";
                             await tx.RunAsync(wallRelCypher,
                                 new { wallId = wall.Id.Value, spaceId = elementId }).ConfigureAwait(false);
@@ -1145,8 +1268,8 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             {
                 // For Delete: find level via existing Neo4j relationship
                 const string findLevelQuery = @"
-                    MATCH (l:Level)-[:CONTAINS]->(ps:ProvisionalSpace {ElementId: $spaceId})
-                    RETURN l.ElementId as levelId";
+                    MATCH (l:Level)-[:CONTAINS]->(ps:ProvisionalSpace {elementId: $spaceId})
+                    RETURN l.elementId as levelId";
                     
                 var levelResult = await tx.RunAsync(findLevelQuery, new { spaceId = elementId }).ConfigureAwait(false);
                 var levelRecords = await levelResult.ToListAsync().ConfigureAwait(false);
@@ -1159,7 +1282,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                     
                     // Delete all ProvisionalSpace relationships
                     const string deleteRelCypher = @"
-                        MATCH (l:Level)-[r1:CONTAINS]->(ps:ProvisionalSpace {ElementId: $spaceId})
+                        MATCH (l:Level)-[r1:CONTAINS]->(ps:ProvisionalSpace {elementId: $spaceId})
                         MATCH (ps)-[r2:ADJACENT_TO]->(w:Wall)
                         DELETE r1, r2";
                     await tx.RunAsync(deleteRelCypher, new { spaceId = elementId }).ConfigureAwait(false);
@@ -1185,7 +1308,7 @@ MERGE (s)-[:HAS_LOG]->(cl)";
             
             // Update Level lastModifiedUtc
             await tx.RunAsync(
-                "MATCH (l:Level { ElementId: $levelId }) SET l.lastModifiedUtc = datetime($time)",
+                "MATCH (l:Level { elementId: $levelId }) SET l.lastModifiedUtc = datetime($time)",
                 new { levelId = level.Id.Value, time = logTime }).ConfigureAwait(false);
 
             // Create ChangeLog entry for Level (for all other sessions)
@@ -1216,6 +1339,83 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                 }).ConfigureAwait(false);
 
             Logger.LogToFile($"PUSH LEVEL CHANGELOG: Created/Updated ChangeLog entry for Level {level.Id.Value} modified by {elementType} {changeType} on element {elementId}", "sync.log");
+        }
+
+        /// <summary>
+        /// Cleanup utility to remove invalid ChangeLog entries and reset acknowledged flags
+        /// </summary>
+        public async Task CleanupInvalidChangeLogEntriesAsync()
+        {
+            try
+            {
+                Logger.LogToFile("Starting cleanup of invalid ChangeLog entries...", "sync.log");
+                
+                await using var session = _driver.AsyncSession();
+                
+                // Step 1: Delete ChangeLog entries with invalid ElementIds (-1, 999)
+                const string cleanupInvalidCypher = @"
+                    MATCH (c:ChangeLog) 
+                    WHERE c.elementId IN [-1, 999] 
+                    WITH c, id(c) as changeId
+                    DELETE c 
+                    RETURN count(*) as deletedCount";
+                
+                var result = await session.RunAsync(cleanupInvalidCypher).ConfigureAwait(false);
+                var record = await result.SingleAsync().ConfigureAwait(false);
+                var deletedInvalidCount = record["deletedCount"].As<int>();
+                
+                Logger.LogToFile($"CLEANUP: Deleted {deletedInvalidCount} invalid ChangeLog entries with ElementIds -1 or 999", "sync.log");
+                
+                // Step 2: Remove duplicate ChangeLog entries (keep only the latest one per elementId)
+                const string cleanupDuplicatesCypher = @"
+                    MATCH (c:ChangeLog)
+                    WITH c.elementId as elementId, collect(c) as changeLogs
+                    WHERE size(changeLogs) > 1
+                    UNWIND changeLogs[..-1] as duplicateChange
+                    DELETE duplicateChange
+                    RETURN count(*) as deletedDuplicates";
+                
+                var duplicateResult = await session.RunAsync(cleanupDuplicatesCypher).ConfigureAwait(false);
+                var duplicateRecord = await duplicateResult.SingleAsync().ConfigureAwait(false);
+                var deletedDuplicatesCount = duplicateRecord["deletedDuplicates"].As<int>();
+                
+                Logger.LogToFile($"CLEANUP: Deleted {deletedDuplicatesCount} duplicate ChangeLog entries", "sync.log");
+                
+                // Step 3: Reset all acknowledged flags to ensure fresh start
+                const string resetCypher = @"
+                    MATCH (c:ChangeLog {acknowledged: true}) 
+                    SET c.acknowledged = false 
+                    REMOVE c.ackBy, c.ackTs
+                    RETURN count(c) as resetCount";
+                
+                var resetResult = await session.RunAsync(resetCypher).ConfigureAwait(false);
+                var resetRecord = await resetResult.SingleAsync().ConfigureAwait(false);
+                var resetCount = resetRecord["resetCount"].As<int>();
+                
+                Logger.LogToFile($"CLEANUP: Reset {resetCount} acknowledged ChangeLog entries to unacknowledged", "sync.log");
+                
+                // Step 4: Get final statistics
+                const string statsCypher = @"
+                    MATCH (c:ChangeLog)
+                    RETURN count(c) as totalChangeLogs,
+                           count(DISTINCT c.elementId) as uniqueElementIds,
+                           collect(DISTINCT c.elementId)[0..10] as sampleElementIds";
+                           
+                var statsResult = await session.RunAsync(statsCypher).ConfigureAwait(false);
+                var statsRecord = await statsResult.SingleAsync().ConfigureAwait(false);
+                var totalChangeLogs = statsRecord["totalChangeLogs"].As<int>();
+                var uniqueElementIds = statsRecord["uniqueElementIds"].As<int>();
+                var sampleIds = statsRecord["sampleElementIds"].As<List<object>>();
+                
+                Logger.LogToFile($"CLEANUP STATS: {totalChangeLogs} total ChangeLog entries, {uniqueElementIds} unique ElementIds", "sync.log");
+                Logger.LogToFile($"CLEANUP SAMPLE IDs: {string.Join(", ", sampleIds)}", "sync.log");
+                Logger.LogToFile($"CLEANUP COMPLETE: Deleted {deletedInvalidCount} invalid + {deletedDuplicatesCount} duplicates, reset {resetCount} acknowledged entries", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Failed to cleanup invalid ChangeLog entries", ex);
+                throw;
+            }
         }
     }
 }

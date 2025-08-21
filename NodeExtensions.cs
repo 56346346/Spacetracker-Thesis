@@ -82,7 +82,7 @@ public static class NodeExtensions
         ["z"] = ps.Z,
         ["rotation"] = ps.Rotation,
         ["hostId"] = ps.HostId,
-        ["revitId"] = ps.RevitId,
+        ["elementId"] = ps.ElementId,  // FIXED: Changed from RevitId to ElementId for consistency
         ["ifcType"] = ps.IfcType,
         ["category"] = ps.Category,
         ["phaseCreated"] = ps.PhaseCreated,

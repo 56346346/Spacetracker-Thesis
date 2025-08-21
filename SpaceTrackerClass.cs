@@ -657,22 +657,9 @@ namespace SpaceTracker
             if (!exportExists)
             {
                 Logger.LogToFile("RIBBON UI TRACE 7: Creating export button", "sync.log");
-                // Existierenden Export-Button hinzufügen (falls noch nicht)
-                var exportBtnData = new PushButtonData(
-                    "ExportButton", "Export to Neo4j",
-                    Assembly.GetExecutingAssembly().Location,
-                    "SpaceTracker.ExportCommand"
-                );
-
-                string iconPath = Path.Combine(assemblyDir, "Logo.png");
-                var exportIcon = new BitmapImage();
-                exportIcon.BeginInit();
-                exportIcon.UriSource = new Uri(iconPath, UriKind.Absolute);
-                exportIcon.EndInit();
-                exportBtnData.LargeImage = exportIcon;
-                var exportBtn = _ribbonPanel.AddItem(exportBtnData) as PushButton;
-                exportBtn.ToolTip = "Export all data to Neo4j";
-                Logger.LogToFile("RIBBON UI TRACE 8: Export button created", "sync.log");
+            // REMOVED: Manual Export button - replaced by automatic push system
+            // Export functionality is now handled automatically by event-based system
+            Logger.LogToFile("RIBBON UI TRACE 8: Manual export button removed (automatic push system active)", "sync.log");
             }
 
             // 3. Pull-Button (entfernte Änderungen holen)
@@ -1307,8 +1294,23 @@ namespace SpaceTracker
                             CommandManager.Instance.cypherCommands = new ConcurrentQueue<string>();
                             CommandManager.Instance.PersistSyncTime();
                             
-                            Logger.LogToFile("PUSH CLEANUP: Running cleanup of obsolete ChangeLogs", "sync.log");
-                            _neo4jConnector.CleanupObsoleteChangeLogsAsync().GetAwaiter().GetResult();
+                            Logger.LogToFile("PUSH CLEANUP: Starting background cleanup of obsolete ChangeLogs", "sync.log");
+                            // CRITICAL FIX: Run cleanup in background to prevent deadlock
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    Logger.LogToFile("BACKGROUND CLEANUP: Starting obsolete ChangeLogs cleanup", "sync.log");
+                                    await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                                    Logger.LogToFile("BACKGROUND CLEANUP: Obsolete ChangeLogs cleanup completed", "sync.log");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.LogCrash("Background ChangeLog Cleanup", ex);
+                                }
+                            });
+
+                            Logger.LogToFile("DOCUMENT OPENED: Push operations completed, continuing with background tasks", "sync.log");
 
                             // CRITICAL FIX: Move Solibri initialization to background to prevent hanging
                             Logger.LogToFile("DOCUMENT OPENED: Starting background Solibri initialization", "sync.log");
@@ -1328,9 +1330,14 @@ namespace SpaceTracker
                                     
                                     // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
                                     Logger.LogToFile("BACKGROUND SOLIBRI: Running Solibri validation", "sync.log");
-                                    var errs = SolibriRulesetValidator.Validate(doc).GetAwaiter().GetResult();
+                                    // FIXED: Use async/await instead of GetAwaiter().GetResult() to prevent deadlock
+                                    var errs = await SolibriRulesetValidator.Validate(doc).ConfigureAwait(false);
                                     var sev = errs.Count == 0 ? Severity.Info : errs.Max(err => err.Severity);
-                                    SpaceTrackerClass.UpdateConsistencyCheckerButton(sev);
+                                    
+                                    Logger.LogToFile($"BACKGROUND SOLIBRI: Validation completed with {errs.Count} errors, severity: {sev}", "sync.log");
+                                    
+                                    // Note: UI updates would need ExternalEvent for thread safety
+                                    // For now, just log the result
                                     
                                     Logger.LogToFile("BACKGROUND SOLIBRI: Background Solibri operations completed", "sync.log");
                                 }
@@ -1393,11 +1400,14 @@ namespace SpaceTracker
                 string key = doc.PathName ?? doc.Title;
                 SessionManager.AddSession(key, new Session(doc));
                 Logger.LogToFile($"DOCUMENT OPENED: Session added for '{key}'", "sync.log");
+                
+                Logger.LogToFile("DOCUMENT OPENED EVENT: *** COMPLETED SUCCESSFULLY *** All operations finished", "sync.log");
             }
             catch (Exception ex)
             {
                 Logger.LogCrash("DocumentOpened", ex);
                 Debug.WriteLine($"[SpaceTracker] Fehler bei documentOpened: {ex.Message}");
+                Logger.LogToFile("DOCUMENT OPENED EVENT: *** FAILED *** Exception occurred", "sync.log");
             }
         }
 

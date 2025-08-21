@@ -55,6 +55,12 @@ namespace SpaceTracker
         public DateTime LastSyncTime { get; set; } = DateTime.MinValue;
         public DateTime LastPulledAt { get; set; } = DateTime.MinValue;
 
+        /// <summary>
+        /// Indicates if this is the initial session (no previous sync time recorded).
+        /// Initial sessions may require different handling to prevent UI blocking.
+        /// </summary>
+        public bool IsInitialSession => LastSyncTime == DateTime.MinValue;
+
         // Privater Konstruktor; erzeugt eine neue Instanz und initialisiert
         // Session-ID sowie den Zeitstempel der letzten Synchronisation.
         private CommandManager(Neo4jConnector neo4jConnector)

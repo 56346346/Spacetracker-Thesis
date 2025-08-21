@@ -49,7 +49,7 @@ public static class ProvisionalSpaceSerializer
         {
             ["rvtClass"] = "ProvisionalSpace",
             ["guid"] = inst.UniqueId,
-            ["elementId"] = inst.Id.Value,
+            ["elementId"] = inst.Id.Value,  // FIXED: Single elementId field instead of separate revitId
             ["typeId"] = inst.GetTypeId().Value,
             ["familyName"] = inst.Symbol?.FamilyName ?? string.Empty,
             ["symbolName"] = inst.Symbol?.Name ?? string.Empty,
@@ -64,7 +64,6 @@ public static class ProvisionalSpaceSerializer
             ["z"] = UnitConversion.ToMm(loc?.Point.Z ?? 0),
             ["rotation"] = loc?.Rotation ?? 0,
             ["hostId"] = inst.Host?.Id.Value ?? -1,
-            ["revitId"] = inst.Id.Value,
             ["ifcType"] = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString() ?? string.Empty,
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
@@ -112,7 +111,7 @@ public static class ProvisionalSpaceSerializer
             Convert.ToDouble(dict.GetValueOrDefault("z", 0.0)),
             Convert.ToDouble(dict.GetValueOrDefault("rotation", 0.0)),
             Convert.ToInt64(dict.GetValueOrDefault("hostId", -1L)),
-            Convert.ToInt32(dict.GetValueOrDefault("revitId", -1)),
+            Convert.ToInt32(dict.GetValueOrDefault("elementId", -1)),  // FIXED: Use elementId instead of revitId
             dict.GetValueOrDefault("ifcType", string.Empty).ToString() ?? string.Empty,
             dict.ContainsKey("category") ? dict["category"].ToString() : null,
             Convert.ToInt32(dict.GetValueOrDefault("phaseCreated", -1)),

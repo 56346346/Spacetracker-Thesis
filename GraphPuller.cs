@@ -64,6 +64,12 @@ public class GraphPuller
 
             if (changes.Count == 0)
             {
+                // DISABLED: Test entries creation disabled while fixing sync issues
+                Logger.LogToFile("PULL NO CHANGES: No changes found. Test entry creation temporarily disabled.", "sync.log");
+                Logger.LogToFile("PULL DEBUG: If this persists, check if ChangeLog entries are being created properly in other session", "sync.log");
+                return; // Exit early instead of creating test entries
+                
+                /* DISABLED - was creating ElementId 999 test entries
                 // Try to create test entries for debugging
                 Logger.LogToFile("PULL NO CHANGES: No changes found, creating test ChangeLog entries for debugging...", "sync.log");
                 _connector.CreateTestChangeLogEntriesAsync(sessionId).GetAwaiter().GetResult();
@@ -72,6 +78,7 @@ public class GraphPuller
                 Logger.LogToFile("PULL RETRY: Retrying GetPendingChangeLogsAsync after creating test entries", "sync.log");
                 changes = _connector.GetPendingChangeLogsAsync(sessionId).GetAwaiter().GetResult();
                 Logger.LogToFile($"PULL TEST ENTRIES: After creating test entries, found {changes.Count} pending element changes", "sync.log");
+                */
             }
 
             // 2) Apply each change
@@ -81,8 +88,8 @@ public class GraphPuller
                 processedCount++;
                 try
                 {
-                    var elementId = elementProperties.ContainsKey("ElementId") ?
-                        Convert.ToInt32(elementProperties["ElementId"]) : -1;
+                    var elementId = elementProperties.ContainsKey("elementId") ?
+                        Convert.ToInt32(elementProperties["elementId"]) : -1;
                     
                     // Determine element type from properties
                     string elementType = DetermineElementType(elementProperties);
@@ -229,7 +236,7 @@ public class GraphPuller
             }
 
             // --- 2) Extract ElementId properly ---
-            var remoteElementId = Convert.ToInt32(w["ElementId"]);
+            var remoteElementId = Convert.ToInt32(w["elementId"]);
             Logger.LogToFile($"Processing wall with ElementId {remoteElementId}", "sync.log");
 
             // --- 3) Find existing wall or create new one ---
@@ -414,7 +421,7 @@ public class GraphPuller
                 Logger.LogToFile($"Successfully created wall {wall.Id}", "sync.log");
 
                 // KRITISCH: Markiere die Wand als SpaceTracker-Element um Feedback-Loops zu vermeiden
-                MarkWallWithRemoteId(wall, Convert.ToInt32(w["ElementId"]));
+                MarkWallWithRemoteId(wall, Convert.ToInt32(w["elementId"]));
 
                 // Set location line
                 if (w.ContainsKey("location_line"))
@@ -819,6 +826,16 @@ public class GraphPuller
     /// </summary>
     private string DetermineElementType(Dictionary<string, object> properties)
     {
+        // Check for explicit type from Neo4j query first
+        if (properties.ContainsKey("__element_type__"))
+        {
+            var elementType = properties["__element_type__"].ToString();
+            if (!string.IsNullOrEmpty(elementType) && elementType != "Unknown")
+            {
+                return elementType;
+            }
+        }
+        
         // Check for explicit type indicators
         if (properties.ContainsKey("rvtClass"))
         {
@@ -909,7 +926,7 @@ public class GraphPuller
     {
         try
         {
-            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            int remoteElementId = Convert.ToInt32(properties["elementId"]);
             Logger.LogToFile($"DOOR UPSERT: Processing door with remoteElementId={remoteElementId}", "sync.log");
 
             // Find existing door by SpaceTracker tag
@@ -936,7 +953,7 @@ public class GraphPuller
     {
         try
         {
-            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            int remoteElementId = Convert.ToInt32(properties["elementId"]);
             
             // Get door type and family information
             string typeName = properties.ContainsKey("typeName") ? properties["typeName"].ToString() : "Standard";
@@ -1091,7 +1108,7 @@ public class GraphPuller
     {
         try
         {
-            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            int remoteElementId = Convert.ToInt32(properties["elementId"]);
             Logger.LogToFile($"PIPE UPSERT: Processing pipe with remoteElementId={remoteElementId}", "sync.log");
 
             // Find existing pipe by SpaceTracker tag
@@ -1118,7 +1135,7 @@ public class GraphPuller
     {
         try
         {
-            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            int remoteElementId = Convert.ToInt32(properties["elementId"]);
             
             // Get pipe coordinates
             double x1 = Convert.ToDouble(properties["x1"]);
@@ -1300,7 +1317,7 @@ public class GraphPuller
     {
         try
         {
-            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            int remoteElementId = Convert.ToInt32(properties["elementId"]);
             Logger.LogToFile($"PROVISIONALSPACE UPSERT: Processing provisional space with remoteElementId={remoteElementId}", "sync.log");
 
             // Find existing provisional space by SpaceTracker tag
@@ -1327,7 +1344,7 @@ public class GraphPuller
     {
         try
         {
-            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            int remoteElementId = Convert.ToInt32(properties["elementId"]);
             
             // Get family information
             string familyName = properties.ContainsKey("familyName") ? properties["familyName"].ToString() : "ProvisionalSpace";

@@ -15,9 +15,27 @@ namespace SpaceTracker
             string infoText =
                 "Export to Neo4j: Exportiert das gesamte Modell in die Datenbank.\n" +
                 "Pull Changes: Holt externe Änderungen in das Modell.\n" +
-                "Consistency Check: Prüft die Konsistenz zwischen Modell und Datenbank.";
+                "Consistency Check: Prüft die Konsistenz zwischen Modell und Datenbank.\n\n" +
+                "DEBUG: Cleanup invalid ChangeLog entries? (Click Yes to run cleanup)";
 
-            Autodesk.Revit.UI.TaskDialog.Show("SpaceTracker Info", infoText);
+            var result = Autodesk.Revit.UI.TaskDialog.Show("SpaceTracker Info", infoText, 
+                Autodesk.Revit.UI.TaskDialogCommonButtons.Yes | Autodesk.Revit.UI.TaskDialogCommonButtons.No);
+            
+            if (result == Autodesk.Revit.UI.TaskDialogResult.Yes)
+            {
+                try
+                {
+                    CleanupScript.CleanupInvalidChangeLogEntries().GetAwaiter().GetResult();
+                    Autodesk.Revit.UI.TaskDialog.Show("Cleanup Complete", 
+                        "Invalid ChangeLog entries cleaned up. Check sync.log for details.");
+                }
+                catch (System.Exception ex)
+                {
+                    Autodesk.Revit.UI.TaskDialog.Show("Cleanup Failed", 
+                        $"Failed to cleanup: {ex.Message}");
+                }
+            }
+            
             return Result.Succeeded;
         }
     }

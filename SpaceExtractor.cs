@@ -97,7 +97,7 @@ namespace SpaceTracker
                 };
 
                 string cy =
-                  $"MATCH (l:Level {{ElementId: {wall.LevelId.Value}}}) MERGE (w:Wall {{ElementId: {wall.Id.Value}}}) SET {string.Join(", ", setParts)} MERGE (l)-[:CONTAINS]->(w)";
+                  $"MATCH (l:Level {{elementId: {wall.LevelId.Value}}}) MERGE (w:Wall {{elementId: {wall.Id.Value}}}) SET {string.Join(", ", setParts)} MERGE (l)-[:CONTAINS]->(w)";
 
 
                 _cmdManager.cypherCommands.Enqueue(cy);
@@ -146,11 +146,11 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     $"d.modified = datetime('{((DateTime)data.GetValueOrDefault("modified", DateTime.UtcNow)).ToString("o")}')"
                 };
 
-                string cyBase = $"MATCH (l:Level {{ElementId: {door.LevelId.Value}}})";
+                string cyBase = $"MATCH (l:Level {{elementId: {door.LevelId.Value}}})";
                 if (hostWall != null)
-                    cyBase += $", (w:Wall {{ElementId: {hostWall.Id.Value}}})";
+                    cyBase += $", (w:Wall {{elementId: {hostWall.Id.Value}}})";
                 string cyNode =
-                    $"{cyBase} MERGE (d:Door {{ElementId: {door.Id.Value}}}) SET {string.Join(", ", setParts)}";
+                    $"{cyBase} MERGE (d:Door {{elementId: {door.Id.Value}}}) SET {string.Join(", ", setParts)}";
                 if (hostWall != null)
                     cyNode += " MERGE (l)-[:CONTAINS]->(d) MERGE (d)-[:INSTALLED_IN]->(w)";
                 else
@@ -198,6 +198,14 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 }
                 var node = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(inst, out var data);
                 Logger.LogToFile($"Serialized data for {inst.UniqueId}", ProvLog);
+                
+                // DEBUG: Log elementId to identify -1 issues
+                var elementId = data["elementId"];
+                Logger.LogToFile($"PROVISIONAL SPACE ELEMENT ID: {elementId} for instance {inst.UniqueId} (Revit ID: {inst.Id.Value})", "sync.log");
+                if (elementId.Equals(-1) || elementId.ToString() == "-1")
+                {
+                    Logger.LogToFile($"WARNING: ProvisionalSpace has elementId = -1! Instance: {inst.UniqueId}, Revit ID: {inst.Id.Value}", "sync.log");
+                }
 
                 var inv = CultureInfo.InvariantCulture;
                 var setParts = new List<string>
@@ -212,7 +220,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     $"p.z = {((double)data["z"]).ToString(inv)}",
                     $"p.rotation = {((double)data["rotation"]).ToString(inv)}",
                     $"p.hostId = {data["hostId"]}",
-                    $"p.revitId = {data["revitId"]}",
+                    $"p.elementId = {data["elementId"]}",  // FIXED: Changed from revitId to elementId for consistency
                     $"p.ifcType = '{ParameterUtils.EscapeForCypher(data["ifcType"].ToString())}'",
                     $"p.familyName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("familyName", "").ToString())}'",
                     $"p.symbolName = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("symbolName", "").ToString())}'",
@@ -241,7 +249,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 if (host != null)
                 {
                     string cyRel =
-                        $"MATCH (w:Wall {{ElementId:{host.Id.Value}}}), (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
+                        $"MATCH (w:Wall {{elementId:{host.Id.Value}}}), (p:ProvisionalSpace {{guid:'{data["guid"]}'}}) " +
                         "MERGE (w)-[:HAS_PROV_SPACE]->(p)";
                     _cmdManager.cypherCommands.Enqueue(cyRel);
                     Logger.LogToFile($"Cypher relation queued: {cyRel}", ProvLog);
@@ -300,7 +308,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 string roomName = string.IsNullOrWhiteSpace(room_Name) ? $"Unnamed_{room.Id}" : room_Name;
                 string levelName = doc.GetElement(room.LevelId)?.Name ?? "Unbekannt";
 
-                string cy = $"MERGE (r:Room {{ElementId: {room.Id.Value}}}) SET r.Name = '{ParameterUtils.EscapeForCypher(roomName)}', r.Level = '{ParameterUtils.EscapeForCypher(levelName)}' WITH r MATCH (l:Level {{ElementId: {room.LevelId.Value}}}) MERGE (l)-[:CONTAINS]->(r)";
+                string cy = $"MERGE (r:Room {{elementId: {room.Id.Value}}}) SET r.Name = '{ParameterUtils.EscapeForCypher(roomName)}', r.Level = '{ParameterUtils.EscapeForCypher(levelName)}' WITH r MATCH (l:Level {{elementId: {room.LevelId.Value}}}) MERGE (l)-[:CONTAINS]->(r)";
 
                 _cmdManager.cypherCommands.Enqueue(cy);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
@@ -347,14 +355,14 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 
                 Debug.WriteLine($"Level: {lvl.Name}, ID: {lvl.Id}");
                 string levelName = ParameterUtils.EscapeForCypher(lvl.Name);
-                string cy = $"MERGE (l:Level{{Name: \"{levelName}\", ElementId: {lvl.Id}}})";
+                string cy = $"MERGE (l:Level{{Name: \"{levelName}\", elementId: {lvl.Id}}})";
                 _cmdManager.cypherCommands.Enqueue(cy);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
                 Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 8-{levelIndex}: Level node queued", "sync.log");
 
                 string cyRel =
             $"MATCH (b:Building {{Name: \"{buildingNameEsc}\"}}), " +
-            $"      (l:Level    {{ElementId: {lvl.Id}}}) " +
+            $"      (l:Level    {{elementId: {lvl.Id}}}) " +
             $"MERGE (b)-[:CONTAINS]->(l)";
                 _cmdManager.cypherCommands.Enqueue(cyRel);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt (Building contains Level): " + cyRel);
@@ -389,9 +397,9 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     string escapedRoomName = ParameterUtils.EscapeForCypher(room.Name);
                     Debug.WriteLine($"Room: {escapedRoomName}, ID: {room.Id}");
 
-                    cy = $"MERGE (r:Room {{ElementId: {room.Id.Value}}}) " +
+                    cy = $"MERGE (r:Room {{elementId: {room.Id.Value}}}) " +
                          $"SET r.Name = '{ParameterUtils.EscapeForCypher(room.Name)}', r.Level = '{ParameterUtils.EscapeForCypher(levelName)}' " +
-                         $"WITH r MATCH (l:Level {{ElementId: {room.LevelId.Value}}}) " +
+                         $"WITH r MATCH (l:Level {{elementId: {room.LevelId.Value}}}) " +
                          $"MERGE (l)-[:CONTAINS]->(r)";
 
                     _cmdManager.cypherCommands.Enqueue(cy);
@@ -435,9 +443,9 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
 
                                 Debug.WriteLine($"\tNeighbor Type: Wall - ID: {wall.Id}, Name: {escapedWallName}");
 
-                                cy = "MATCH (r:Room{ElementId:" + room.Id + "}) " +
-     "MATCH (l:Level{ElementId:" + neighbor.LevelId + "}) " +
-     "MERGE (w:Wall{ElementId:" + wall.Id + "}) " +
+                                cy = "MATCH (r:Room{elementId:" + room.Id + "}) " +
+     "MATCH (l:Level{elementId:" + neighbor.LevelId + "}) " +
+     "MERGE (w:Wall{elementId:" + wall.Id + "}) " +
      "SET w.Name = \"" + escapedWallName + "\" " +
      "MERGE (l)-[:CONTAINS]->(w)-[:BOUNDS]->(r)";
                                 _cmdManager.cypherCommands.Enqueue(cy);
@@ -538,6 +546,14 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             Debug.WriteLine($"#--------#\nTimer stopped: {timer.ElapsedMilliseconds}ms\n#--------#");
             timer.Stop();
             Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 45: Timer stopped, total time: {timer.ElapsedMilliseconds}ms", "sync.log");
+            
+            // DISABLED: Initial ChangeLog creation is redundant since the Push mechanism now works correctly
+            // with the fixed regex. The normal push process will create ChangeLog entries automatically.
+            // Logger.LogToFile("CREATE INITIAL GRAPH TRACE 47: Starting ChangeLog creation for initial elements", "sync.log");
+            // CreateInitialChangeLogEntries(doc);
+            // Logger.LogToFile("CREATE INITIAL GRAPH TRACE 48: ChangeLog creation completed", "sync.log");
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 47: ChangeLog creation skipped - will be handled by normal push mechanism", "sync.log");
+            
             Logger.LogToFile("CREATE INITIAL GRAPH TRACE 46: CreateInitialGraph method completed successfully", "sync.log");
         }
         private void ProcessProvisionalSpaces(Document doc)
@@ -698,10 +714,10 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             string stairName = GenerateStairName(baseLevel.Name, topLevel.Name);
             // 4) Cypher-Statement: Node MERGE + Beziehungen
             string cy =
-                $"MERGE (s:Stair {{ElementId: {stairElem.Id.Value}}}) " +
+                $"MERGE (s:Stair {{elementId: {stairElem.Id.Value}}}) " +
   $"SET s.Name = '{ParameterUtils.EscapeForCypher(stairName)}' " +
                 $"WITH s " +
-                $"MATCH (b:Level {{ElementId: {baseLevelId.Value}}}), (t:Level {{ElementId: {topLevelId.Value}}}) " +
+                $"MATCH (b:Level {{elementId: {baseLevelId.Value}}}), (t:Level {{elementId: {topLevelId.Value}}}) " +
                 $"MERGE (b)-[:CONNECTS_TO]->(s) " +
                 $"MERGE (s)-[:CONNECTS_TO]->(t)";
 
@@ -815,19 +831,19 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 string cyDel;
                 if (e != null && e.Category?.Id.Value == (int)BuiltInCategory.OST_Doors)
                 {
-                    cyDel = $"MATCH (d:Door {{ElementId: {intId}}}) DETACH DELETE d";
+                    cyDel = $"MATCH (d:Door {{elementId: {intId}}}) DETACH DELETE d";
                 }
                 else if (e != null && e.Category?.Id.Value == (int)BuiltInCategory.OST_PipeCurves)
                 {
-                    cyDel = $"MATCH (p:Pipe {{ElementId: {intId}}}) DETACH DELETE p";
+                    cyDel = $"MATCH (p:Pipe {{elementId: {intId}}}) DETACH DELETE p";
                 }
                 else if (e != null && e.Category?.Id.Value == (int)BuiltInCategory.OST_GenericModel && e is FamilyInstance fi && ParameterUtils.IsProvisionalSpace(fi))
                 {
-                    cyDel = $"MATCH (ps:ProvisionalSpace {{ElementId: {intId}}}) DETACH DELETE ps";
+                    cyDel = $"MATCH (ps:ProvisionalSpace {{elementId: {intId}}}) DETACH DELETE ps";
                 }
                 else
                 {
-                    cyDel = $"MATCH (n {{ElementId: {intId}}}) DETACH DELETE n";
+                    cyDel = $"MATCH (n {{elementId: {intId}}}) DETACH DELETE n";
                 }
                 _cmdManager.cypherCommands.Enqueue(cyDel);
                 Debug.WriteLine("[Neo4j] Node deletion Cypher: " + cyDel);
@@ -859,12 +875,12 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     string doorNameMod = fi.get_Parameter(BuiltInParameter.DOOR_NUMBER)?.AsString() ?? fi.Name;
                     var hostWall = fi.Host as Wall;
                     string cyDoor =
-                        $"MATCH (d:Door {{ElementId: {intId}}}) " +
+                        $"MATCH (d:Door {{elementId: {intId}}}) " +
                         "OPTIONAL MATCH (d)-[r:INSTALLED_IN]->() DELETE r " +
                         "WITH d " +
-                        $"MATCH (l:Level {{ElementId: {fi.LevelId.Value}}}) ";
+                        $"MATCH (l:Level {{elementId: {fi.LevelId.Value}}}) ";
                     if (hostWall != null)
-                        cyDoor += $"MATCH (w:Wall {{ElementId: {hostWall.Id.Value}}}) ";
+                        cyDoor += $"MATCH (w:Wall {{elementId: {hostWall.Id.Value}}}) ";
                     cyDoor +=
                         $"SET d.Name = '{ParameterUtils.EscapeForCypher(doorNameMod)}', " +
                         $"d.Type = '{ParameterUtils.EscapeForCypher(doorType)}', " +
@@ -1176,10 +1192,102 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             IList<Element> rooms = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Rooms).WherePasses(bbfilter).ToElements();
 
             return rooms;
-
-
-
         }
 
+        /// <summary>
+        /// Creates ChangeLog entries for all initial elements so other sessions can pull them.
+        /// This ensures that when a fresh Neo4j database is populated from one Revit session,
+        /// other sessions can synchronize all elements properly.
+        /// </summary>
+        private void CreateInitialChangeLogEntries(Document doc)
+        {
+            try
+            {
+                Logger.LogToFile("INITIAL CHANGELOG: Starting ChangeLog creation for initial graph elements", "sync.log");
+                
+                var currentSessionId = _cmdManager.SessionId;
+                Logger.LogToFile($"INITIAL CHANGELOG: Current session {currentSessionId}, creating generic ChangeLog entries", "sync.log");
+
+                // Create ChangeLog entries for all relevant element types
+                // Note: We create entries without specific target sessions for now
+                // The ChangeLog schema allows targetSessionId to be null, and the pull mechanism 
+                // will find these entries when other sessions query for unacknowledged changes
+                int totalChangeLogs = 0;
+
+                // 1. Walls
+                var walls = new FilteredElementCollector(doc).OfClass(typeof(Wall)).Cast<Wall>().ToList();
+                foreach (var wall in walls)
+                {
+                    CreateChangeLogForElement(wall.Id.Value, "Insert");
+                    totalChangeLogs++;
+                }
+                Logger.LogToFile($"INITIAL CHANGELOG: Created {walls.Count} wall ChangeLog entries", "sync.log");
+
+                // 2. Doors  
+                var doors = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Doors).ToList();
+                foreach (var door in doors)
+                {
+                    CreateChangeLogForElement(door.Id.Value, "Insert");
+                    totalChangeLogs++;
+                }
+                Logger.LogToFile($"INITIAL CHANGELOG: Created {doors.Count} door ChangeLog entries", "sync.log");
+
+                // 3. Pipes
+                var pipes = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeCurves).ToList();
+                foreach (var pipe in pipes)
+                {
+                    CreateChangeLogForElement(pipe.Id.Value, "Insert");
+                    totalChangeLogs++;
+                }
+                Logger.LogToFile($"INITIAL CHANGELOG: Created {pipes.Count} pipe ChangeLog entries", "sync.log");
+
+                // 4. Provisional Spaces (Generic Models)
+                var provisionalSpaces = new FilteredElementCollector(doc)
+                    .OfCategory(BuiltInCategory.OST_GenericModel)
+                    .OfClass(typeof(FamilyInstance))
+                    .Cast<FamilyInstance>()
+                    .Where(inst => inst.Symbol?.FamilyName?.Contains("ProvisionalSpace") == true)
+                    .ToList();
+                    
+                foreach (var ps in provisionalSpaces)
+                {
+                    CreateChangeLogForElement(ps.Id.Value, "Insert");
+                    totalChangeLogs++;
+                }
+                Logger.LogToFile($"INITIAL CHANGELOG: Created {provisionalSpaces.Count} provisional space ChangeLog entries", "sync.log");
+
+                Logger.LogToFile($"INITIAL CHANGELOG: Total {totalChangeLogs} ChangeLog entries created for initial graph", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Failed to create initial ChangeLog entries", ex);
+            }
+        }
+
+        /// <summary>
+        /// Creates a single ChangeLog entry for an element
+        /// </summary>
+        private void CreateChangeLogForElement(long elementId, string operation)
+        {
+            try
+            {
+                var cypher = $@"
+CREATE (cl:ChangeLog {{
+    elementId: {elementId},
+    type: '{operation}',
+    sessionId: '{_cmdManager.SessionId}',
+    timestamp: datetime(),
+    acknowledged: false,
+    user: '{_cmdManager.SessionId}'
+}})";
+                
+                _cmdManager.cypherCommands.Enqueue(cypher);
+                Logger.LogToFile($"INITIAL CHANGELOG QUEUED: ChangeLog for element {elementId}, operation {operation}", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogToFile($"INITIAL CHANGELOG ERROR: Failed to create ChangeLog for element {elementId}: {ex.Message}", "sync.log");
+            }
+        }
     }
 }
