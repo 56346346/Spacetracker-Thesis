@@ -86,7 +86,7 @@ Required attributes (all in meters):
 - `CommandManager.cs`: Session and state management
 
 ## MVP Scope
-Current implementation focuses on **walls only**. Doors, pipes, and provisional spaces are not part of the ChangeLog-based synchronization yet.
+Current implementation focuses on walls, doors, pipes, and provisional spaces.
 
 ---
 For questions about the ChangeLog synchronization model or wall reconstruction logic, review `GraphPuller.ApplyPendingWallChanges()` and related helper methods.

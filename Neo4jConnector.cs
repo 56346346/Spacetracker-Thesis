@@ -5,6 +5,7 @@ using Neo4j.Driver;
 using System.Diagnostics;
 using System.Linq;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Events;
 using System.IO;
 using SpaceTracker;
@@ -37,6 +38,9 @@ namespace SpaceTracker
         private readonly IDriver _driver;
         private readonly Microsoft.Extensions.Logging.ILogger<Neo4jConnector> _logger;
         private const string CommandLogFile = "neo4j_commands.log";
+        
+        // Public access to the Neo4j driver for external components
+        public IDriver Driver => _driver;
         private readonly string _cypherFilePath = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
     "SpaceTracker",
@@ -229,24 +233,10 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                             "MATCH (e { ElementId: $id }) SET e.lastModifiedUtc = datetime($time)",
                             new { id = elementId, time = logTime }).ConfigureAwait(false);
 
-                        // Bei neu erstellten Wänden Level-Beziehung ergänzen
-                        if (changeType == "Insert" &&
-                            currentDocument != null &&
-                            cmd.Contains(":Wall", StringComparison.OrdinalIgnoreCase))
+                        // Level-Beziehungen und ChangeLogs für verschiedene Element-Typen aktualisieren
+                        if (currentDocument != null)
                         {
-                            var wall = currentDocument.GetElement(new ElementId((int)elementId)) as Wall;
-                            if (wall != null)
-                            {
-                                Level level = currentDocument.GetElement(wall.LevelId) as Level;
-                                if (level != null)
-                                {
-                                    const string relCypher =
-                                        @"MATCH (l:Level {ElementId: $levelId}), (w:Wall {ElementId: $wallId})
-MERGE (l)-[:CONTAINS]->(w)";
-                                    await tx.RunAsync(relCypher,
-                                        new { levelId = level.Id.Value, wallId = elementId }).ConfigureAwait(false);
-                                }
-                            }
+                            await HandleElementLevelRelationshipsAsync(tx, cmd, changeType, elementId, logTime, sessionId, currentDocument).ConfigureAwait(false);
                         }
                     }
                 }
@@ -417,6 +407,8 @@ RETURN max(s.lastUpdate) AS lastUpdate";
         }
         public async Task CreateLogChangeAsync(long elementId, ChangeType type, string sessionId)
         {
+            Logger.LogToFile($"NEO4J CHANGELOG CREATE: Creating ChangeLog entry for element {elementId}, type {type}, session {sessionId}", "sync.log");
+            
             const string cypher = @"MERGE (s:Session { id:$session })
 CREATE (cl:ChangeLog {
     sessionId:$session,
@@ -427,7 +419,17 @@ CREATE (cl:ChangeLog {
     acknowledged:false
 })
 MERGE (s)-[:HAS_LOG]->(cl)";
-            await RunWriteQueryAsync(cypher, new { session = sessionId, type = type.ToString(), eid = elementId }).ConfigureAwait(false);
+            
+            try
+            {
+                await RunWriteQueryAsync(cypher, new { session = sessionId, type = type.ToString(), eid = elementId }).ConfigureAwait(false);
+                Logger.LogToFile($"NEO4J CHANGELOG SUCCESS: ChangeLog entry created for element {elementId}, type {type}, session {sessionId}", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogToFile($"NEO4J CHANGELOG ERROR: Failed to create ChangeLog entry for element {elementId}: {ex.Message}", "sync.log");
+                throw;
+            }
         }
         // Schreibt eine Tür in Neo4j (INSERT/UPDATE).
 
@@ -868,6 +870,352 @@ MERGE (s)-[:HAS_LOG]->(cl)";
                 Logger.LogCrash("Failed to create test ChangeLog entries", ex);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Handles level relationships and ChangeLog creation for all element types
+        /// </summary>
+        private async Task HandleElementLevelRelationshipsAsync(
+            IAsyncTransaction tx, 
+            string cmd, 
+            string changeType, 
+            long elementId, 
+            string logTime, 
+            string sessionId, 
+            Document currentDocument)
+        {
+            Level level = null;
+            string elementType = null;
+
+            // Determine element type and relationship
+            if (cmd.Contains(":Wall", StringComparison.OrdinalIgnoreCase))
+            {
+                elementType = "Wall";
+                level = await HandleWallLevelRelationshipAsync(tx, changeType, elementId, currentDocument).ConfigureAwait(false);
+            }
+            else if (cmd.Contains(":Door", StringComparison.OrdinalIgnoreCase))
+            {
+                elementType = "Door";
+                level = await HandleDoorLevelRelationshipAsync(tx, changeType, elementId, currentDocument).ConfigureAwait(false);
+            }
+            else if (cmd.Contains(":Pipe", StringComparison.OrdinalIgnoreCase))
+            {
+                elementType = "Pipe";
+                level = await HandlePipeLevelRelationshipAsync(tx, changeType, elementId, currentDocument).ConfigureAwait(false);
+            }
+            else if (cmd.Contains(":ProvisionalSpace", StringComparison.OrdinalIgnoreCase))
+            {
+                elementType = "ProvisionalSpace";
+                level = await HandleProvisionalSpaceLevelRelationshipAsync(tx, changeType, elementId, currentDocument).ConfigureAwait(false);
+            }
+
+            // Create ChangeLog entry for affected Level (for all element types)
+            if (level != null && !string.IsNullOrEmpty(elementType))
+            {
+                await CreateLevelChangeLogAsync(tx, level, elementType, changeType, elementId, logTime, sessionId).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Handles Wall-Level relationships
+        /// </summary>
+        private async Task<Level> HandleWallLevelRelationshipAsync(
+            IAsyncTransaction tx, 
+            string changeType, 
+            long elementId, 
+            Document currentDocument)
+        {
+            Level level = null;
+
+            if (changeType == "Insert" || changeType == "Modify")
+            {
+                // For Insert and Modify: get level from current wall
+                var wall = currentDocument.GetElement(new ElementId((int)elementId)) as Wall;
+                if (wall != null)
+                {
+                    level = currentDocument.GetElement(wall.LevelId) as Level;
+                    
+                    if (level != null && changeType == "Insert")
+                    {
+                        // Only for Insert: create level relationship
+                        const string relCypher = @"
+                            MATCH (l:Level {ElementId: $levelId}), (w:Wall {ElementId: $wallId})
+                            MERGE (l)-[:CONTAINS]->(w)";
+                        await tx.RunAsync(relCypher,
+                            new { levelId = level.Id.Value, wallId = elementId }).ConfigureAwait(false);
+                    }
+                }
+            }
+            else if (changeType == "Delete")
+            {
+                // For Delete: find level via existing Neo4j relationship
+                const string findLevelQuery = @"
+                    MATCH (l:Level)-[:CONTAINS]->(w:Wall {ElementId: $wallId})
+                    RETURN l.ElementId as levelId";
+                    
+                var levelResult = await tx.RunAsync(findLevelQuery, new { wallId = elementId }).ConfigureAwait(false);
+                var levelRecords = await levelResult.ToListAsync().ConfigureAwait(false);
+                var levelRecord = levelRecords.FirstOrDefault();
+                
+                if (levelRecord != null)
+                {
+                    var levelId = levelRecord["levelId"].As<long>();
+                    level = currentDocument.GetElement(new ElementId((int)levelId)) as Level;
+                    
+                    // Delete level relationship
+                    const string deleteRelCypher = @"
+                        MATCH (l:Level {ElementId: $levelId})-[r:CONTAINS]->(w:Wall {ElementId: $wallId})
+                        DELETE r";
+                    await tx.RunAsync(deleteRelCypher,
+                        new { levelId = levelId, wallId = elementId }).ConfigureAwait(false);
+                }
+            }
+
+            return level;
+        }
+
+        /// <summary>
+        /// Handles Door-Wall-Level relationships
+        /// </summary>
+        private async Task<Level> HandleDoorLevelRelationshipAsync(
+            IAsyncTransaction tx, 
+            string changeType, 
+            long elementId, 
+            Document currentDocument)
+        {
+            Level level = null;
+
+            if (changeType == "Insert" || changeType == "Modify")
+            {
+                // For Insert and Modify: get level from door's host wall
+                var door = currentDocument.GetElement(new ElementId((int)elementId)) as FamilyInstance;
+                if (door != null && door.Host is Wall hostWall)
+                {
+                    level = currentDocument.GetElement(hostWall.LevelId) as Level;
+                    
+                    if (level != null && changeType == "Insert")
+                    {
+                        // Create Door-Wall and Level-Door relationships
+                        const string relCypher = @"
+                            MATCH (l:Level {ElementId: $levelId}), (w:Wall {ElementId: $wallId}), (d:Door {ElementId: $doorId})
+                            MERGE (w)-[:HOSTS]->(d)
+                            MERGE (l)-[:CONTAINS]->(d)";
+                        await tx.RunAsync(relCypher,
+                            new { levelId = level.Id.Value, wallId = hostWall.Id.Value, doorId = elementId }).ConfigureAwait(false);
+                    }
+                }
+            }
+            else if (changeType == "Delete")
+            {
+                // For Delete: find level via existing Neo4j relationships
+                const string findLevelQuery = @"
+                    MATCH (l:Level)-[:CONTAINS]->(d:Door {ElementId: $doorId})
+                    RETURN l.ElementId as levelId";
+                    
+                var levelResult = await tx.RunAsync(findLevelQuery, new { doorId = elementId }).ConfigureAwait(false);
+                var levelRecords = await levelResult.ToListAsync().ConfigureAwait(false);
+                var levelRecord = levelRecords.FirstOrDefault();
+                
+                if (levelRecord != null)
+                {
+                    var levelId = levelRecord["levelId"].As<long>();
+                    level = currentDocument.GetElement(new ElementId((int)levelId)) as Level;
+                    
+                    // Delete door relationships
+                    const string deleteRelCypher = @"
+                        MATCH (l:Level)-[r1:CONTAINS]->(d:Door {ElementId: $doorId})
+                        MATCH (w:Wall)-[r2:HOSTS]->(d)
+                        DELETE r1, r2";
+                    await tx.RunAsync(deleteRelCypher, new { doorId = elementId }).ConfigureAwait(false);
+                }
+            }
+
+            return level;
+        }
+
+        /// <summary>
+        /// Handles Pipe-Level relationships
+        /// </summary>
+        private async Task<Level> HandlePipeLevelRelationshipAsync(
+            IAsyncTransaction tx, 
+            string changeType, 
+            long elementId, 
+            Document currentDocument)
+        {
+            Level level = null;
+
+            if (changeType == "Insert" || changeType == "Modify")
+            {
+                // For Insert and Modify: get level from pipe
+                var pipe = currentDocument.GetElement(new ElementId((int)elementId)) as Pipe;
+                if (pipe != null)
+                {
+                    level = currentDocument.GetElement(pipe.LevelId) as Level;
+                    
+                    if (level != null && changeType == "Insert")
+                    {
+                        // Create Level-Pipe relationship
+                        const string relCypher = @"
+                            MATCH (l:Level {ElementId: $levelId}), (p:Pipe {ElementId: $pipeId})
+                            MERGE (l)-[:CONTAINS]->(p)";
+                        await tx.RunAsync(relCypher,
+                            new { levelId = level.Id.Value, pipeId = elementId }).ConfigureAwait(false);
+                    }
+                }
+            }
+            else if (changeType == "Delete")
+            {
+                // For Delete: find level via existing Neo4j relationship
+                const string findLevelQuery = @"
+                    MATCH (l:Level)-[:CONTAINS]->(p:Pipe {ElementId: $pipeId})
+                    RETURN l.ElementId as levelId";
+                    
+                var levelResult = await tx.RunAsync(findLevelQuery, new { pipeId = elementId }).ConfigureAwait(false);
+                var levelRecords = await levelResult.ToListAsync().ConfigureAwait(false);
+                var levelRecord = levelRecords.FirstOrDefault();
+                
+                if (levelRecord != null)
+                {
+                    var levelId = levelRecord["levelId"].As<long>();
+                    level = currentDocument.GetElement(new ElementId((int)levelId)) as Level;
+                    
+                    // Delete level relationship
+                    const string deleteRelCypher = @"
+                        MATCH (l:Level {ElementId: $levelId})-[r:CONTAINS]->(p:Pipe {ElementId: $pipeId})
+                        DELETE r";
+                    await tx.RunAsync(deleteRelCypher,
+                        new { levelId = levelId, pipeId = elementId }).ConfigureAwait(false);
+                }
+            }
+
+            return level;
+        }
+
+        /// <summary>
+        /// Handles ProvisionalSpace-Wall relationships
+        /// </summary>
+        private async Task<Level> HandleProvisionalSpaceLevelRelationshipAsync(
+            IAsyncTransaction tx, 
+            string changeType, 
+            long elementId, 
+            Document currentDocument)
+        {
+            Level level = null;
+
+            if (changeType == "Insert" || changeType == "Modify")
+            {
+                // For Insert and Modify: find associated wall and get its level
+                var space = currentDocument.GetElement(new ElementId((int)elementId)) as FamilyInstance;
+                if (space != null)
+                {
+                    // Try to find a nearby wall or use a default level
+                    // For now, use the first available level as ProvisionalSpaces are often not bound to specific levels
+                    level = new FilteredElementCollector(currentDocument)
+                        .OfClass(typeof(Level))
+                        .Cast<Level>()
+                        .FirstOrDefault();
+                    
+                    if (level != null && changeType == "Insert")
+                    {
+                        // Create Level-ProvisionalSpace relationship
+                        const string relCypher = @"
+                            MATCH (l:Level {ElementId: $levelId}), (ps:ProvisionalSpace {ElementId: $spaceId})
+                            MERGE (l)-[:CONTAINS]->(ps)";
+                        await tx.RunAsync(relCypher,
+                            new { levelId = level.Id.Value, spaceId = elementId }).ConfigureAwait(false);
+                            
+                        // Also try to find nearby walls for ProvisionalSpace-Wall relationships
+                        var nearbyWalls = new FilteredElementCollector(currentDocument)
+                            .OfClass(typeof(Wall))
+                            .Cast<Wall>()
+                            .Take(5); // Limit to avoid performance issues
+                            
+                        foreach (var wall in nearbyWalls)
+                        {
+                            const string wallRelCypher = @"
+                                MATCH (w:Wall {ElementId: $wallId}), (ps:ProvisionalSpace {ElementId: $spaceId})
+                                MERGE (ps)-[:ADJACENT_TO]->(w)";
+                            await tx.RunAsync(wallRelCypher,
+                                new { wallId = wall.Id.Value, spaceId = elementId }).ConfigureAwait(false);
+                        }
+                    }
+                }
+            }
+            else if (changeType == "Delete")
+            {
+                // For Delete: find level via existing Neo4j relationship
+                const string findLevelQuery = @"
+                    MATCH (l:Level)-[:CONTAINS]->(ps:ProvisionalSpace {ElementId: $spaceId})
+                    RETURN l.ElementId as levelId";
+                    
+                var levelResult = await tx.RunAsync(findLevelQuery, new { spaceId = elementId }).ConfigureAwait(false);
+                var levelRecords = await levelResult.ToListAsync().ConfigureAwait(false);
+                var levelRecord = levelRecords.FirstOrDefault();
+                
+                if (levelRecord != null)
+                {
+                    var levelId = levelRecord["levelId"].As<long>();
+                    level = currentDocument.GetElement(new ElementId((int)levelId)) as Level;
+                    
+                    // Delete all ProvisionalSpace relationships
+                    const string deleteRelCypher = @"
+                        MATCH (l:Level)-[r1:CONTAINS]->(ps:ProvisionalSpace {ElementId: $spaceId})
+                        MATCH (ps)-[r2:ADJACENT_TO]->(w:Wall)
+                        DELETE r1, r2";
+                    await tx.RunAsync(deleteRelCypher, new { spaceId = elementId }).ConfigureAwait(false);
+                }
+            }
+
+            return level;
+        }
+
+        /// <summary>
+        /// Creates ChangeLog entry for affected Level
+        /// </summary>
+        private async Task CreateLevelChangeLogAsync(
+            IAsyncTransaction tx, 
+            Level level, 
+            string elementType, 
+            string changeType, 
+            long elementId, 
+            string logTime, 
+            string sessionId)
+        {
+            Logger.LogToFile($"PUSH LEVEL CHANGE: Level {level.Id.Value} modified by {elementType} {changeType} operation on element {elementId}, creating ChangeLog", "sync.log");
+            
+            // Update Level lastModifiedUtc
+            await tx.RunAsync(
+                "MATCH (l:Level { ElementId: $levelId }) SET l.lastModifiedUtc = datetime($time)",
+                new { levelId = level.Id.Value, time = logTime }).ConfigureAwait(false);
+
+            // Create ChangeLog entry for Level (for all other sessions)
+            const string levelLogQuery = @"
+                MATCH (s:Session { id: $session })
+                MERGE (cl:ChangeLog {
+                    sessionId: $session,
+                    elementId: $levelId,
+                    type: 'Modify'
+                })
+                ON CREATE SET 
+                    cl.user = $user,
+                    cl.timestamp = datetime($time),
+                    cl.acknowledged = false
+                ON MATCH SET 
+                    cl.timestamp = datetime($time),
+                    cl.acknowledged = false,
+                    cl.user = $user
+                MERGE (s)-[:HAS_LOG]->(cl)";
+
+            await tx.RunAsync(levelLogQuery,
+                new
+                {
+                    session = sessionId,
+                    user = sessionId,
+                    time = logTime,
+                    levelId = level.Id.Value
+                }).ConfigureAwait(false);
+
+            Logger.LogToFile($"PUSH LEVEL CHANGELOG: Created/Updated ChangeLog entry for Level {level.Id.Value} modified by {elementType} {changeType} on element {elementId}", "sync.log");
         }
     }
 }

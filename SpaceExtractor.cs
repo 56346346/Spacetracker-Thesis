@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
+using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Events;
 using System.Linq;
 using System.Globalization;
@@ -313,34 +314,43 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
         // Liest alle relevanten Elemente aus dem Dokument und erzeugt erste Neo4j-Knoten.
         public void CreateInitialGraph(Document doc)
         {
-
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 1: Starting CreateInitialGraph method", "sync.log");
 
             // create stopwatch to measure the elapsed time
             Stopwatch timer = new Stopwatch();
             timer.Start();
             Debug.WriteLine("#--------#\nTimer started.\n#--------#");
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 2: Timer started", "sync.log");
 
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 3: Creating building node", "sync.log");
             string buildingName = "Teststraße 21";
             string buildingNameEsc = ParameterUtils.EscapeForCypher(buildingName);
             string cyBuilding = $"MERGE (b:Building {{Name: \"{buildingNameEsc}\"}})";
             _cmdManager.cypherCommands.Enqueue(cyBuilding);
             Debug.WriteLine("[Neo4j] Cypher erzeugt (Building): " + cyBuilding);
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 4: Building node queued", "sync.log");
 
             // 1. Alle Level einlesen
-
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 5: Starting level collection", "sync.log");
 
             // Get all level
             FilteredElementCollector collector = new FilteredElementCollector(doc);
             IList<Level> levels = collector.OfClass(typeof(Level)).Cast<Level>().ToList();
+            Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 6: Found {levels.Count} levels", "sync.log");
 
             // Iterate over all level
+            int levelIndex = 0;
             foreach (Level lvl in levels)
             {
+                levelIndex++;
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 7-{levelIndex}: Processing level '{lvl.Name}' (ID: {lvl.Id})", "sync.log");
+                
                 Debug.WriteLine($"Level: {lvl.Name}, ID: {lvl.Id}");
                 string levelName = ParameterUtils.EscapeForCypher(lvl.Name);
                 string cy = $"MERGE (l:Level{{Name: \"{levelName}\", ElementId: {lvl.Id}}})";
                 _cmdManager.cypherCommands.Enqueue(cy);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 8-{levelIndex}: Level node queued", "sync.log");
 
                 string cyRel =
             $"MATCH (b:Building {{Name: \"{buildingNameEsc}\"}}), " +
@@ -348,8 +358,10 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             $"MERGE (b)-[:CONTAINS]->(l)";
                 _cmdManager.cypherCommands.Enqueue(cyRel);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt (Building contains Level): " + cyRel);
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 9-{levelIndex}: Level relationship queued", "sync.log");
 
                 // get all Elements of type Room in the current level
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 10-{levelIndex}: Getting rooms for level {lvl.Name}", "sync.log");
                 ElementLevelFilter lvlFilter = new ElementLevelFilter(lvl.Id);
 
                 IList<Element> rooms = new FilteredElementCollector(doc)
@@ -357,14 +369,21 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     .WhereElementIsNotElementType()
                     .WherePasses(lvlFilter)
                     .ToElements();
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 11-{levelIndex}: Found {rooms.Count} rooms on level {lvl.Name}", "sync.log");
+                
                 // Iterate over all rooms in that level
+                int roomIndex = 0;
                 foreach (var element in rooms)
                 {
+                    roomIndex++;
+                    Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 12-{levelIndex}-{roomIndex}: Processing room {element.Id}", "sync.log");
+                    
                     var room = (Room)element;
 
                     if (room.LevelId == null || room.LevelId.Value == -1)
                     {
                         Debug.WriteLine($"[WARN] Raum {room.Id} hat kein gültiges Level – wird übersprungen.");
+                        Logger.LogToFile($"CREATE INITIAL GRAPH TRACE WARNING: Room {room.Id} has invalid level, skipping", "sync.log");
                         continue;
                     }
                     string escapedRoomName = ParameterUtils.EscapeForCypher(room.Name);
@@ -377,25 +396,39 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
 
                     _cmdManager.cypherCommands.Enqueue(cy);
                     Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
+                    Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 13-{levelIndex}-{roomIndex}: Room node queued", "sync.log");
 
-
+                    Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 14-{levelIndex}-{roomIndex}: Getting boundary segments for room {room.Id}", "sync.log");
                     IList<IList<BoundarySegment>> boundaries = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+                    Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 15-{levelIndex}-{roomIndex}: Got {boundaries.Count} boundary groups", "sync.log");
 
+                    int boundaryIndex = 0;
                     foreach (IList<BoundarySegment> b in boundaries)
                     {
+                        boundaryIndex++;
+                        Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 16-{levelIndex}-{roomIndex}-{boundaryIndex}: Processing boundary group with {b.Count} segments", "sync.log");
+                        
+                        int segmentIndex = 0;
                         foreach (BoundarySegment s in b)
                         {
+                            segmentIndex++;
+                            Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 17-{levelIndex}-{roomIndex}-{boundaryIndex}-{segmentIndex}: Processing boundary segment", "sync.log");
+                            
                             ElementId neighborId = s.ElementId;
                             if (neighborId.Value == -1)
                             {
                                 Debug.WriteLine("Something went wrong when extracting Element ID " + neighborId);
+                                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE WARNING: Invalid neighbor element ID -1", "sync.log");
                                 continue;
                             }
 
+                            Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 18-{levelIndex}-{roomIndex}-{boundaryIndex}-{segmentIndex}: Getting neighbor element {neighborId.Value}", "sync.log");
                             Element neighbor = doc.GetElement(neighborId);
 
                             if (neighbor is Wall wall)
                             {
+                                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 19-{levelIndex}-{roomIndex}-{boundaryIndex}-{segmentIndex}: Processing wall neighbor {wall.Id}", "sync.log");
+                                
                                 string wallName = wall.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM)?.AsString()
                                                   ?? wall.Name ?? "Unbenannt";
                                 string escapedWallName = ParameterUtils.EscapeForCypher(wallName);
@@ -409,60 +442,103 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
      "MERGE (l)-[:CONTAINS]->(w)-[:BOUNDS]->(r)";
                                 _cmdManager.cypherCommands.Enqueue(cy);
                                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cy);
+                                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 20-{levelIndex}-{roomIndex}-{boundaryIndex}-{segmentIndex}: Wall relationship queued", "sync.log");
 
                             }
                             else
                             {
+                                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 21-{levelIndex}-{roomIndex}-{boundaryIndex}-{segmentIndex}: Skipping undefined neighbor type", "sync.log");
                                 Debug.WriteLine("\tNeighbor Type: Undefined - ID: " + neighbor.Id);
                             }
                         }
                     }
                 }
+                
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 22-{levelIndex}: Starting ProcessWalls for level {lvl.Name}", "sync.log");
                 ProcessWalls(doc, lvl);
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 23-{levelIndex}: ProcessWalls completed for level {lvl.Name}", "sync.log");
+                
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 24-{levelIndex}: Starting stair processing for level {lvl.Name}", "sync.log");
                 var stairFilter = new ElementLevelFilter(lvl.Id);
-                foreach (Element e in new FilteredElementCollector(doc)
+                var stairs = new FilteredElementCollector(doc)
                     .OfCategory(BuiltInCategory.OST_Stairs)
                     .WherePasses(stairFilter)
-                    .WhereElementIsNotElementType())
+                    .WhereElementIsNotElementType()
+                    .ToElements();
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 25-{levelIndex}: Found {stairs.Count} stairs on level {lvl.Name}", "sync.log");
+                
+                int stairIndex = 0;
+                foreach (Element e in stairs)
                 {
+                    stairIndex++;
+                    Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 26-{levelIndex}-{stairIndex}: Processing stair {e.Id}", "sync.log");
                     ProcessStair(e, doc);
+                    Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 27-{levelIndex}-{stairIndex}: Stair {e.Id} processed", "sync.log");
                 }
 
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 28-{levelIndex}: Starting door processing for level {lvl.Name}", "sync.log");
                 var doorCollector = new FilteredElementCollector(doc)
                     .OfCategory(BuiltInCategory.OST_Doors).OfClass(typeof(FamilyInstance)).WherePasses(lvlFilter);
 
                 var doors = doorCollector.ToElements();
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 29-{levelIndex}: Found {doors.Count} doors on level {lvl.Name}", "sync.log");
 
                 // Iterate over all doors at current level using the detailed
                 // serialization method so that all properties are stored in
                 // Neo4j. This ensures a door can be fully reconstructed when
                 // pulling the model.
+                int doorIndex = 0;
                 foreach (var door in doors)
                 {
+                    doorIndex++;
+                    Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 30-{levelIndex}-{doorIndex}: Processing door {door.Id}", "sync.log");
                     ProcessDoor(door, doc);
+                    Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 31-{levelIndex}-{doorIndex}: Door {door.Id} processed", "sync.log");
                 }
              
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 32-{levelIndex}: Starting pipe processing for level {lvl.Name}", "sync.log");
                 ProcessPipes(doc, lvl);
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 33-{levelIndex}: Pipe processing completed for level {lvl.Name}", "sync.log");
             }
+            
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 34: Level iteration completed, starting provisional spaces", "sync.log");
             ProcessProvisionalSpaces(doc);
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 35: Provisional spaces processed", "sync.log");
+            
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 36: Starting pipe bounding check", "sync.log");
             CheckBoundingForAllPipes(doc);
-            foreach (Element stair in new FilteredElementCollector(doc)
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 37: Pipe bounding check completed", "sync.log");
+            
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 38: Starting global stair processing", "sync.log");
+            var globalStairs = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_Stairs)
-                .WhereElementIsNotElementType())
+                .WhereElementIsNotElementType()
+                .ToElements();
+            Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 39: Found {globalStairs.Count} global stairs", "sync.log");
+            
+            int globalStairIndex = 0;
+            foreach (Element stair in globalStairs)
             {
+                globalStairIndex++;
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 40-{globalStairIndex}: Processing global stair {stair.Id}", "sync.log");
                 ProcessStair(stair, doc);
+                Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 41-{globalStairIndex}: Global stair {stair.Id} processed", "sync.log");
             }
 
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 42: Starting file output", "sync.log");
             string baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceTracker");
             Directory.CreateDirectory(baseDir); // falls noch nicht vorhanden
 
             var cyPath = Path.Combine(baseDir, "neo4j_cypher.txt");
+            Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 43: Writing cypher commands to {cyPath}", "sync.log");
             File.WriteAllText(cyPath, string.Join("\n", _cmdManager.cypherCommands));
-
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 44: Cypher file written successfully", "sync.log");
 
             // print out the elapsed time and stop the timer
             Debug.WriteLine($"#--------#\nTimer stopped: {timer.ElapsedMilliseconds}ms\n#--------#");
             timer.Stop();
+            Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 45: Timer stopped, total time: {timer.ElapsedMilliseconds}ms", "sync.log");
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 46: CreateInitialGraph method completed successfully", "sync.log");
         }
         private void ProcessProvisionalSpaces(Document doc)
         {
@@ -741,6 +817,14 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 {
                     cyDel = $"MATCH (d:Door {{ElementId: {intId}}}) DETACH DELETE d";
                 }
+                else if (e != null && e.Category?.Id.Value == (int)BuiltInCategory.OST_PipeCurves)
+                {
+                    cyDel = $"MATCH (p:Pipe {{ElementId: {intId}}}) DETACH DELETE p";
+                }
+                else if (e != null && e.Category?.Id.Value == (int)BuiltInCategory.OST_GenericModel && e is FamilyInstance fi && ParameterUtils.IsProvisionalSpace(fi))
+                {
+                    cyDel = $"MATCH (ps:ProvisionalSpace {{ElementId: {intId}}}) DETACH DELETE ps";
+                }
                 else
                 {
                     cyDel = $"MATCH (n {{ElementId: {intId}}}) DETACH DELETE n";
@@ -801,6 +885,35 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     // Wand-Name aktualisieren
                     cy = $"MATCH (w:Wall {{ElementId: {intId}}}) " +
  $"SET w.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
+                }
+                else if (e is FamilyInstance psFi && psFi.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel && ParameterUtils.IsProvisionalSpace(psFi))
+                {
+                    // ProvisionalSpace-Eigenschaften aktualisieren
+                    var data = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(psFi, out var dictData);
+                    var inv = System.Globalization.CultureInfo.InvariantCulture;
+                    cy = $"MATCH (ps:ProvisionalSpace {{ElementId: {intId}}}) " +
+                         $"SET ps.name = '{ParameterUtils.EscapeForCypher(dictData["name"].ToString())}', " +
+                         $"ps.x = {((double)dictData["x"]).ToString(inv)}, " +
+                         $"ps.y = {((double)dictData["y"]).ToString(inv)}, " +
+                         $"ps.z = {((double)dictData["z"]).ToString(inv)}, " +
+                         $"ps.width = {((double)dictData["width"]).ToString(inv)}, " +
+                         $"ps.height = {((double)dictData["height"]).ToString(inv)}, " +
+                         $"ps.modified = datetime('{((DateTime)dictData["modified"]).ToString("o")}')";
+                }
+                else if (e is MEPCurve pipe && pipe.Category.Id.Value == (int)BuiltInCategory.OST_PipeCurves)
+                {
+                    // Pipe-Eigenschaften aktualisieren
+                    var data = PipeSerializer.ToNode(pipe);
+                    var inv = System.Globalization.CultureInfo.InvariantCulture;
+                    cy = $"MATCH (p:Pipe {{ElementId: {intId}}}) " +
+                         $"SET p.x1 = {((double)data["x1"]).ToString(inv)}, " +
+                         $"p.y1 = {((double)data["y1"]).ToString(inv)}, " +
+                         $"p.z1 = {((double)data["z1"]).ToString(inv)}, " +
+                         $"p.x2 = {((double)data["x2"]).ToString(inv)}, " +
+                         $"p.y2 = {((double)data["y2"]).ToString(inv)}, " +
+                         $"p.z2 = {((double)data["z2"]).ToString(inv)}, " +
+                         $"p.diameter = {((double)data["diameter"]).ToString(inv)}, " +
+                         $"p.lastModifiedUtc = datetime('{((DateTime)data["modified"]).ToString("o")}')";
                 }
                 else if (e is Level)
                 {
@@ -930,21 +1043,38 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
 
             foreach (var e in EnqueuedElements)
             {
+                Logger.LogToFile($"UPDATEGRPH PROCESS ADDED: Processing element {e.Id} of category {e.Category?.Name} ({e.Category?.Id.Value})", "sync.log");
+                
                 switch (e)
                 {
                     case Room room:
+                        Logger.LogToFile($"UPDATEGRPH: Processing Room {room.Id}", "sync.log");
                         ProcessRoom(room, doc);
                         break;
                     case Wall wall:
+                        Logger.LogToFile($"UPDATEGRPH: Processing Wall {wall.Id}", "sync.log");
                         ProcessWall(wall, doc);
                         break;
                     case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
+                        Logger.LogToFile($"UPDATEGRPH: Processing Door {fi.Id}", "sync.log");
                         ProcessDoor(fi, doc);
                         break;
+                    case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel && ParameterUtils.IsProvisionalSpace(fi):
+                        Logger.LogToFile($"UPDATEGRPH: Processing ProvisionalSpace {fi.Id}", "sync.log");
+                        ProcessProvisionalSpace(fi, doc);
+                        break;
+                    case MEPCurve pipe when pipe.Category.Id.Value == (int)BuiltInCategory.OST_PipeCurves:
+                        Logger.LogToFile($"UPDATEGRPH: Processing Pipe {pipe.Id}", "sync.log");
+                        ProcessPipe(pipe, doc);
+                        break;
                     case Element st when st.Category.Id.Value == (int)BuiltInCategory.OST_Stairs:
+                        Logger.LogToFile($"UPDATEGRPH: Processing Stair {st.Id}", "sync.log");
                         // Directly process the stair element. Level information
                         // will be resolved inside ProcessStair.
                         ProcessStair(st, doc);
+                        break;
+                    default:
+                        Logger.LogToFile($"UPDATEGRPH WARNING: Unhandled element type {e.GetType().Name} with category {e.Category?.Name} ({e.Category?.Id.Value}) for element {e.Id}", "sync.log");
                         break;
                 }
             }

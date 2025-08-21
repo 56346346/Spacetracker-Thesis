@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Plumbing;
+using Autodesk.Revit.DB.Structure;
 using System.Linq;
 using Autodesk.Revit.UI;
 using Neo4j.Driver;
@@ -48,18 +49,18 @@ public class GraphPuller
         _connector = connector ?? CommandManager.Instance.Neo4jConnector;
     }
 
-    // Applies pending wall changes from ChangeLog entries for this session
+    // Applies pending changes from ChangeLog entries for this session (all element types)
     public void ApplyPendingWallChanges(Document doc, string sessionId)
     {
         var startTime = DateTime.Now;
         try
         {
-            Logger.LogToFile($"PULL APPLY STARTED: ApplyPendingWallChanges for session {sessionId} on document '{doc.Title}' at {startTime:yyyy-MM-dd HH:mm:ss.fff}", "sync.log");
+            Logger.LogToFile($"PULL APPLY STARTED: ApplyPendingElementChanges for session {sessionId} on document '{doc.Title}' at {startTime:yyyy-MM-dd HH:mm:ss.fff}", "sync.log");
 
             // 1) Load pending changes using new ChangeLog method
             Logger.LogToFile("PULL LOADING CHANGES: Calling GetPendingChangeLogsAsync", "sync.log");
             var changes = _connector.GetPendingChangeLogsAsync(sessionId).GetAwaiter().GetResult();
-            Logger.LogToFile($"PULL CHANGES LOADED: Found {changes.Count} pending wall changes for session {sessionId}", "sync.log");
+            Logger.LogToFile($"PULL CHANGES LOADED: Found {changes.Count} pending element changes for session {sessionId}", "sync.log");
 
             if (changes.Count == 0)
             {
@@ -70,27 +71,28 @@ public class GraphPuller
                 // Try again after creating test entries
                 Logger.LogToFile("PULL RETRY: Retrying GetPendingChangeLogsAsync after creating test entries", "sync.log");
                 changes = _connector.GetPendingChangeLogsAsync(sessionId).GetAwaiter().GetResult();
-                Logger.LogToFile($"PULL TEST ENTRIES: After creating test entries, found {changes.Count} pending wall changes", "sync.log");
+                Logger.LogToFile($"PULL TEST ENTRIES: After creating test entries, found {changes.Count} pending element changes", "sync.log");
             }
 
             // 2) Apply each change
             int processedCount = 0;
-            foreach (var (changeId, op, wallProperties) in changes)
+            foreach (var (changeId, op, elementProperties) in changes)
             {
                 processedCount++;
                 try
                 {
-                    var elementId = wallProperties.ContainsKey("ElementId") ?
-                        Convert.ToInt32(wallProperties["ElementId"]) : -1;
+                    var elementId = elementProperties.ContainsKey("ElementId") ?
+                        Convert.ToInt32(elementProperties["ElementId"]) : -1;
                     
-                    Logger.LogToFile($"PULL PROCESSING CHANGE {processedCount}/{changes.Count}: ChangeId={changeId}, Operation={op}, ElementId={elementId}", "sync.log");
+                    // Determine element type from properties
+                    string elementType = DetermineElementType(elementProperties);
+                    
+                    Logger.LogToFile($"PULL PROCESSING CHANGE {processedCount}/{changes.Count}: ChangeId={changeId}, Operation={op}, ElementId={elementId}, Type={elementType}", "sync.log");
 
-                    Logger.LogToFile($"Processing change {changeId}: {op} for element {elementId}", "sync.log");
-
-                    // Validate wallProperties before processing
-                    if (wallProperties == null || wallProperties.Count == 0)
+                    // Validate elementProperties before processing
+                    if (elementProperties == null || elementProperties.Count == 0)
                     {
-                        Logger.LogToFile($"WARNING: Empty wall properties for change {changeId}, acknowledging anyway", "sync.log");
+                        Logger.LogToFile($"WARNING: Empty element properties for change {changeId}, acknowledging anyway", "sync.log");
                     }
                     else if (elementId == -1)
                     {
@@ -103,27 +105,27 @@ public class GraphPuller
                             case "Create":
                             case "Insert":
                             case "Add":
-                                Logger.LogToFile($"Processing {op} operation for wall {elementId}", "sync.log");
-                                if (!wallProperties.ContainsKey("__deleted__"))
+                                Logger.LogToFile($"Processing {op} operation for {elementType} {elementId}", "sync.log");
+                                if (!elementProperties.ContainsKey("__deleted__"))
                                 {
-                                    UpsertWallFromGraphProperties(doc, wallProperties);
-                                    Logger.LogToFile($"Successfully applied {op} for wall {elementId}", "sync.log");
+                                    ApplyElementUpsert(doc, elementProperties, elementType);
+                                    Logger.LogToFile($"Successfully applied {op} for {elementType} {elementId}", "sync.log");
                                 }
                                 break;
 
                             case "Modify":
-                                Logger.LogToFile($"Processing Modify operation for wall {elementId}", "sync.log");
-                                if (!wallProperties.ContainsKey("__deleted__"))
+                                Logger.LogToFile($"Processing Modify operation for {elementType} {elementId}", "sync.log");
+                                if (!elementProperties.ContainsKey("__deleted__"))
                                 {
-                                    UpsertWallFromGraphProperties(doc, wallProperties);
-                                    Logger.LogToFile($"Successfully applied {op} for wall {elementId}", "sync.log");
+                                    ApplyElementUpsert(doc, elementProperties, elementType);
+                                    Logger.LogToFile($"Successfully applied {op} for {elementType} {elementId}", "sync.log");
                                 }
                                 break;
 
                             case "Delete":
-                                Logger.LogToFile($"Processing Delete operation for wall {elementId}", "sync.log");
-                                DeleteWallByRemoteElementId(doc, elementId);
-                                Logger.LogToFile($"Successfully deleted wall {elementId}", "sync.log");
+                                Logger.LogToFile($"Processing Delete operation for {elementType} {elementId}", "sync.log");
+                                DeleteElementByRemoteElementId(doc, elementId, elementType);
+                                Logger.LogToFile($"Successfully deleted {elementType} {elementId}", "sync.log");
                                 break;
 
                             default:
@@ -613,6 +615,22 @@ public class GraphPuller
         return null;
     }
 
+    /// <summary>
+    /// Generic method to find any element by remote ElementId
+    /// </summary>
+    private T FindElementByRemoteElementId<T>(Document doc, int remoteId) where T : Element
+    {
+        var elements = new FilteredElementCollector(doc).OfClass(typeof(T)).Cast<T>();
+        foreach (var element in elements)
+        {
+            var p = element.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+            var s = p?.AsString();
+            if (!string.IsNullOrEmpty(s) && s.Contains($"SpaceTracker:ElementId={remoteId}"))
+                return element;
+        }
+        return null;
+    }
+
     private void MarkWallWithRemoteId(Wall wall, int remoteId)
     {
         try
@@ -795,5 +813,668 @@ public class GraphPuller
             }
         }
     }
+
+    /// <summary>
+    /// Determines the element type from Neo4j properties
+    /// </summary>
+    private string DetermineElementType(Dictionary<string, object> properties)
+    {
+        // Check for explicit type indicators
+        if (properties.ContainsKey("rvtClass"))
+        {
+            return properties["rvtClass"].ToString();
+        }
+        
+        // Infer from presence of specific properties
+        if (properties.ContainsKey("x1") && properties.ContainsKey("y1") && properties.ContainsKey("z1") && 
+            properties.ContainsKey("x2") && properties.ContainsKey("y2") && properties.ContainsKey("z2"))
+        {
+            if (properties.ContainsKey("thickness_m") || properties.ContainsKey("thickness_mm"))
+                return "Wall";
+            if (properties.ContainsKey("diameter"))
+                return "Pipe";
+        }
+        
+        if (properties.ContainsKey("hostId") || properties.ContainsKey("hostUid"))
+        {
+            if (properties.ContainsKey("width") && properties.ContainsKey("height"))
+                return "Door";
+        }
+        
+        if (properties.ContainsKey("guid") || properties.ContainsKey("familyName"))
+            return "ProvisionalSpace";
+            
+        // Default fallback
+        Logger.LogToFile($"WARNING: Could not determine element type from properties, defaulting to Wall", "sync.log");
+        return "Wall";
+    }
+
+    /// <summary>
+    /// Apply element upsert based on type
+    /// </summary>
+    private void ApplyElementUpsert(Document doc, Dictionary<string, object> properties, string elementType)
+    {
+        switch (elementType)
+        {
+            case "Wall":
+                UpsertWallFromGraphProperties(doc, properties);
+                break;
+            case "Door":
+                UpsertDoorFromGraphProperties(doc, properties);
+                break;
+            case "Pipe":
+                UpsertPipeFromGraphProperties(doc, properties);
+                break;
+            case "ProvisionalSpace":
+                UpsertProvisionalSpaceFromGraphProperties(doc, properties);
+                break;
+            default:
+                Logger.LogToFile($"WARNING: Unknown element type {elementType}, treating as Wall", "sync.log");
+                UpsertWallFromGraphProperties(doc, properties);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Delete element by remote ElementId based on type
+    /// </summary>
+    private void DeleteElementByRemoteElementId(Document doc, int remoteElementId, string elementType)
+    {
+        switch (elementType)
+        {
+            case "Wall":
+                DeleteWallByRemoteElementId(doc, remoteElementId);
+                break;
+            case "Door":
+                DeleteDoorByRemoteElementId(doc, remoteElementId);
+                break;
+            case "Pipe":
+                DeletePipeByRemoteElementId(doc, remoteElementId);
+                break;
+            case "ProvisionalSpace":
+                DeleteProvisionalSpaceByRemoteElementId(doc, remoteElementId);
+                break;
+            default:
+                Logger.LogToFile($"WARNING: Unknown element type {elementType} for deletion", "sync.log");
+                break;
+        }
+    }
+
+    #region Door Methods
+
+    /// <summary>
+    /// Creates or updates a door from Neo4j graph properties
+    /// </summary>
+    private void UpsertDoorFromGraphProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            Logger.LogToFile($"DOOR UPSERT: Processing door with remoteElementId={remoteElementId}", "sync.log");
+
+            // Find existing door by SpaceTracker tag
+            FamilyInstance existingDoor = FindElementByRemoteElementId<FamilyInstance>(doc, remoteElementId);
+
+            if (existingDoor != null)
+            {
+                Logger.LogToFile($"DOOR UPSERT: Updating existing door ElementId={existingDoor.Id}", "sync.log");
+                UpdateDoorFromGraphProperties(existingDoor, properties);
+            }
+            else
+            {
+                Logger.LogToFile($"DOOR UPSERT: Creating new door", "sync.log");
+                CreateDoorFromGraphProperties(doc, properties);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in UpsertDoorFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void CreateDoorFromGraphProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            
+            // Get door type and family information
+            string typeName = properties.ContainsKey("typeName") ? properties["typeName"].ToString() : "Standard";
+            string familyName = properties.ContainsKey("familyName") ? properties["familyName"].ToString() : "Door";
+            
+            // Find door family symbol
+            FamilySymbol doorSymbol = new FilteredElementCollector(doc)
+                .OfClass(typeof(FamilySymbol))
+                .OfCategory(BuiltInCategory.OST_Doors)
+                .Cast<FamilySymbol>()
+                .FirstOrDefault(fs => fs.Family.Name == familyName && fs.Name == typeName) ??
+                new FilteredElementCollector(doc)
+                .OfClass(typeof(FamilySymbol))
+                .OfCategory(BuiltInCategory.OST_Doors)
+                .Cast<FamilySymbol>()
+                .FirstOrDefault();
+
+            if (doorSymbol == null)
+            {
+                Logger.LogToFile($"ERROR: No door symbol found for family={familyName}, type={typeName}", "sync.log");
+                return;
+            }
+
+            if (!doorSymbol.IsActive)
+                doorSymbol.Activate();
+
+            // Get host wall information
+            int hostElementId = properties.ContainsKey("hostId") ? Convert.ToInt32(properties["hostId"]) : 0;
+            Wall hostWall = null;
+            
+            if (hostElementId > 0)
+            {
+                hostWall = FindElementByRemoteElementId<Wall>(doc, hostElementId);
+            }
+
+            if (hostWall == null)
+            {
+                Logger.LogToFile($"ERROR: Host wall not found for door remoteElementId={remoteElementId}", "sync.log");
+                return;
+            }
+
+            // Create door location point
+            double x = Convert.ToDouble(properties.ContainsKey("x") ? properties["x"] : 0);
+            double y = Convert.ToDouble(properties.ContainsKey("y") ? properties["y"] : 0);
+            double z = Convert.ToDouble(properties.ContainsKey("z") ? properties["z"] : 0);
+            
+            XYZ location = new XYZ(
+                UnitUtils.ConvertToInternalUnits(x, UnitTypeId.Meters),
+                UnitUtils.ConvertToInternalUnits(y, UnitTypeId.Meters),
+                UnitUtils.ConvertToInternalUnits(z, UnitTypeId.Meters)
+            );
+
+            // Create the door
+            FamilyInstance door = doc.Create.NewFamilyInstance(location, doorSymbol, hostWall, StructuralType.NonStructural);
+            
+            // Mark with SpaceTracker tag
+            MarkDoorWithRemoteId(door, remoteElementId);
+            
+            Logger.LogToFile($"DOOR CREATE: Created door ElementId={door.Id} for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in CreateDoorFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void UpdateDoorFromGraphProperties(FamilyInstance door, Dictionary<string, object> properties)
+    {
+        try
+        {
+            Logger.LogToFile($"DOOR UPDATE: Updating door ElementId={door.Id}", "sync.log");
+            
+            // Update door parameters if they exist
+            if (properties.ContainsKey("width"))
+            {
+                double width = Convert.ToDouble(properties["width"]);
+                Parameter widthParam = door.LookupParameter("Width");
+                if (widthParam != null && !widthParam.IsReadOnly)
+                {
+                    widthParam.Set(UnitUtils.ConvertToInternalUnits(width, UnitTypeId.Meters));
+                }
+            }
+            
+            if (properties.ContainsKey("height"))
+            {
+                double height = Convert.ToDouble(properties["height"]);
+                Parameter heightParam = door.LookupParameter("Height");
+                if (heightParam != null && !heightParam.IsReadOnly)
+                {
+                    heightParam.Set(UnitUtils.ConvertToInternalUnits(height, UnitTypeId.Meters));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in UpdateDoorFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void MarkDoorWithRemoteId(FamilyInstance door, int remoteElementId)
+    {
+        try
+        {
+            if (CommandManager.Instance.IsPullInProgress)
+            {
+                var tag = $"SpaceTracker:ElementId={remoteElementId}:Pull";
+                door.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(tag);
+                Logger.LogToFile($"DOOR MARK: Marked door ElementId={door.Id} with pull tag={tag}", "sync.log");
+            }
+            else
+            {
+                var tag = $"SpaceTracker:ElementId={remoteElementId}";
+                door.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(tag);
+                Logger.LogToFile($"DOOR MARK: Marked door ElementId={door.Id} with tag={tag}", "sync.log");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in MarkDoorWithRemoteId: {ex.Message}", ex);
+        }
+    }
+
+    private void DeleteDoorByRemoteElementId(Document doc, int remoteElementId)
+    {
+        try
+        {
+            FamilyInstance door = FindElementByRemoteElementId<FamilyInstance>(doc, remoteElementId);
+            if (door != null)
+            {
+                Logger.LogToFile($"DOOR DELETE: Deleting door ElementId={door.Id} for remoteElementId={remoteElementId}", "sync.log");
+                doc.Delete(door.Id);
+            }
+            else
+            {
+                Logger.LogToFile($"DOOR DELETE: Door not found for remoteElementId={remoteElementId}", "sync.log");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in DeleteDoorByRemoteElementId: {ex.Message}", ex);
+        }
+    }
+
+    #endregion
+
+    #region Pipe Methods
+
+    /// <summary>
+    /// Creates or updates a pipe from Neo4j graph properties
+    /// </summary>
+    private void UpsertPipeFromGraphProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            Logger.LogToFile($"PIPE UPSERT: Processing pipe with remoteElementId={remoteElementId}", "sync.log");
+
+            // Find existing pipe by SpaceTracker tag
+            Pipe existingPipe = FindElementByRemoteElementId<Pipe>(doc, remoteElementId);
+
+            if (existingPipe != null)
+            {
+                Logger.LogToFile($"PIPE UPSERT: Updating existing pipe ElementId={existingPipe.Id}", "sync.log");
+                UpdatePipeFromGraphProperties(existingPipe, properties);
+            }
+            else
+            {
+                Logger.LogToFile($"PIPE UPSERT: Creating new pipe", "sync.log");
+                CreatePipeFromGraphProperties(doc, properties);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in UpsertPipeFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void CreatePipeFromGraphProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            
+            // Get pipe coordinates
+            double x1 = Convert.ToDouble(properties["x1"]);
+            double y1 = Convert.ToDouble(properties["y1"]);
+            double z1 = Convert.ToDouble(properties["z1"]);
+            double x2 = Convert.ToDouble(properties["x2"]);
+            double y2 = Convert.ToDouble(properties["y2"]);
+            double z2 = Convert.ToDouble(properties["z2"]);
+            
+            XYZ startPoint = new XYZ(
+                UnitUtils.ConvertToInternalUnits(x1, UnitTypeId.Meters),
+                UnitUtils.ConvertToInternalUnits(y1, UnitTypeId.Meters),
+                UnitUtils.ConvertToInternalUnits(z1, UnitTypeId.Meters)
+            );
+            
+            XYZ endPoint = new XYZ(
+                UnitUtils.ConvertToInternalUnits(x2, UnitTypeId.Meters),
+                UnitUtils.ConvertToInternalUnits(y2, UnitTypeId.Meters),
+                UnitUtils.ConvertToInternalUnits(z2, UnitTypeId.Meters)
+            );
+
+            // Get pipe type
+            string typeName = properties.ContainsKey("typeName") ? properties["typeName"].ToString() : "Default";
+            PipeType pipeType = new FilteredElementCollector(doc)
+                .OfClass(typeof(PipeType))
+                .Cast<PipeType>()
+                .FirstOrDefault(pt => pt.Name == typeName) ??
+                new FilteredElementCollector(doc)
+                .OfClass(typeof(PipeType))
+                .Cast<PipeType>()
+                .FirstOrDefault();
+
+            if (pipeType == null)
+            {
+                Logger.LogToFile($"ERROR: No pipe type found for typeName={typeName}", "sync.log");
+                return;
+            }
+
+            // Get mechanical system (required for pipe creation)
+            MEPSystem system = new FilteredElementCollector(doc)
+                .OfClass(typeof(PipingSystem))
+                .Cast<MEPSystem>()
+                .FirstOrDefault() ??
+                new FilteredElementCollector(doc)
+                .OfClass(typeof(MEPSystem))
+                .Cast<MEPSystem>()
+                .FirstOrDefault();
+
+            if (system == null)
+            {
+                Logger.LogToFile($"ERROR: No mechanical system found for pipe creation", "sync.log");
+                return;
+            }
+
+            // Get level for pipe placement
+            Level level = new FilteredElementCollector(doc)
+                .OfClass(typeof(Level))
+                .Cast<Level>()
+                .FirstOrDefault();
+
+            if (level == null)
+            {
+                Logger.LogToFile($"ERROR: No level found for pipe creation", "sync.log");
+                return;
+            }
+
+            // Create the pipe
+            Pipe pipe = Pipe.Create(doc, system.GetTypeId(), pipeType.Id, level.Id, startPoint, endPoint);
+            
+            if (pipe != null)
+            {
+                // Mark with SpaceTracker tag
+                MarkPipeWithRemoteId(pipe, remoteElementId);
+                Logger.LogToFile($"PIPE CREATE: Created pipe ElementId={pipe.Id} for remoteElementId={remoteElementId}", "sync.log");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in CreatePipeFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void UpdatePipeFromGraphProperties(Pipe pipe, Dictionary<string, object> properties)
+    {
+        try
+        {
+            Logger.LogToFile($"PIPE UPDATE: Updating pipe ElementId={pipe.Id}", "sync.log");
+            
+            // Update pipe geometry
+            if (properties.ContainsKey("x1") && properties.ContainsKey("y1") && properties.ContainsKey("z1") &&
+                properties.ContainsKey("x2") && properties.ContainsKey("y2") && properties.ContainsKey("z2"))
+            {
+                double x1 = Convert.ToDouble(properties["x1"]);
+                double y1 = Convert.ToDouble(properties["y1"]);
+                double z1 = Convert.ToDouble(properties["z1"]);
+                double x2 = Convert.ToDouble(properties["x2"]);
+                double y2 = Convert.ToDouble(properties["y2"]);
+                double z2 = Convert.ToDouble(properties["z2"]);
+                
+                XYZ startPoint = new XYZ(
+                    UnitUtils.ConvertToInternalUnits(x1, UnitTypeId.Meters),
+                    UnitUtils.ConvertToInternalUnits(y1, UnitTypeId.Meters),
+                    UnitUtils.ConvertToInternalUnits(z1, UnitTypeId.Meters)
+                );
+                
+                XYZ endPoint = new XYZ(
+                    UnitUtils.ConvertToInternalUnits(x2, UnitTypeId.Meters),
+                    UnitUtils.ConvertToInternalUnits(y2, UnitTypeId.Meters),
+                    UnitUtils.ConvertToInternalUnits(z2, UnitTypeId.Meters)
+                );
+
+                // Update pipe location curve
+                LocationCurve locationCurve = pipe.Location as LocationCurve;
+                if (locationCurve != null)
+                {
+                    Line newLine = Line.CreateBound(startPoint, endPoint);
+                    locationCurve.Curve = newLine;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in UpdatePipeFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void MarkPipeWithRemoteId(Pipe pipe, int remoteElementId)
+    {
+        try
+        {
+            if (CommandManager.Instance.IsPullInProgress)
+            {
+                var tag = $"SpaceTracker:ElementId={remoteElementId}:Pull";
+                pipe.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(tag);
+                Logger.LogToFile($"PIPE MARK: Marked pipe ElementId={pipe.Id} with pull tag={tag}", "sync.log");
+            }
+            else
+            {
+                var tag = $"SpaceTracker:ElementId={remoteElementId}";
+                pipe.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(tag);
+                Logger.LogToFile($"PIPE MARK: Marked pipe ElementId={pipe.Id} with tag={tag}", "sync.log");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in MarkPipeWithRemoteId: {ex.Message}", ex);
+        }
+    }
+
+    private void DeletePipeByRemoteElementId(Document doc, int remoteElementId)
+    {
+        try
+        {
+            Pipe pipe = FindElementByRemoteElementId<Pipe>(doc, remoteElementId);
+            if (pipe != null)
+            {
+                Logger.LogToFile($"PIPE DELETE: Deleting pipe ElementId={pipe.Id} for remoteElementId={remoteElementId}", "sync.log");
+                doc.Delete(pipe.Id);
+            }
+            else
+            {
+                Logger.LogToFile($"PIPE DELETE: Pipe not found for remoteElementId={remoteElementId}", "sync.log");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in DeletePipeByRemoteElementId: {ex.Message}", ex);
+        }
+    }
+
+    #endregion
+
+    #region ProvisionalSpace Methods
+
+    /// <summary>
+    /// Creates or updates a provisional space from Neo4j graph properties
+    /// </summary>
+    private void UpsertProvisionalSpaceFromGraphProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            Logger.LogToFile($"PROVISIONALSPACE UPSERT: Processing provisional space with remoteElementId={remoteElementId}", "sync.log");
+
+            // Find existing provisional space by SpaceTracker tag
+            FamilyInstance existingSpace = FindElementByRemoteElementId<FamilyInstance>(doc, remoteElementId);
+
+            if (existingSpace != null)
+            {
+                Logger.LogToFile($"PROVISIONALSPACE UPSERT: Updating existing provisional space ElementId={existingSpace.Id}", "sync.log");
+                UpdateProvisionalSpaceFromGraphProperties(existingSpace, properties);
+            }
+            else
+            {
+                Logger.LogToFile($"PROVISIONALSPACE UPSERT: Creating new provisional space", "sync.log");
+                CreateProvisionalSpaceFromGraphProperties(doc, properties);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in UpsertProvisionalSpaceFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void CreateProvisionalSpaceFromGraphProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            int remoteElementId = Convert.ToInt32(properties["ElementId"]);
+            
+            // Get family information
+            string familyName = properties.ContainsKey("familyName") ? properties["familyName"].ToString() : "ProvisionalSpace";
+            string typeName = properties.ContainsKey("typeName") ? properties["typeName"].ToString() : "Default";
+            
+            // Find provisional space family symbol
+            FamilySymbol spaceSymbol = new FilteredElementCollector(doc)
+                .OfClass(typeof(FamilySymbol))
+                .OfCategory(BuiltInCategory.OST_GenericModel)
+                .Cast<FamilySymbol>()
+                .FirstOrDefault(fs => fs.Family.Name == familyName && fs.Name == typeName) ??
+                new FilteredElementCollector(doc)
+                .OfClass(typeof(FamilySymbol))
+                .OfCategory(BuiltInCategory.OST_GenericModel)
+                .Cast<FamilySymbol>()
+                .FirstOrDefault();
+
+            if (spaceSymbol == null)
+            {
+                Logger.LogToFile($"ERROR: No provisional space symbol found for family={familyName}, type={typeName}", "sync.log");
+                return;
+            }
+
+            if (!spaceSymbol.IsActive)
+                spaceSymbol.Activate();
+
+            // Create location point
+            double x = Convert.ToDouble(properties.ContainsKey("x") ? properties["x"] : 0);
+            double y = Convert.ToDouble(properties.ContainsKey("y") ? properties["y"] : 0);
+            double z = Convert.ToDouble(properties.ContainsKey("z") ? properties["z"] : 0);
+            
+            XYZ location = new XYZ(
+                UnitUtils.ConvertToInternalUnits(x, UnitTypeId.Meters),
+                UnitUtils.ConvertToInternalUnits(y, UnitTypeId.Meters),
+                UnitUtils.ConvertToInternalUnits(z, UnitTypeId.Meters)
+            );
+
+            // Create the provisional space
+            FamilyInstance space = doc.Create.NewFamilyInstance(location, spaceSymbol, StructuralType.NonStructural);
+            
+            // Set custom parameters if they exist
+            if (properties.ContainsKey("guid"))
+            {
+                Parameter guidParam = space.LookupParameter("GUID");
+                if (guidParam != null && !guidParam.IsReadOnly)
+                {
+                    guidParam.Set(properties["guid"].ToString());
+                }
+            }
+            
+            // Mark with SpaceTracker tag
+            MarkProvisionalSpaceWithRemoteId(space, remoteElementId);
+            
+            Logger.LogToFile($"PROVISIONALSPACE CREATE: Created provisional space ElementId={space.Id} for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in CreateProvisionalSpaceFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void UpdateProvisionalSpaceFromGraphProperties(FamilyInstance space, Dictionary<string, object> properties)
+    {
+        try
+        {
+            Logger.LogToFile($"PROVISIONALSPACE UPDATE: Updating provisional space ElementId={space.Id}", "sync.log");
+            
+            // Update location if coordinates are provided
+            if (properties.ContainsKey("x") && properties.ContainsKey("y") && properties.ContainsKey("z"))
+            {
+                double x = Convert.ToDouble(properties["x"]);
+                double y = Convert.ToDouble(properties["y"]);
+                double z = Convert.ToDouble(properties["z"]);
+                
+                XYZ newLocation = new XYZ(
+                    UnitUtils.ConvertToInternalUnits(x, UnitTypeId.Meters),
+                    UnitUtils.ConvertToInternalUnits(y, UnitTypeId.Meters),
+                    UnitUtils.ConvertToInternalUnits(z, UnitTypeId.Meters)
+                );
+
+                LocationPoint locationPoint = space.Location as LocationPoint;
+                if (locationPoint != null)
+                {
+                    locationPoint.Point = newLocation;
+                }
+            }
+            
+            // Update GUID parameter if provided
+            if (properties.ContainsKey("guid"))
+            {
+                Parameter guidParam = space.LookupParameter("GUID");
+                if (guidParam != null && !guidParam.IsReadOnly)
+                {
+                    guidParam.Set(properties["guid"].ToString());
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in UpdateProvisionalSpaceFromGraphProperties: {ex.Message}", ex);
+        }
+    }
+
+    private void MarkProvisionalSpaceWithRemoteId(FamilyInstance space, int remoteElementId)
+    {
+        try
+        {
+            if (CommandManager.Instance.IsPullInProgress)
+            {
+                var tag = $"SpaceTracker:ElementId={remoteElementId}:Pull";
+                space.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(tag);
+                Logger.LogToFile($"PROVISIONALSPACE MARK: Marked provisional space ElementId={space.Id} with pull tag={tag}", "sync.log");
+            }
+            else
+            {
+                var tag = $"SpaceTracker:ElementId={remoteElementId}";
+                space.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(tag);
+                Logger.LogToFile($"PROVISIONALSPACE MARK: Marked provisional space ElementId={space.Id} with tag={tag}", "sync.log");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in MarkProvisionalSpaceWithRemoteId: {ex.Message}", ex);
+        }
+    }
+
+    private void DeleteProvisionalSpaceByRemoteElementId(Document doc, int remoteElementId)
+    {
+        try
+        {
+            FamilyInstance space = FindElementByRemoteElementId<FamilyInstance>(doc, remoteElementId);
+            if (space != null)
+            {
+                Logger.LogToFile($"PROVISIONALSPACE DELETE: Deleting provisional space ElementId={space.Id} for remoteElementId={remoteElementId}", "sync.log");
+                doc.Delete(space.Id);
+            }
+            else
+            {
+                Logger.LogToFile($"PROVISIONALSPACE DELETE: Provisional space not found for remoteElementId={remoteElementId}", "sync.log");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash($"ERROR in DeleteProvisionalSpaceByRemoteElementId: {ex.Message}", ex);
+        }
+    }
+
+    #endregion
 
 }
