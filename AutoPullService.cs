@@ -34,7 +34,6 @@ namespace SpaceTracker
             _graphPuller = graphPuller;
             
             string currentSessionId = CommandManager.Instance.SessionId;
-            Logger.LogToFile($"AUTO-PULL SERVICE INIT: Starting event-based AutoPullService for session {currentSessionId}", "sync.log");
             Logger.LogToFile($"AUTO-PULL SERVICE INIT: Pull delay = {PullDelay.TotalSeconds} seconds", "sync.log");
             
             // Initialize event-based change notifier instead of polling timer

@@ -159,6 +159,25 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 _cmdManager.cypherCommands.Enqueue(cyNode);
                 Debug.WriteLine("[Neo4j] Created Door node: " + cyNode);
 
+                // Set SpaceTracker tag for local Door (matches pull logic)
+                try
+                {
+                    var tag = $"SpaceTracker:ElementId={door.Id.Value}";
+                    var commentParam = door.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                    if (commentParam != null && !commentParam.IsReadOnly)
+                    {
+                        commentParam.Set(tag);
+                        Logger.LogToFile($"PROCESSDOOR: Set tag '{tag}' on Door {door.Id}", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"PROCESSDOOR: WARNING - Could not set tag on Door {door.Id} (parameter null or read-only)", "sync.log");
+                    }
+                }
+                catch (Exception tagEx)
+                {
+                    Logger.LogToFile($"PROCESSDOOR: Error setting tag on Door {door.Id}: {tagEx.Message}", "sync.log");
+                }
 
             }
             catch (Exception ex)
@@ -173,11 +192,14 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
         {
             try
             {
+                Logger.LogToFile($"PROCESSPROVISIONALSPACE: Begin processing ProvisionalSpace {inst.Id} (UniqueId: {inst.UniqueId})", "sync.log");
                 Logger.LogToFile($"Begin processing {inst.UniqueId}", ProvLog);
                 bool isProv = ParameterUtils.IsProvisionalSpace(inst);
+                Logger.LogToFile($"PROCESSPROVISIONALSPACE: IsProvisionalSpace check result: {isProv} for element {inst.Id}", "sync.log");
                 Logger.LogToFile($"Is provisional: {isProv}", ProvLog);
                 if (!isProv)
                 {
+                    Logger.LogToFile($"PROCESSPROVISIONALSPACE: Skipped element {inst.Id} - not identified as provisional space", "sync.log");
                     Logger.LogToFile("Skipped - not provisional", ProvLog);
                     return;
                 }
@@ -234,7 +256,6 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     $"p.bbMaxY = {((double)data.GetValueOrDefault("bbMaxY", 0.0)).ToString(inv)}",
                     $"p.bbMaxZ = {((double)data.GetValueOrDefault("bbMaxZ", 0.0)).ToString(inv)}",
                     $"p.uid = '{ParameterUtils.EscapeForCypher(inst.UniqueId)}'",
-                    $"p.elementId = {inst.Id.Value}",
                     $"p.typeId = {inst.GetTypeId().Value}",
                     $"p.created = datetime('{((DateTime)data["created"]).ToString("o")}')",
                     $"p.modified = datetime('{((DateTime)data["modified"]).ToString("o")}')",
@@ -258,6 +279,27 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
 
                 Debug.WriteLine("[Neo4j] Created ProvisionalSpace node: " + cyNode);
                 Logger.LogToFile($"Finished processing {inst.UniqueId}", ProvLog);
+                
+                // Set SpaceTracker tag for local ProvisionalSpace (matches pull logic)
+                try
+                {
+                    var tag = $"SpaceTracker:ElementId={inst.Id.Value}";
+                    var commentParam = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                    if (commentParam != null && !commentParam.IsReadOnly)
+                    {
+                        commentParam.Set(tag);
+                        Logger.LogToFile($"PROCESSPROVISIONALSPACE: Set tag '{tag}' on ProvisionalSpace {inst.Id}", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"PROCESSPROVISIONALSPACE: WARNING - Could not set tag on ProvisionalSpace {inst.Id} (parameter null or read-only)", "sync.log");
+                    }
+                }
+                catch (Exception tagEx)
+                {
+                    Logger.LogToFile($"PROCESSPROVISIONALSPACE: Error setting tag on ProvisionalSpace {inst.Id}: {tagEx.Message}", "sync.log");
+                }
+                
                 UpdateProvisionalSpaceRelations(inst, doc);
 
             }
@@ -288,6 +330,26 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     $"p.createdAt = coalesce(p.createdAt, datetime('{((DateTime)data["created"]).ToString("o")}')), " +
                     $"p.lastModifiedUtc = datetime('{((DateTime)data["modified"]).ToString("o")}')"; _cmdManager.cypherCommands.Enqueue(cyNode);
                 Debug.WriteLine("[Neo4j] Cypher erzeugt (Pipe Node): " + cyNode);
+
+                // Set SpaceTracker tag for local Pipe (matches pull logic)
+                try
+                {
+                    var tag = $"SpaceTracker:ElementId={pipe.Id.Value}";
+                    var commentParam = pipe.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                    if (commentParam != null && !commentParam.IsReadOnly)
+                    {
+                        commentParam.Set(tag);
+                        Logger.LogToFile($"PROCESSPIPE: Set tag '{tag}' on Pipe {pipe.Id}", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"PROCESSPIPE: WARNING - Could not set tag on Pipe {pipe.Id} (parameter null or read-only)", "sync.log");
+                    }
+                }
+                catch (Exception tagEx)
+                {
+                    Logger.LogToFile($"PROCESSPIPE: Error setting tag on Pipe {pipe.Id}: {tagEx.Message}", "sync.log");
+                }
 
                 UpdatePipeRelations(pipe, doc);
 
@@ -333,10 +395,12 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             Logger.LogToFile("CREATE INITIAL GRAPH TRACE 3: Creating building node", "sync.log");
             string buildingName = "Teststraße 21";
             string buildingNameEsc = ParameterUtils.EscapeForCypher(buildingName);
-            string cyBuilding = $"MERGE (b:Building {{Name: \"{buildingNameEsc}\"}})";
+            string cyBuilding = $"MERGE (b:Building {{Name: \"{buildingNameEsc}\", elementId: 1}})";
             _cmdManager.cypherCommands.Enqueue(cyBuilding);
             Debug.WriteLine("[Neo4j] Cypher erzeugt (Building): " + cyBuilding);
             Logger.LogToFile("CREATE INITIAL GRAPH TRACE 4: Building node queued", "sync.log");
+            
+            // Note: ChangeLog for Building will be created later with all other elements
 
             // 1. Alle Level einlesen
             Logger.LogToFile("CREATE INITIAL GRAPH TRACE 5: Starting level collection", "sync.log");
@@ -361,7 +425,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 8-{levelIndex}: Level node queued", "sync.log");
 
                 string cyRel =
-            $"MATCH (b:Building {{Name: \"{buildingNameEsc}\"}}), " +
+            $"MATCH (b:Building {{Name: \"{buildingNameEsc}\", elementId: 1}}), " +
             $"      (l:Level    {{elementId: {lvl.Id}}}) " +
             $"MERGE (b)-[:CONTAINS]->(l)";
                 _cmdManager.cypherCommands.Enqueue(cyRel);
@@ -547,12 +611,11 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             timer.Stop();
             Logger.LogToFile($"CREATE INITIAL GRAPH TRACE 45: Timer stopped, total time: {timer.ElapsedMilliseconds}ms", "sync.log");
             
-            // DISABLED: Initial ChangeLog creation is redundant since the Push mechanism now works correctly
-            // with the fixed regex. The normal push process will create ChangeLog entries automatically.
-            // Logger.LogToFile("CREATE INITIAL GRAPH TRACE 47: Starting ChangeLog creation for initial elements", "sync.log");
-            // CreateInitialChangeLogEntries(doc);
-            // Logger.LogToFile("CREATE INITIAL GRAPH TRACE 48: ChangeLog creation completed", "sync.log");
-            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 47: ChangeLog creation skipped - will be handled by normal push mechanism", "sync.log");
+            // DISABLED: Do not create initial ChangeLog entries - they cause sync conflicts
+            // Initial elements are handled by the first session's real changes
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 47: Skipping initial ChangeLog creation to prevent ElementId conflicts", "sync.log");
+            // CreateInitialChangeLogEntries(doc); // DISABLED
+            Logger.LogToFile("CREATE INITIAL GRAPH TRACE 48: Initial ChangeLog creation skipped", "sync.log");
             
             Logger.LogToFile("CREATE INITIAL GRAPH TRACE 46: CreateInitialGraph method completed successfully", "sync.log");
         }
@@ -599,6 +662,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             var bbPipe = pipe.get_BoundingBox(null);
             if (bbPipe == null) return;
 
+            // Update Pipe-ProvisionalSpace relationships
             var psCollector = new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_GenericModel)
                 .OfClass(typeof(FamilyInstance));
@@ -625,6 +689,33 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 }
                 _cmdManager.cypherCommands.Enqueue(cypher);
                 Debug.WriteLine("[Neo4j] Updated Pipe-ProvisionalSpace relation: " + cypher);
+            }
+
+            // NEW: Update Pipe-Wall relationships (for pipe intersection detection)
+            var wallCollector = new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_Walls)
+                .OfClass(typeof(Wall));
+
+            foreach (Wall wall in wallCollector.Cast<Wall>())
+            {
+                var bbWall = wall.get_BoundingBox(null);
+                if (bbWall == null) continue;
+                
+                bool intersects = Intersects(bbPipe, bbWall);
+                string cypher;
+
+                if (intersects)
+                {
+                    cypher =
+                        $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}}), (w:Wall {{elementId:{wall.Id.Value}}}) MERGE (pi)-[:INTERSECTS]->(w)";
+                }
+                else
+                {
+                    cypher =
+                        $"MATCH (pi:Pipe {{uid:'{pipe.UniqueId}'}})-[r:INTERSECTS]->(w:Wall {{elementId:{wall.Id.Value}}}) DELETE r";
+                }
+                _cmdManager.cypherCommands.Enqueue(cypher);
+                Debug.WriteLine("[Neo4j] Updated Pipe-Wall relation: " + cypher);
             }
         }
 
@@ -666,7 +757,6 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 _cmdManager.cypherCommands.Enqueue(cypher);
                 Debug.WriteLine("[Neo4j] Updated Pipe-ProvisionalSpace relation: " + cypher);
             }
-
         }
 
         public void CheckBoundingForAllPipes(Document doc)
@@ -826,6 +916,8 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             foreach (ElementId id in deletedElementIds)
             {
                 Debug.WriteLine($"Deleting Node with ID: {id}");
+                Logger.LogToFile($"UPDATEGRPH DELETE: Processing deleted element {id}", "sync.log");
+                
                 int intId = (int)id.Value;
                 Element e = doc.GetElement(id);
                 string cyDel;
@@ -848,6 +940,9 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                 _cmdManager.cypherCommands.Enqueue(cyDel);
                 Debug.WriteLine("[Neo4j] Node deletion Cypher: " + cyDel);
 
+                // Create ChangeLog for deletion (always create, even if element is null)
+                Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for deleted element {id}", "sync.log");
+                CreateChangeLogForElement(id.Value, "Delete");
 
                 if (e == null)
                 {
@@ -857,18 +952,25 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
 
                 Debug.WriteLine("[Neo4j] Cypher erzeugt: " + cyDel);
 
-
             }
             // Diese Syntax ist perfekt
             foreach (Element e in modifiedElements)
             {
                 ElementId id = e.Id;
 
+                Logger.LogToFile($"UPDATEGRPH MODIFY: Processing modified element {e.Id} of category {e.Category?.Name} ({e.Category?.Id.Value})", "sync.log");
 
                 // change properties
                 int intId = (int)e.Id.Value;
                 if (e is FamilyInstance fi && fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors)
                 {
+                    // CRITICAL FIX: Do not update doors during pull operations to prevent feedback loop
+                    if (CommandManager.Instance.IsPullInProgress)
+                    {
+                        Logger.LogToFile($"UPDATEGRPH: Skipping Door update during pull - {fi.Id}", "sync.log");
+                        continue; // Skip door updates during pull to prevent overwriting correct Neo4j data
+                    }
+                    
                     // Tür-Eigenschaften und Host aktualisieren
                     var sym = doc.GetElement(fi.GetTypeId()) as FamilySymbol;
                     string doorType = sym?.Name ?? "Unbekannter Typ";
@@ -889,24 +991,42 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     if (hostWall != null)
                         cyDoor += "MERGE (d)-[:INSTALLED_IN]->(w)";
                     cy = cyDoor;
+                    
+                    // Create ChangeLog for Door modification
+                    Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for modified Door {fi.Id}", "sync.log");
+                    CreateChangeLogForElement(fi.Id.Value, "Modify");
                 }
                 else if (e is Room)
                 {
                     // Raum-Name aktualisieren
                     cy = $"MATCH (r:Room {{ElementId: {intId}}}) " +
- $"SET r.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
+     $"SET r.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
                 }
                 else if (e is Wall)
                 {
                     // Wand-Name aktualisieren
                     cy = $"MATCH (w:Wall {{ElementId: {intId}}}) " +
- $"SET w.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
+     $"SET w.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
+                    
+                    // Create ChangeLog for Wall modification
+                    Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for modified Wall {e.Id}", "sync.log");
+                    CreateChangeLogForElement(e.Id.Value, "Modify");
                 }
                 else if (e is FamilyInstance psFi && psFi.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel && ParameterUtils.IsProvisionalSpace(psFi))
                 {
+                    // CRITICAL FIX: Do not update coordinates during pull operations to prevent feedback loop
+                    if (CommandManager.Instance.IsPullInProgress)
+                    {
+                        Logger.LogToFile($"UPDATEGRPH: Skipping ProvisionalSpace coordinate update during pull - {psFi.Id}", "sync.log");
+                        continue; // Skip coordinate updates during pull to prevent overwriting correct Neo4j data
+                    }
+                    
                     // ProvisionalSpace-Eigenschaften aktualisieren
                     var data = ProvisionalSpaceSerializer.ToProvisionalSpaceNode(psFi, out var dictData);
                     var inv = System.Globalization.CultureInfo.InvariantCulture;
+                    
+                    Logger.LogToFile($"UPDATEGRPH: Serializing ProvisionalSpace {psFi.Id} coordinates: x={((double)dictData["x"]):F6}, y={((double)dictData["y"]):F6}, z={((double)dictData["z"]):F6} (meters)", "sync.log");
+                    
                     cy = $"MATCH (ps:ProvisionalSpace {{ElementId: {intId}}}) " +
                          $"SET ps.name = '{ParameterUtils.EscapeForCypher(dictData["name"].ToString())}', " +
                          $"ps.x = {((double)dictData["x"]).ToString(inv)}, " +
@@ -915,9 +1035,24 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                          $"ps.width = {((double)dictData["width"]).ToString(inv)}, " +
                          $"ps.height = {((double)dictData["height"]).ToString(inv)}, " +
                          $"ps.modified = datetime('{((DateTime)dictData["modified"]).ToString("o")}')";
+                    
+                    // Create ChangeLog for ProvisionalSpace modification
+                    Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for modified ProvisionalSpace {psFi.Id}", "sync.log");
+                    CreateChangeLogForElement(psFi.Id.Value, "Modify");
+                    
+                    // CRITICAL FIX: Update relationships when ProvisionalSpace is modified/moved
+                    Logger.LogToFile($"UPDATEGRPH: Updating ProvisionalSpace relationships for {psFi.Id}", "sync.log");
+                    UpdateProvisionalSpaceRelations(psFi, doc);
                 }
                 else if (e is MEPCurve pipe && pipe.Category.Id.Value == (int)BuiltInCategory.OST_PipeCurves)
                 {
+                    // CRITICAL FIX: Do not update pipes during pull operations to prevent feedback loop
+                    if (CommandManager.Instance.IsPullInProgress)
+                    {
+                        Logger.LogToFile($"UPDATEGRPH: Skipping Pipe update during pull - {pipe.Id}", "sync.log");
+                        continue; // Skip pipe updates during pull to prevent overwriting correct Neo4j data
+                    }
+                    
                     // Pipe-Eigenschaften aktualisieren
                     var data = PipeSerializer.ToNode(pipe);
                     var inv = System.Globalization.CultureInfo.InvariantCulture;
@@ -930,11 +1065,19 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                          $"p.z2 = {((double)data["z2"]).ToString(inv)}, " +
                          $"p.diameter = {((double)data["diameter"]).ToString(inv)}, " +
                          $"p.lastModifiedUtc = datetime('{((DateTime)data["modified"]).ToString("o")}')";
+                    
+                    // Create ChangeLog for Pipe modification
+                    Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for modified Pipe {pipe.Id}", "sync.log");
+                    CreateChangeLogForElement(pipe.Id.Value, "Modify");
+                    
+                    // CRITICAL FIX: Update relationships when Pipe is modified/moved
+                    Logger.LogToFile($"UPDATEGRPH: Updating Pipe relationships for {pipe.Id}", "sync.log");
+                    UpdatePipeRelations(pipe, doc);
                 }
                 else if (e is Level)
                 {
                     cy = $"MATCH (l:Level {{ElementId: {intId}}}) " +
- $"SET l.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
+     $"SET l.Name = '{ParameterUtils.EscapeForCypher(e.Name)}'";
                 }
               
                 else
@@ -1070,18 +1213,27 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     case Wall wall:
                         Logger.LogToFile($"UPDATEGRPH: Processing Wall {wall.Id}", "sync.log");
                         ProcessWall(wall, doc);
+                        Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for Wall {wall.Id}", "sync.log");
+                        CreateChangeLogForElement(wall.Id.Value, "Insert");
                         break;
                     case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_Doors:
                         Logger.LogToFile($"UPDATEGRPH: Processing Door {fi.Id}", "sync.log");
                         ProcessDoor(fi, doc);
+                        Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for Door {fi.Id}", "sync.log");
+                        CreateChangeLogForElement(fi.Id.Value, "Insert");
                         break;
                     case FamilyInstance fi when fi.Category.Id.Value == (int)BuiltInCategory.OST_GenericModel && ParameterUtils.IsProvisionalSpace(fi):
-                        Logger.LogToFile($"UPDATEGRPH: Processing ProvisionalSpace {fi.Id}", "sync.log");
+                        Logger.LogToFile($"UPDATEGRPH: Processing NEW ProvisionalSpace {fi.Id} (Category: {fi.Category?.Name}, IsProvisionalSpace: {ParameterUtils.IsProvisionalSpace(fi)})", "sync.log");
                         ProcessProvisionalSpace(fi, doc);
+                        Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for NEW ProvisionalSpace {fi.Id}", "sync.log");
+                        CreateChangeLogForElement(fi.Id.Value, "Insert");
+                        Logger.LogToFile($"UPDATEGRPH: ProvisionalSpace {fi.Id} processing COMPLETED", "sync.log");
                         break;
                     case MEPCurve pipe when pipe.Category.Id.Value == (int)BuiltInCategory.OST_PipeCurves:
                         Logger.LogToFile($"UPDATEGRPH: Processing Pipe {pipe.Id}", "sync.log");
                         ProcessPipe(pipe, doc);
+                        Logger.LogToFile($"UPDATEGRPH: Creating ChangeLog for Pipe {pipe.Id}", "sync.log");
+                        CreateChangeLogForElement(pipe.Id.Value, "Insert");
                         break;
                     case Element st when st.Category.Id.Value == (int)BuiltInCategory.OST_Stairs:
                         Logger.LogToFile($"UPDATEGRPH: Processing Stair {st.Id}", "sync.log");
@@ -1246,7 +1398,7 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     .OfCategory(BuiltInCategory.OST_GenericModel)
                     .OfClass(typeof(FamilyInstance))
                     .Cast<FamilyInstance>()
-                    .Where(inst => inst.Symbol?.FamilyName?.Contains("ProvisionalSpace") == true)
+                    .Where(inst => ParameterUtils.IsProvisionalSpace(inst))
                     .ToList();
                     
                 foreach (var ps in provisionalSpaces)
@@ -1255,6 +1407,20 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
                     totalChangeLogs++;
                 }
                 Logger.LogToFile($"INITIAL CHANGELOG: Created {provisionalSpaces.Count} provisional space ChangeLog entries", "sync.log");
+
+                // 5. Levels
+                var levels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().ToList();
+                foreach (var level in levels)
+                {
+                    CreateChangeLogForElement(level.Id.Value, "Insert");
+                    totalChangeLogs++;
+                }
+                Logger.LogToFile($"INITIAL CHANGELOG: Created {levels.Count} level ChangeLog entries", "sync.log");
+
+                // 6. Building (elementId=1)
+                CreateChangeLogForElement(1, "Insert");
+                totalChangeLogs++;
+                Logger.LogToFile($"INITIAL CHANGELOG: Created 1 building ChangeLog entry", "sync.log");
 
                 Logger.LogToFile($"INITIAL CHANGELOG: Total {totalChangeLogs} ChangeLog entries created for initial graph", "sync.log");
             }
@@ -1265,28 +1431,39 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
         }
 
         /// <summary>
-        /// Creates a single ChangeLog entry for an element
+        /// Creates a ChangeLog entry for an element using the central Neo4j-based multi-session approach
         /// </summary>
         private void CreateChangeLogForElement(long elementId, string operation)
         {
             try
             {
-                var cypher = $@"
-CREATE (cl:ChangeLog {{
-    elementId: {elementId},
-    type: '{operation}',
-    sessionId: '{_cmdManager.SessionId}',
-    timestamp: datetime(),
-    acknowledged: false,
-    user: '{_cmdManager.SessionId}'
-}})";
+                Logger.LogToFile($"CHANGELOG CREATION: Creating ChangeLog for element {elementId} with operation {operation}", "sync.log");
                 
-                _cmdManager.cypherCommands.Enqueue(cypher);
-                Logger.LogToFile($"INITIAL CHANGELOG QUEUED: ChangeLog for element {elementId}, operation {operation}", "sync.log");
+                // CRITICAL FIX: Use the central Neo4j-based ChangeLog creation method
+                // This automatically creates ChangeLog entries for ALL other sessions
+                string creatingSessionId = CommandManager.Instance.SessionId;
+                var connector = CommandManager.Instance.Neo4jConnector;
+                
+                // Use async Task.Run to avoid blocking the UI thread
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        await connector.CreateChangeLogEntryWithRelationshipsAsync(elementId, operation, creatingSessionId);
+                        Logger.LogToFile($"CHANGELOG CREATION COMPLETED: Successfully created ChangeLog entries for element {elementId} ({operation})", "sync.log");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogToFile($"CHANGELOG CREATION ERROR: Failed to create ChangeLog for element {elementId}: {ex.Message}", "sync.log");
+                        Logger.LogCrash($"CreateChangeLogForElement failed for {elementId}", ex);
+                    }
+                });
+                
+                Logger.LogToFile($"CHANGELOG CREATION INITIATED: ChangeLog creation started for element {elementId}", "sync.log");
             }
             catch (Exception ex)
             {
-                Logger.LogToFile($"INITIAL CHANGELOG ERROR: Failed to create ChangeLog for element {elementId}: {ex.Message}", "sync.log");
+                Logger.LogCrash("CreateChangeLogForElement", ex);
             }
         }
     }

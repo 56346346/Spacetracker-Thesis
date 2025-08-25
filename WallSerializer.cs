@@ -40,24 +40,24 @@ public static class WallSerializer
             ["familyName"] = wall.WallType.FamilyName,
             ["Name"] = name,
             ["levelId"] = wall.LevelId.Value,
-            // Store coordinates in meters for ChangeLog compatibility
-            ["x1"] = UnitConversion.ToMeters(s.X),
-            ["y1"] = UnitConversion.ToMeters(s.Y),
-            ["z1"] = UnitConversion.ToMeters(s.Z),
-            ["x2"] = UnitConversion.ToMeters(e.X),
-            ["y2"] = UnitConversion.ToMeters(e.Y),
-            ["z2"] = UnitConversion.ToMeters(e.Z),
+            // Store coordinates in meters for ChangeLog compatibility with precision rounding
+            ["x1"] = Math.Round(UnitConversion.ToMeters(s.X), 6),
+            ["y1"] = Math.Round(UnitConversion.ToMeters(s.Y), 6),
+            ["z1"] = Math.Round(UnitConversion.ToMeters(s.Z), 6),
+            ["x2"] = Math.Round(UnitConversion.ToMeters(e.X), 6),
+            ["y2"] = Math.Round(UnitConversion.ToMeters(e.Y), 6),
+            ["z2"] = Math.Round(UnitConversion.ToMeters(e.Z), 6),
             // Critical: Store baseLevelUid for reconstruction
             ["baseLevelUid"] = baseLevelUid,
-            // Store height in meters for consistency
-            ["height"] = UnitConversion.ToMeters(height),
-            ["thickness_m"] = UnitConversion.ToMeters(thickness),
-            // Keep mm versions for compatibility
-            ["height_mm"] = UnitConversion.ToMm(height),
-            ["thickness_mm"] = UnitConversion.ToMm(thickness),
+            // Store height and thickness with precision rounding
+            ["height"] = Math.Round(UnitConversion.ToMeters(height), 6),
+            ["thickness_m"] = Math.Round(UnitConversion.ToMeters(thickness), 6),
+            // Keep mm versions for compatibility with precision rounding
+            ["height_mm"] = Math.Round(UnitConversion.ToMm(height), 3),
+            ["thickness_mm"] = Math.Round(UnitConversion.ToMm(thickness), 3),
             ["structural"] = WallNode.IsStructural(wall),
             ["flipped"] = wall.Flipped,
-            ["base_offset_mm"] = UnitConversion.ToMm(baseOffset),
+            ["base_offset_mm"] = Math.Round(UnitConversion.ToMm(baseOffset), 3),
             ["location_line"] = locationLine,
             ["user"] = CommandManager.Instance.SessionId,
             ["created"] = DateTime.UtcNow,

@@ -32,38 +32,20 @@ namespace SpaceTracker
         }
 
         /// <summary>
-        /// Creates a ChangeLog entry and triggers immediate notification
+        /// DEPRECATED: Use Neo4jConnector.CreateChangeLogEntryWithRelationshipsAsync instead
         /// </summary>
         public async Task CreateChangeLogWithNotificationAsync(int elementId, string operation, string sourceSessionId, string targetSessionId)
         {
             try
             {
-                Logger.LogToFile($"NEO4J CHANGE NOTIFY: Creating ChangeLog entry for element {elementId}, operation {operation}, from {sourceSessionId} to {targetSessionId}", "sync.log");
+                Logger.LogToFile($"NEO4J CHANGE NOTIFY: Redirecting to central ChangeLog method for element {elementId}, operation {operation}, from {sourceSessionId} to {targetSessionId}", "sync.log");
                 
-                const string cypher = @"
-                    MERGE (s:Session { id: $sessionId })
-                    CREATE (cl:ChangeLog {
-                        sessionId: $sessionId,
-                        user: $sessionId,
-                        timestamp: datetime(),
-                        type: $type,
-                        elementId: $eid,
-                        acknowledged: false
-                    })
-                    MERGE (s)-[:HAS_LOG]->(cl)
-                    RETURN id(cl) as changeId";
-
-                await using var session = _driver.AsyncSession();
-                var result = await session.RunAsync(cypher, new { 
-                    sessionId = sourceSessionId, 
-                    type = operation, 
-                    eid = elementId 
-                });
+                // Use the central method instead
+                var connector = new Neo4jConnector(null); // Use null logger 
+                await connector.CreateChangeLogEntryWithRelationshipsAsync(elementId, operation, sourceSessionId);
+                connector.Dispose();
                 
-                var record = await result.SingleAsync();
-                var changeId = record["changeId"].As<int>();
-                
-                Logger.LogToFile($"NEO4J CHANGE NOTIFY: Created ChangeLog entry {changeId}, triggering immediate notification for target session {targetSessionId}", "sync.log");
+                Logger.LogToFile($"NEO4J CHANGE NOTIFY SUCCESS: Created ChangeLog via central method, triggering immediate notification for target session {targetSessionId}", "sync.log");
                 
                 // Trigger immediate notification instead of waiting for poll
                 OnChangeLogCreated(targetSessionId);

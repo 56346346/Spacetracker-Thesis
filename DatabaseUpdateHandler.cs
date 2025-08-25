@@ -51,6 +51,18 @@ namespace SpaceTracker
                                            change.ModifiedElements);
                 }
 
+                // CRITICAL FIX: Immediately push cypher commands to Neo4j after UpdateGraph
+                Logger.LogToFile("DatabaseUpdateHandler: Triggering immediate cypher push after UpdateGraph", "concurrency.log");
+                if (_pushEvent != null && !_pushEvent.IsPending)
+                {
+                    _pushEvent.Raise();
+                    Logger.LogToFile("DatabaseUpdateHandler: Cypher push event raised", "concurrency.log");
+                }
+                else
+                {
+                    Logger.LogToFile("DatabaseUpdateHandler: Push event not available or already pending", "concurrency.log");
+                }
+
             }
             catch (Exception ex)
             {
@@ -138,22 +150,7 @@ namespace SpaceTracker
                           Logger.LogToFile($"Solibri Check für Modell {modelId} abgeschlossen", "solibri.log");
                           var (severity, map) = ProcessClashResults(results, guidMap);
                           severityMap = map;
-                          switch (severity)
-
-                          {
-                              case IssueSeverity.Error:
-                                  SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Red);
-                                  Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: error");
-                                  break;
-                              case IssueSeverity.Warning:
-                                  SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Yellow);
-                                  Debug.WriteLine("[DatabaseUpdateHandler] Solibri issues detected: warning");
-                                  break;
-                              default:
-                                  SpaceTrackerClass.SetStatusIndicator(SpaceTrackerClass.StatusColor.Green);
-                                  Debug.WriteLine("[DatabaseUpdateHandler] No Solibri issues detected");
-                                  break;
-                          }
+        
                       }
                       finally
 

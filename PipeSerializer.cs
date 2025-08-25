@@ -27,13 +27,15 @@ public static class PipeSerializer
             ["typeId"] = pipe.GetTypeId().Value,
             ["systemTypeId"] = pipe.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)?.AsInteger() ?? -1,
             ["levelId"] = level?.Id.Value ?? -1,
-            ["x1"] = UnitConversion.ToMm(s.X),
-            ["y1"] = UnitConversion.ToMm(s.Y),
-            ["z1"] = UnitConversion.ToMm(s.Z),
-            ["x2"] = UnitConversion.ToMm(e.X),
-            ["y2"] = UnitConversion.ToMm(e.Y),
-            ["z2"] = UnitConversion.ToMm(e.Z),
-            ["diameter"] = UnitConversion.ToMm(diameter),
+            // CRITICAL FIX: Store coordinates in METERS for ChangeLog compatibility (same as WallSerializer)
+            ["x1"] = Math.Round(UnitConversion.ToMeters(s.X), 6),
+            ["y1"] = Math.Round(UnitConversion.ToMeters(s.Y), 6),
+            ["z1"] = Math.Round(UnitConversion.ToMeters(s.Z), 6),
+            ["x2"] = Math.Round(UnitConversion.ToMeters(e.X), 6),
+            ["y2"] = Math.Round(UnitConversion.ToMeters(e.Y), 6),
+            ["z2"] = Math.Round(UnitConversion.ToMeters(e.Z), 6),
+            // CRITICAL FIX: Store diameter in METERS for ChangeLog compatibility
+            ["diameter"] = Math.Round(UnitConversion.ToMeters(diameter), 6),
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
             ["user"] = CommandManager.Instance.SessionId

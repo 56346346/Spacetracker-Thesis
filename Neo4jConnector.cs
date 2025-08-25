@@ -154,7 +154,7 @@ namespace SpaceTracker
               ).ConfigureAwait(false);
 
                 // 3) Improved Regex zum Extrahieren der ElementId aus dem Cypher-String  
-                // Handles patterns like: "elementId = 123", "p.elementId = 456", "elementId: 789"
+                // Handles patterns like: "elementId = 123", "p.elementId = 456", "elementId: 789", "{elementId: 123}"
                 var idRegex = new Regex(@"(?:\.)?elementId\s*[=:]\s*(\d+)", RegexOptions.IgnoreCase);
                 // 4) Alle Commands durchlaufen
                 int commandIndex = 0;
@@ -185,99 +185,70 @@ namespace SpaceTracker
                     else
                         changeType = "Modify";
 
-                    // 4.3) ElementId extrahieren (oder -1, wenn nicht gefunden)
-                    long elementId = -1;
-                    var match = idRegex.Match(cmd);
-                    if (match.Success && long.TryParse(match.Groups[1].Value, out var parsedId))
+                    // 4.3) Alle ElementIds extrahieren (es können mehrere pro Command sein)
+                    var matches = idRegex.Matches(cmd);
+                    var elementIds = new List<long>();
+                    
+                    foreach (Match match in matches)
                     {
-                        elementId = parsedId;
-                        Logger.LogToFile($"ELEMENT ID EXTRACTION SUCCESS: Found elementId {elementId} in command: {cmd.Substring(0, Math.Min(100, cmd.Length))}...", "sync.log");
-                    }
-                    else
-                    {
-                        Logger.LogToFile($"ELEMENT ID EXTRACTION FAILED: No elementId found in command: {cmd.Substring(0, Math.Min(150, cmd.Length))}...", "sync.log");
-                        Logger.LogToFile($"REGEX DEBUG: Pattern='{idRegex}', Success={match.Success}, Groups={match.Groups.Count}", "sync.log");
-                        if (match.Groups.Count > 1)
+                        if (match.Success && long.TryParse(match.Groups[1].Value, out var parsedId))
                         {
-                            Logger.LogToFile($"REGEX GROUPS: Group1='{match.Groups[1].Value}', TryParse={long.TryParse(match.Groups[1].Value, out var testValue)}", "sync.log");
+                            elementIds.Add(parsedId);
+                            Logger.LogToFile($"ELEMENT ID EXTRACTION SUCCESS: Found elementId {parsedId} in command: {cmd.Substring(0, Math.Min(100, cmd.Length))}...", "sync.log");
                         }
-                        Logger.LogToFile("ELEMENT ID FALLBACK: Using elementId = -1", "sync.log");
                     }
-
-                    // 4.4) Audit-Log-Einträge erzeugen. Bei "Insert" nur ein Log
-                    //      pro ElementId und Session erlauben
-                    var logTime = DateTime.UtcNow.ToString("o");
-
-                    string logQuery;
-                    if (changeType == "Insert")
+                    
+                    // Remove duplicates to prevent multiple ChangeLog entries for same elementId
+                    elementIds = elementIds.Distinct().ToList();
+                    
+                    Logger.LogToFile($"ELEMENT ID EXTRACTION SUMMARY: Found {elementIds.Count} unique elementIds: [{string.Join(", ", elementIds)}] in command", "sync.log");
+                    
+                    if (elementIds.Count == 0)
                     {
-                        logQuery = @"MATCH (s:Session { id: $session })
-MERGE (cl:ChangeLog { sessionId: $session, elementId: $eid, type: $type })
-ON CREATE SET cl.user = $user, cl.timestamp = datetime($time), cl.acknowledged = false
-MERGE (s)-[:HAS_LOG]->(cl)
-WITH cl
-OPTIONAL MATCH (wall:Wall { elementId: $eid })
-OPTIONAL MATCH (door:Door { elementId: $eid })
-OPTIONAL MATCH (pipe:Pipe { elementId: $eid })
-OPTIONAL MATCH (space:ProvisionalSpace { elementId: $eid })
-WITH cl, wall, door, pipe, space
-WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL
-FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))";
-                    }
-                    else
-                    {
-                        logQuery = @"MATCH (s:Session { id: $session })
-CREATE (cl:ChangeLog {
-    sessionId: $session,
-    user: $user,
-    timestamp: datetime($time),
-    type: $type,
-    elementId: $eid,
-    acknowledged: false
-})
-MERGE (s)-[:HAS_LOG]->(cl)
-WITH cl
-OPTIONAL MATCH (wall:Wall { elementId: $eid })
-OPTIONAL MATCH (door:Door { elementId: $eid })
-OPTIONAL MATCH (pipe:Pipe { elementId: $eid })
-OPTIONAL MATCH (space:ProvisionalSpace { elementId: $eid })
-WITH cl, wall, door, pipe, space
-WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL
-FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))";
+                        Logger.LogToFile($"ELEMENT ID EXTRACTION FAILED: No elementIds found in command, SKIPPING ChangeLog creation: {cmd.Substring(0, Math.Min(150, cmd.Length))}...", "sync.log");
+                        Logger.LogToFile($"REGEX DEBUG: Pattern='{idRegex}', Matches={matches.Count}", "sync.log");
+                        continue;
                     }
 
-                    await tx.RunAsync(logQuery,
-                        new
+                    // 4.4) Create ChangeLog for each extracted elementId
+                    foreach (var elementId in elementIds)
+                    {
+                        Logger.LogToFile($"CHANGELOG PROCESSING: Starting ChangeLog creation for elementId {elementId}, operation {changeType}", "sync.log");
+                        var logTime = DateTime.UtcNow.ToString("o");
+                        
+                        try
                         {
-                            session = sessionId,
-                            user = sessionId,
-                            time = logTime,
-                            type = changeType,
-                            eid = elementId
-                        }).ConfigureAwait(false);
-
-                    // lastModifiedUtc setzen
-                    if (elementId >= 0)
-                    {
-                        await tx.RunAsync(
-                            "MATCH (e { elementId: $id }) SET e.lastModifiedUtc = datetime($time)",
-                            new { id = elementId, time = logTime }).ConfigureAwait(false);
-
-                        // Level-Beziehungen und ChangeLogs für verschiedene Element-Typen aktualisieren
-                        if (currentDocument != null)
+                            await CreateChangeLogEntryInTransactionAsync(tx, elementId, changeType, sessionId);
+                            Logger.LogToFile($"CHANGELOG CREATION SUCCESS for elementId {elementId}, operation {changeType}", "sync.log");
+                        }
+                        catch (Exception logEx)
                         {
-                            await HandleElementLevelRelationshipsAsync(tx, cmd, changeType, elementId, logTime, sessionId, currentDocument).ConfigureAwait(false);
+                            Logger.LogToFile($"CHANGELOG CREATION FAILED for elementId {elementId}: {logEx.Message}", "sync.log");
+                            // Continue with next elementId even if this one fails
+                        }
+
+                        // lastModifiedUtc setzen
+                        if (elementId >= 0)
+                        {
+                            await tx.RunAsync(
+                                "MATCH (e { elementId: $id }) SET e.lastModifiedUtc = datetime($time)",
+                                new { id = elementId, time = logTime }).ConfigureAwait(false);
+
+                            // Level-Beziehungen und ChangeLogs für verschiedene Element-Typen aktualisieren
+                            // DISABLED: Level ChangeLogs moved to batch processing to prevent duplicates
+                            // if (currentDocument != null)
+                            // {
+                            //     await HandleElementLevelRelationshipsAsync(tx, cmd, changeType, elementId, logTime, sessionId, currentDocument).ConfigureAwait(false);
+                            // }
                         }
                     }
                 }
 
-                // 5) Transaction committen
+                // 5) Create missing GOT_CHANGED relationships for newly created elements
+                Logger.LogToFile("PUSH RELATIONSHIPS: Creating GOT_CHANGED relationships for new elements", "sync.log");
+                await CreateMissingGotChangedRelationshipsAsync(tx, sessionId).ConfigureAwait(false);
+
+                // 6) Transaction committen
                 Logger.LogToFile("PUSH TRANSACTION COMMIT: Committing Neo4j transaction", "sync.log");
                 await tx.CommitAsync().ConfigureAwait(false);
                 var duration = DateTime.Now - startTime;
@@ -441,31 +412,241 @@ RETURN max(s.lastUpdate) AS lastUpdate";
                 return rec["lastUpdate"].As<ZonedDateTime>().ToDateTimeOffset().UtcDateTime;
             return DateTime.MinValue;
         }
-        public async Task CreateLogChangeAsync(long elementId, ChangeType type, string sessionId)
+        /// <summary>
+        /// CENTRAL AND ONLY METHOD: Creates a ChangeLog entry with proper HAS_LOG and GOT_CHANGED relationships
+        /// This is the ONLY method that should be used for creating ChangeLog entries
+        /// </summary>
+        // Transaction-aware version that reuses existing transaction
+        private async Task CreateChangeLogEntryInTransactionAsync(IAsyncTransaction tx, long elementId, string operation, string sessionId)
         {
-            Logger.LogToFile($"NEO4J CHANGELOG CREATE: Creating ChangeLog entry for element {elementId}, type {type}, session {sessionId}", "sync.log");
-            
-            const string cypher = @"MERGE (s:Session { id:$session })
-CREATE (cl:ChangeLog {
-    sessionId:$session,
-    user:$session,
-    timestamp: datetime(),
-    type:$type,
-    elementId:$eid,
-    acknowledged:false
+            // Skip invalid elementIds
+            if (elementId <= 0)
+            {
+                Logger.LogToFile($"SKIPPING ChangeLog creation for invalid elementId: {elementId}", "sync.log");
+                return;
+            }
+
+            const string cypher = @"
+// First check if the element actually exists in the database
+OPTIONAL MATCH (wall:Wall) WHERE wall.elementId = $eid OR wall.elementId = toString($eid)
+OPTIONAL MATCH (door:Door) WHERE door.elementId = $eid OR door.elementId = toString($eid)
+OPTIONAL MATCH (pipe:Pipe) WHERE pipe.elementId = $eid OR pipe.elementId = toString($eid)
+OPTIONAL MATCH (space:ProvisionalSpace) WHERE space.elementId = $eid OR space.elementId = toString($eid)
+OPTIONAL MATCH (level:Level) WHERE level.elementId = $eid OR level.elementId = toString($eid)
+OPTIONAL MATCH (building:Building) WHERE building.elementId = $eid OR building.elementId = toString($eid)
+
+// Always create ChangeLog (even if element doesn't exist yet - it will be created in the same transaction)
+MERGE (s:Session { id: $session })
+MERGE (cl:ChangeLog {
+    sessionId: $session,
+    elementId: $eid,
+    type: $type
 })
-MERGE (s)-[:HAS_LOG]->(cl)";
-            
+ON CREATE SET 
+    cl.user = $session,
+    cl.timestamp = datetime(),
+    cl.acknowledged = false
+ON MATCH SET 
+    cl.timestamp = datetime(),
+    cl.acknowledged = false,
+    cl.user = $session
+MERGE (s)-[:HAS_LOG]->(cl)
+
+// Create GOT_CHANGED relationships only for existing elements
+WITH cl, wall, door, pipe, space, level, building
+FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN level IS NOT NULL THEN [level] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN building IS NOT NULL THEN [building] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+
+RETURN id(cl) as changeId, 
+       CASE WHEN wall IS NOT NULL THEN 'Wall' ELSE null END as wall_found,
+       CASE WHEN door IS NOT NULL THEN 'Door' ELSE null END as door_found,
+       CASE WHEN pipe IS NOT NULL THEN 'Pipe' ELSE null END as pipe_found,
+       CASE WHEN space IS NOT NULL THEN 'ProvisionalSpace' ELSE null END as space_found,
+       CASE WHEN level IS NOT NULL THEN 'Level' ELSE null END as level_found,
+       CASE WHEN building IS NOT NULL THEN 'Building' ELSE null END as building_found";
+
             try
             {
-                await RunWriteQueryAsync(cypher, new { session = sessionId, type = type.ToString(), eid = elementId }).ConfigureAwait(false);
-                Logger.LogToFile($"NEO4J CHANGELOG SUCCESS: ChangeLog entry created for element {elementId}, type {type}, session {sessionId}", "sync.log");
+                var result = await tx.RunAsync(cypher, new { session = sessionId, type = operation, eid = elementId });
+                
+                if (await result.FetchAsync())
+                {
+                    var record = result.Current;
+                    var changeId = record["changeId"].As<int>();
+                    var wallFound = record["wall_found"]?.ToString();
+                    var doorFound = record["door_found"]?.ToString();
+                    var pipeFound = record["pipe_found"]?.ToString();
+                    var spaceFound = record["space_found"]?.ToString();
+                    var levelFound = record["level_found"]?.ToString();
+                    var buildingFound = record["building_found"]?.ToString();
+                    
+                    var elementTypes = new[] { wallFound, doorFound, pipeFound, spaceFound, levelFound, buildingFound }.Where(t => t != null).ToArray();
+                    var foundElements = elementTypes.Any() ? string.Join(", ", elementTypes) : "NONE";
+                    
+                    Logger.LogToFile($"CHANGELOG CREATION SUCCESS for elementId {elementId}, operation {operation} in existing transaction. Found: {foundElements}", "sync.log");
+                }
+                else
+                {
+                    Logger.LogToFile($"CHANGELOG CREATION SUCCESS for elementId {elementId}, operation {operation} in existing transaction (element will be created later)", "sync.log");
+                }
             }
             catch (Exception ex)
             {
-                Logger.LogToFile($"NEO4J CHANGELOG ERROR: Failed to create ChangeLog entry for element {elementId}: {ex.Message}", "sync.log");
+                Logger.LogCrash($"Failed to create ChangeLog for elementId {elementId} in transaction", ex);
                 throw;
             }
+        }
+
+        // Creates missing GOT_CHANGED relationships for ChangeLogs that don't have them yet
+        private async Task CreateMissingGotChangedRelationshipsAsync(IAsyncTransaction tx, string sessionId)
+        {
+            const string cypher = @"
+// Find ChangeLogs without GOT_CHANGED relationships in this session
+MATCH (s:Session {id: $session})-[:HAS_LOG]->(cl:ChangeLog)
+WHERE NOT EXISTS((cl)-[:GOT_CHANGED]->())
+
+// For each ChangeLog, find the corresponding element and create relationship
+WITH cl
+OPTIONAL MATCH (wall:Wall) WHERE wall.elementId = cl.elementId OR wall.elementId = toString(cl.elementId)
+OPTIONAL MATCH (door:Door) WHERE door.elementId = cl.elementId OR door.elementId = toString(cl.elementId)
+OPTIONAL MATCH (pipe:Pipe) WHERE pipe.elementId = cl.elementId OR pipe.elementId = toString(cl.elementId)
+OPTIONAL MATCH (space:ProvisionalSpace) WHERE space.elementId = cl.elementId OR space.elementId = toString(cl.elementId)
+OPTIONAL MATCH (level:Level) WHERE level.elementId = cl.elementId OR level.elementId = toString(cl.elementId)
+OPTIONAL MATCH (building:Building) WHERE building.elementId = cl.elementId OR building.elementId = toString(cl.elementId)
+
+// Create relationships for found elements
+WITH cl, wall, door, pipe, space, level, building
+FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN level IS NOT NULL THEN [level] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN building IS NOT NULL THEN [building] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+
+RETURN count(cl) as processedChangeLogs, 
+       count(wall) as wallsLinked,
+       count(door) as doorsLinked,
+       count(pipe) as pipesLinked,
+       count(space) as spacesLinked,
+       count(level) as levelsLinked,
+       count(building) as buildingsLinked";
+
+            try
+            {
+                var result = await tx.RunAsync(cypher, new { session = sessionId });
+                
+                if (await result.FetchAsync())
+                {
+                    var record = result.Current;
+                    var processedChangeLogs = record["processedChangeLogs"].As<int>();
+                    var wallsLinked = record["wallsLinked"].As<int>();
+                    var doorsLinked = record["doorsLinked"].As<int>();
+                    var pipesLinked = record["pipesLinked"].As<int>();
+                    var spacesLinked = record["spacesLinked"].As<int>();
+                    var levelsLinked = record["levelsLinked"].As<int>();
+                    var buildingsLinked = record["buildingsLinked"].As<int>();
+                    
+                    Logger.LogToFile($"GOT_CHANGED RELATIONSHIPS: Processed {processedChangeLogs} ChangeLogs. Linked: {wallsLinked} walls, {doorsLinked} doors, {pipesLinked} pipes, {spacesLinked} spaces, {levelsLinked} levels, {buildingsLinked} buildings", "sync.log");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Failed to create missing GOT_CHANGED relationships", ex);
+                throw;
+            }
+        }
+
+        public async Task CreateChangeLogEntryWithRelationshipsAsync(long elementId, string operation, string sessionId)
+        {
+            // Skip invalid elementIds
+            if (elementId <= 0)
+            {
+                Logger.LogToFile($"SKIPPING ChangeLog creation for invalid elementId: {elementId}", "sync.log");
+                return;
+            }
+
+            const string cypher = @"
+// First check if the element actually exists in the database
+OPTIONAL MATCH (wall:Wall) WHERE wall.elementId = $eid OR wall.elementId = toString($eid)
+OPTIONAL MATCH (door:Door) WHERE door.elementId = $eid OR door.elementId = toString($eid)
+OPTIONAL MATCH (pipe:Pipe) WHERE pipe.elementId = $eid OR pipe.elementId = toString($eid)
+OPTIONAL MATCH (space:ProvisionalSpace) WHERE space.elementId = $eid OR space.elementId = toString($eid)
+OPTIONAL MATCH (level:Level) WHERE level.elementId = $eid OR level.elementId = toString($eid)
+OPTIONAL MATCH (building:Building) WHERE building.elementId = $eid OR building.elementId = toString($eid)
+
+WITH wall, door, pipe, space, level, building
+WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL OR level IS NOT NULL OR building IS NOT NULL
+
+// Only create ChangeLog if element exists
+MERGE (s:Session { id: $session })
+CREATE (cl:ChangeLog {
+    sessionId: $session,
+    user: $session,
+    timestamp: datetime(),
+    type: $type,
+    elementId: $eid,
+    acknowledged: false
+})
+MERGE (s)-[:HAS_LOG]->(cl)
+
+// Create GOT_CHANGED relationships
+WITH cl, wall, door, pipe, space, level, building
+FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN level IS NOT NULL THEN [level] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN building IS NOT NULL THEN [building] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+
+RETURN id(cl) as changeId, 
+       CASE WHEN wall IS NOT NULL THEN 'Wall' ELSE null END as wall_found,
+       CASE WHEN door IS NOT NULL THEN 'Door' ELSE null END as door_found,
+       CASE WHEN pipe IS NOT NULL THEN 'Pipe' ELSE null END as pipe_found,
+       CASE WHEN space IS NOT NULL THEN 'ProvisionalSpace' ELSE null END as space_found,
+       CASE WHEN level IS NOT NULL THEN 'Level' ELSE null END as level_found,
+       CASE WHEN building IS NOT NULL THEN 'Building' ELSE null END as building_found";
+
+            try
+            {
+                await using var session = _driver.AsyncSession();
+                var result = await session.RunAsync(cypher, new { session = sessionId, type = operation, eid = elementId });
+                
+                if (await result.FetchAsync())
+                {
+                    var record = result.Current;
+                    var changeId = record["changeId"].As<int>();
+                    var wallFound = record["wall_found"]?.ToString();
+                    var doorFound = record["door_found"]?.ToString();
+                    var pipeFound = record["pipe_found"]?.ToString();
+                    var spaceFound = record["space_found"]?.ToString();
+                    var levelFound = record["level_found"]?.ToString();
+                    var buildingFound = record["building_found"]?.ToString();
+                    
+                    var elementTypes = new[] { wallFound, doorFound, pipeFound, spaceFound, levelFound, buildingFound }.Where(t => t != null).ToArray();
+                    var foundElements = elementTypes.Any() ? string.Join(", ", elementTypes) : "NONE";
+                    
+                    Logger.LogToFile($"CHANGELOG CREATION SUCCESS for elementId {elementId}, operation {operation}", "sync.log");
+                }
+                else
+                {
+                    Logger.LogToFile($"CHANGELOG SKIPPED: No element found for elementId {elementId} ({operation})", "sync.log");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash($"Failed to create ChangeLog for elementId {elementId}", ex);
+                throw;
+            }
+        }
+
+        public async Task CreateLogChangeAsync(long elementId, ChangeType type, string sessionId)
+        {
+            // Redirect to central method
+            await CreateChangeLogEntryWithRelationshipsAsync(elementId, type.ToString(), sessionId);
         }
         // Schreibt eine Tür in Neo4j (INSERT/UPDATE).
 
@@ -646,39 +827,8 @@ RETURN ps";
         /// </summary>
         public async Task CreateChangeLogEntryAsync(int elementId, string operation, string targetSessionId)
         {
-            // Create ChangeLog entry directly with string type to match existing data
-            const string cypher = @"MERGE (s:Session { id:$session })
-CREATE (cl:ChangeLog {
-    sessionId:$session,
-    user:$session,
-    timestamp: datetime(),
-    type:$type,
-    elementId:$eid,
-    acknowledged:false
-})
-MERGE (s)-[:HAS_LOG]->(cl)
-WITH cl
-OPTIONAL MATCH (wall:Wall { elementId: $eid })
-OPTIONAL MATCH (door:Door { elementId: $eid })
-OPTIONAL MATCH (pipe:Pipe { elementId: $eid })
-OPTIONAL MATCH (space:ProvisionalSpace { elementId: $eid })
-WITH cl, wall, door, pipe, space
-WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL
-FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
-FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))";
-
-            try
-            {
-                await RunWriteQueryAsync(cypher, new { session = targetSessionId, type = operation, eid = elementId }).ConfigureAwait(false);
-                Logger.LogToFile($"Created ChangeLog entry for ElementId {elementId}, operation {operation}, target session {targetSessionId}", "sync.log");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogCrash($"Failed to create ChangeLog entry for ElementId {elementId}", ex);
-                throw;
-            }
+            // Redirect to central method
+            await CreateChangeLogEntryWithRelationshipsAsync(elementId, operation, targetSessionId);
         }
 
         /// <summary>
@@ -714,6 +864,45 @@ FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (c
                 foreach (var entry in debugResult)
                 {
                     Logger.LogToFile($"  - sessionId:{entry.changeSessionId}, type:{entry.type}, elementId:{entry.elementId}", "sync.log");
+                }
+
+                // CRITICAL DEBUG: Check if Pipe/ProvisionalSpace nodes exist with the ChangeLog elementIds
+                foreach (var entry in debugResult.Where(e => e.type == "Modify" || e.type == "Insert"))
+                {
+                    var elementId = entry.elementId;
+                    Logger.LogToFile($"CHANGELOG DEBUG: Checking existence of elementId {elementId} in Neo4j nodes", "sync.log");
+                    
+                    // Check Pipe existence
+                    const string pipeCheckQuery = @"MATCH (p:Pipe) WHERE p.elementId = $elementId RETURN p.elementId as pipeElementId, p.uid as pipeUid LIMIT 1";
+                    var pipeResult = await RunQueryAsync(pipeCheckQuery, new { elementId }, record =>
+                    {
+                        return new { pipeElementId = record["pipeElementId"]?.As<long>() ?? -1, pipeUid = record["pipeUid"]?.As<string>() ?? "" };
+                    }).ConfigureAwait(false);
+                    
+                    if (pipeResult.Count > 0)
+                    {
+                        Logger.LogToFile($"CHANGELOG DEBUG: FOUND Pipe with elementId {elementId}, uid: {pipeResult[0].pipeUid}", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"CHANGELOG DEBUG: NO Pipe found with elementId {elementId}", "sync.log");
+                    }
+                    
+                    // Check ProvisionalSpace existence  
+                    const string psCheckQuery = @"MATCH (ps:ProvisionalSpace) WHERE ps.elementId = $elementId RETURN ps.elementId as psElementId, ps.guid as psGuid LIMIT 1";
+                    var psResult = await RunQueryAsync(psCheckQuery, new { elementId }, record =>
+                    {
+                        return new { psElementId = record["psElementId"]?.As<long>() ?? -1, psGuid = record["psGuid"]?.As<string>() ?? "" };
+                    }).ConfigureAwait(false);
+                    
+                    if (psResult.Count > 0)
+                    {
+                        Logger.LogToFile($"CHANGELOG DEBUG: FOUND ProvisionalSpace with elementId {elementId}, guid: {psResult[0].psGuid}", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"CHANGELOG DEBUG: NO ProvisionalSpace found with elementId {elementId}", "sync.log");
+                    }
                 }
 
                 // Additional debug: Check what nodes actually exist in Neo4j
@@ -787,24 +976,28 @@ FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (c
                         {
                             elementProperties = wallNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
                             elementProperties["__element_type__"] = "Wall";
+                            elementProperties["elementId"] = elementId; // Ensure elementId is always present
                             Logger.LogToFile($"Successfully loaded wall properties for ElementId {elementId}: {elementProperties.Keys.Count} properties", "sync.log");
                         }
                         else if (doorNode?.Properties != null)
                         {
                             elementProperties = doorNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
                             elementProperties["__element_type__"] = "Door";
+                            elementProperties["elementId"] = elementId; // Ensure elementId is always present
                             Logger.LogToFile($"Successfully loaded door properties for ElementId {elementId}: {elementProperties.Keys.Count} properties", "sync.log");
                         }
                         else if (pipeNode?.Properties != null)
                         {
                             elementProperties = pipeNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
                             elementProperties["__element_type__"] = "Pipe";
+                            elementProperties["elementId"] = elementId; // Ensure elementId is always present
                             Logger.LogToFile($"Successfully loaded pipe properties for ElementId {elementId}: {elementProperties.Keys.Count} properties", "sync.log");
                         }
                         else if (provisionalSpaceNode?.Properties != null)
                         {
                             elementProperties = provisionalSpaceNode.Properties.ToDictionary(kv => kv.Key, kv => kv.Value);
                             elementProperties["__element_type__"] = "ProvisionalSpace";
+                            elementProperties["elementId"] = elementId; // Ensure elementId is always present
                             Logger.LogToFile($"Successfully loaded provisional space properties for ElementId {elementId}: {elementProperties.Keys.Count} properties", "sync.log");
                         }
                         else
@@ -956,37 +1149,10 @@ FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (c
             {
                 Logger.LogToFile($"Creating test ChangeLog entries for target session {targetSessionId}", "sync.log");
                 
-                // Create test ChangeLog entries using the existing schema format
-                const string createChangeLogQuery = @"
-                    MERGE (s:Session { id: $sessionId })
-                    CREATE (c:ChangeLog {
-                        elementId: 999,
-                        type: 'Insert',
-                        sessionId: $sessionId,
-                        user: $sessionId,
-                        timestamp: datetime(),
-                        acknowledged: false
-                    })
-                    MERGE (s)-[:HAS_LOG]->(c)
-                    WITH c
-                    OPTIONAL MATCH (wall:Wall { elementId: 999 })
-                    OPTIONAL MATCH (door:Door { elementId: 999 })
-                    OPTIONAL MATCH (pipe:Pipe { elementId: 999 })
-                    OPTIONAL MATCH (space:ProvisionalSpace { elementId: 999 })
-                    WITH c, wall, door, pipe, space
-                    WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL
-                    FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (c)-[:GOT_CHANGED]->(elem))
-                    FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (c)-[:GOT_CHANGED]->(elem))
-                    FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (c)-[:GOT_CHANGED]->(elem))
-                    FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (c)-[:GOT_CHANGED]->(elem))
-                    RETURN id(c) as changeId";
+                // Use central method for test ChangeLog creation
+                await CreateChangeLogEntryWithRelationshipsAsync(999, "Insert", targetSessionId);
                 
-                await using var session = _driver.AsyncSession();
-                var result = await session.RunAsync(createChangeLogQuery, new { sessionId = targetSessionId }).ConfigureAwait(false);
-                var record = await result.SingleAsync().ConfigureAwait(false);
-                var changeId = record["changeId"].As<int>();
-                
-                Logger.LogToFile($"Created test ChangeLog entry {changeId} for ElementId 999, target session {targetSessionId}", "sync.log");
+                Logger.LogToFile($"Created test ChangeLog entry for ElementId 999, target session {targetSessionId}", "sync.log");
             }
             catch (Exception ex)
             {
@@ -1304,18 +1470,20 @@ FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (c
             string logTime, 
             string sessionId)
         {
-            Logger.LogToFile($"PUSH LEVEL CHANGE: Level {level.Id.Value} modified by {elementType} {changeType} operation on element {elementId}, creating ChangeLog", "sync.log");
+            Logger.LogToFile($"PUSH LEVEL CHANGE: Level {level.Id.Value} modified by {elementType} {changeType} operation on element {elementId}, merging ChangeLog for other sessions", "sync.log");
             
             // Update Level lastModifiedUtc
             await tx.RunAsync(
                 "MATCH (l:Level { elementId: $levelId }) SET l.lastModifiedUtc = datetime($time)",
                 new { levelId = level.Id.Value, time = logTime }).ConfigureAwait(false);
 
-            // Create ChangeLog entry for Level (for all other sessions)
+            // Create/Update ONE ChangeLog entry per session for Level (merge to prevent duplicates)
             const string levelLogQuery = @"
-                MATCH (s:Session { id: $session })
+                MATCH (s:Session) 
+                WHERE s.id <> $currentSession
+                WITH s
                 MERGE (cl:ChangeLog {
-                    sessionId: $session,
+                    sessionId: s.id,
                     elementId: $levelId,
                     type: 'Modify'
                 })
@@ -1325,20 +1493,28 @@ FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (c
                     cl.acknowledged = false
                 ON MATCH SET 
                     cl.timestamp = datetime($time),
-                    cl.acknowledged = false,
                     cl.user = $user
-                MERGE (s)-[:HAS_LOG]->(cl)";
+                MERGE (s)-[:HAS_LOG]->(cl)
+                WITH cl
+                OPTIONAL MATCH (level:Level) WHERE level.elementId = $levelId
+                WITH cl, level
+                WHERE level IS NOT NULL
+                MERGE (cl)-[:GOT_CHANGED]->(level)
+                RETURN count(DISTINCT cl) as changeLogCount";
 
-            await tx.RunAsync(levelLogQuery,
+            var result = await tx.RunAsync(levelLogQuery,
                 new
                 {
-                    session = sessionId,
+                    currentSession = sessionId,
                     user = sessionId,
                     time = logTime,
                     levelId = level.Id.Value
                 }).ConfigureAwait(false);
 
-            Logger.LogToFile($"PUSH LEVEL CHANGELOG: Created/Updated ChangeLog entry for Level {level.Id.Value} modified by {elementType} {changeType} on element {elementId}", "sync.log");
+            var records = await result.ToListAsync().ConfigureAwait(false);
+            int changeLogCount = records.FirstOrDefault()?["changeLogCount"]?.As<int>() ?? 0;
+            
+            Logger.LogToFile($"PUSH LEVEL CHANGELOG: Merged {changeLogCount} ChangeLog entries for Level {level.Id.Value} across other sessions (prevented duplicates)", "sync.log");
         }
 
         /// <summary>
@@ -1417,6 +1593,131 @@ FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (c
                 throw;
             }
         }
+        /// <summary>
+        /// Diagnostics: Analyze GOT_CHANGED relationships status
+        /// </summary>
+        public async Task AnalyzeGotChangedRelationshipsAsync()
+        {
+            try
+            {
+                Logger.LogToFile("=== GOT_CHANGED Relationships Analysis ===", "sync.log");
+                
+                await using var session = _driver.AsyncSession();
+                
+                // Count total ChangeLog entries
+                var totalResult = await session.RunAsync("MATCH (cl:ChangeLog) RETURN count(cl) as total").ConfigureAwait(false);
+                var totalRecord = await totalResult.SingleAsync().ConfigureAwait(false);
+                var totalChangeLogs = totalRecord["total"].As<int>();
+                
+                // Count ChangeLog entries with GOT_CHANGED relationships
+                var withRelResult = await session.RunAsync("MATCH (cl:ChangeLog)-[:GOT_CHANGED]->() RETURN count(DISTINCT cl) as with_relationships").ConfigureAwait(false);
+                var withRelRecord = await withRelResult.SingleAsync().ConfigureAwait(false);
+                var withRelationships = withRelRecord["with_relationships"].As<int>();
+                
+                // Count ChangeLog entries without GOT_CHANGED relationships
+                var withoutRelResult = await session.RunAsync("MATCH (cl:ChangeLog) WHERE NOT EXISTS { (cl)-[:GOT_CHANGED]->() } RETURN count(cl) as without_relationships").ConfigureAwait(false);
+                var withoutRelRecord = await withoutRelResult.SingleAsync().ConfigureAwait(false);
+                var withoutRelationships = withoutRelRecord["without_relationships"].As<int>();
+                
+                // Analyze element types and ID formats
+                var elementsResult = await session.RunAsync(@"
+MATCH (cl:ChangeLog)
+WHERE NOT EXISTS { (cl)-[:GOT_CHANGED]->() }
+WITH cl.elementId as eid
+OPTIONAL MATCH (wall:Wall) WHERE wall.elementId = eid OR wall.elementId = toString(eid)
+OPTIONAL MATCH (door:Door) WHERE door.elementId = eid OR door.elementId = toString(eid)  
+OPTIONAL MATCH (pipe:Pipe) WHERE pipe.elementId = eid OR pipe.elementId = toString(eid)
+OPTIONAL MATCH (space:ProvisionalSpace) WHERE space.elementId = eid OR space.elementId = toString(eid)
+RETURN eid, 
+       CASE WHEN wall IS NOT NULL THEN 'Wall' ELSE null END as wall_match,
+       CASE WHEN door IS NOT NULL THEN 'Door' ELSE null END as door_match,
+       CASE WHEN pipe IS NOT NULL THEN 'Pipe' ELSE null END as pipe_match,
+       CASE WHEN space IS NOT NULL THEN 'ProvisionalSpace' ELSE null END as space_match
+LIMIT 10").ConfigureAwait(false);
+                
+                Logger.LogToFile($"Total ChangeLog entries: {totalChangeLogs}", "sync.log");
+                Logger.LogToFile($"ChangeLog entries WITH GOT_CHANGED relationships: {withRelationships}", "sync.log");
+                Logger.LogToFile($"ChangeLog entries WITHOUT GOT_CHANGED relationships: {withoutRelationships}", "sync.log");
+                
+                Logger.LogToFile("Sample ChangeLog entries without relationships:", "sync.log");
+                await foreach (var record in elementsResult)
+                {
+                    var elementId = record["eid"]?.ToString() ?? "null";
+                    var wallMatch = record["wall_match"]?.ToString();
+                    var doorMatch = record["door_match"]?.ToString();
+                    var pipeMatch = record["pipe_match"]?.ToString();
+                    var spaceMatch = record["space_match"]?.ToString();
+                    
+                    var matches = new[] { wallMatch, doorMatch, pipeMatch, spaceMatch }.Where(m => m != null).ToArray();
+                    var matchStr = matches.Any() ? string.Join(", ", matches) : "NO MATCHES";
+                    
+                    Logger.LogToFile($"  elementId: {elementId} -> {matchStr}", "sync.log");
+                }
+                
+                Logger.LogToFile("=== End Analysis ===", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Failed to analyze GOT_CHANGED relationships", ex);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Repairs missing GOT_CHANGED relationships for existing ChangeLog entries
+        /// </summary>
+        public async Task RepairMissingGotChangedRelationshipsAsync()
+        {
+            const string repairQuery = @"
+MATCH (cl:ChangeLog)
+WHERE NOT EXISTS { (cl)-[:GOT_CHANGED]->() }
+WITH cl
+OPTIONAL MATCH (wall:Wall) WHERE wall.elementId = cl.elementId OR wall.elementId = toString(cl.elementId)
+OPTIONAL MATCH (door:Door) WHERE door.elementId = cl.elementId OR door.elementId = toString(cl.elementId)
+OPTIONAL MATCH (pipe:Pipe) WHERE pipe.elementId = cl.elementId OR pipe.elementId = toString(cl.elementId)
+OPTIONAL MATCH (space:ProvisionalSpace) WHERE space.elementId = cl.elementId OR space.elementId = toString(cl.elementId)
+OPTIONAL MATCH (level:Level) WHERE level.elementId = cl.elementId OR level.elementId = toString(cl.elementId)
+OPTIONAL MATCH (building:Building) WHERE building.elementId = cl.elementId OR building.elementId = toString(cl.elementId)
+WITH cl, wall, door, pipe, space, level, building
+WHERE wall IS NOT NULL OR door IS NOT NULL OR pipe IS NOT NULL OR space IS NOT NULL OR level IS NOT NULL OR building IS NOT NULL
+FOREACH (elem IN CASE WHEN wall IS NOT NULL THEN [wall] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN door IS NOT NULL THEN [door] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN pipe IS NOT NULL THEN [pipe] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN space IS NOT NULL THEN [space] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN level IS NOT NULL THEN [level] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+FOREACH (elem IN CASE WHEN building IS NOT NULL THEN [building] ELSE [] END | MERGE (cl)-[:GOT_CHANGED]->(elem))
+RETURN count(cl) as repaired_count";
+
+            try
+            {
+                Logger.LogToFile("Repairing missing GOT_CHANGED relationships for existing ChangeLog entries...", "sync.log");
+                
+                await using var session = _driver.AsyncSession();
+                var result = await session.RunAsync(repairQuery).ConfigureAwait(false);
+                var record = await result.SingleAsync().ConfigureAwait(false);
+                var repairedCount = record["repaired_count"].As<int>();
+                
+                Logger.LogToFile($"Successfully repaired {repairedCount} ChangeLog entries with missing GOT_CHANGED relationships", "sync.log");
+
+                // Verify results
+                const string verifyQuery = @"
+MATCH (cl:ChangeLog)
+WHERE NOT EXISTS { (cl)-[:GOT_CHANGED]->() }
+RETURN count(cl) as orphaned_count";
+                
+                var verifyResult = await session.RunAsync(verifyQuery).ConfigureAwait(false);
+                var verifyRecord = await verifyResult.SingleAsync().ConfigureAwait(false);
+                var orphanedCount = verifyRecord["orphaned_count"].As<int>();
+                
+                Logger.LogToFile($"After repair: {orphanedCount} ChangeLog entries still without GOT_CHANGED relationships", "sync.log");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCrash("Failed to repair missing GOT_CHANGED relationships", ex);
+                throw;
+            }
+        }
+
     }
 }
 

@@ -104,10 +104,8 @@ namespace SpaceTracker
         // Öffentliche Instanz-Eigenschaft
         // Gibt die Ressourcen des Neo4jConnectors frei.
 
-        public void Dispose()
-        {
-            _neo4jConnector?.Dispose();
-        }
+        // Removed Dispose method to prevent race conditions with active Neo4j operations
+        // The .NET runtime will handle cleanup automatically
 
         // Überträgt alle gesammelten Cypher-Befehle an Neo4j und aktualisiert
         // anschließend den Sync-Zeitstempel. Optional wird der aktuelle
@@ -131,21 +129,36 @@ namespace SpaceTracker
                         ids.Add(parsed);
                 }
 
+                // Critical Neo4j operations only - must complete fast
                 await _neo4jConnector.PushChangesAsync(commands, SessionId, currentDoc).ConfigureAwait(false);
                 LastSyncTime = DateTime.UtcNow;
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
-                await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
-                if (currentDoc != null)
+                
+                Logger.LogToFile("ProcessCypherQueueAsync core operations completed", "concurrency.log");
+
+                // Non-critical operations - run in background to prevent shutdown race conditions
+                _ = Task.Run(async () =>
                 {
-                    foreach (var id in ids)
+                    try
                     {
-                        await SolibriChecker
-                            .CheckElementAsync(new ElementId((int)id), currentDoc)
-                            .ConfigureAwait(false);
+                        await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
+                        if (currentDoc != null)
+                        {
+                            foreach (var id in ids)
+                            {
+                                await SolibriChecker
+                                    .CheckElementAsync(new ElementId((int)id), currentDoc)
+                                    .ConfigureAwait(false);
+                            }
+                        }
+                        Logger.LogToFile("ProcessCypherQueueAsync background operations completed", "concurrency.log");
                     }
-                }
-                Logger.LogToFile("ProcessCypherQueueAsync completed", "concurrency.log");
+                    catch (Exception ex)
+                    {
+                        Logger.LogCrash("ProcessCypherQueueAsync background", ex);
+                    }
+                });
 
             }
             catch (Exception ex)

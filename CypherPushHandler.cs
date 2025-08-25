@@ -51,43 +51,6 @@ namespace SpaceTracker
                                 SpaceTrackerClass.SolibriLock.Release();
                             }
                         });
-                    
-                        // BACKGROUND SOLIBRI API CHECK: Run second Solibri check in background 
-                        _ = Task.Run(async () =>
-                        {
-                            Logger.LogToFile("SOLIBRI API CHECK: Starting background Solibri API check", "solibri.log");
-                            try
-                            {
-                                var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
-                                var results = await solibriClient
-                                    .RunRulesetCheckAsync(SpaceTrackerClass.SolibriModelUUID)
-                                    .ConfigureAwait(false);
-
-                                var status = SpaceTrackerClass.StatusColor.Green;
-                                foreach (var clash in results)
-                                {
-                                    var sev2 = clash.Severity?.Trim().ToUpperInvariant();
-                                    if (sev2 == "ROT" || sev2 == "RED" || sev2 == "ERROR" ||
-                                        sev2 == "HIGH" || sev2 == "CRITICAL")
-                                    {
-                                        status = SpaceTrackerClass.StatusColor.Red;
-                                        break;
-                                    }
-                                    if (sev2 == "GELB" || sev2 == "YELLOW" || sev2 == "WARNING" ||
-                                        sev2 == "MEDIUM")
-                                    {
-                                        if (status != SpaceTrackerClass.StatusColor.Red)
-                                            status = SpaceTrackerClass.StatusColor.Yellow;
-                                    }
-                                }
-                                SpaceTrackerClass.SetStatusIndicator(status);
-                                Logger.LogToFile($"SOLIBRI API CHECK: Completed with status {status}", "solibri.log");
-                            }
-                            catch (Exception ex)
-                            {
-                                Logger.LogCrash("Background Solibri API Check", ex);
-                            }
-                        });
                     }
                     else
                     {

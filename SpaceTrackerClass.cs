@@ -119,109 +119,6 @@ namespace SpaceTracker
         // Prüfung aktualisiert.
         public static string SolibriModelUUID = string.Empty; public const string SolibriRulesetPath = "C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset";
         public static string SolibriRulesetId;
-
-        public static PushButton StatusIndicatorButton;
-        internal static ImageSource GreenIcon, YellowIcon, RedIcon;
-
-        // Ampel-Status Enum
-        public enum StatusColor { Green, Yellow, Red }
-
-        // Methode zum Aktualisieren des Ampel-Icons
-        public static void SetStatusIndicator(StatusColor status)
-        {
-            LogMethodCall(nameof(SetStatusIndicator), new Dictionary<string, object>
-            {
-                { "status", status }
-            });
-            if (StatusIndicatorButton == null) return;
-            switch (status)
-            {
-                case StatusColor.Green:
-                    StatusIndicatorButton.LargeImage = GreenIcon;
-                    StatusIndicatorButton.Image = GreenIcon;
-                    StatusIndicatorButton.ToolTip = "Status: Konsistent (Grün)";
-                    break;
-                case StatusColor.Yellow:
-                    StatusIndicatorButton.LargeImage = YellowIcon;
-                    StatusIndicatorButton.Image = YellowIcon;
-                    StatusIndicatorButton.ToolTip = "Status: Warnungen vorhanden (Gelb)";
-                    break;
-                case StatusColor.Red:
-                    StatusIndicatorButton.LargeImage = RedIcon;
-                    StatusIndicatorButton.Image = RedIcon;
-                    StatusIndicatorButton.ToolTip = "Status: Inkonsistenzen erkannt (Rot)";
-                    break;
-            }
-        }
-
-        // Updates the consistency checker after a ruleset validation. Executed
-        // on the UI thread to immediately reflect the validation result.
-        public static void UpdateConsistencyCheckerButton(Severity severity)
-        {
-            LogMethodCall(nameof(UpdateConsistencyCheckerButton), new Dictionary<string, object>
-            {
-                { "severity", severity }
-            });
-            switch (severity)
-            {
-                case Severity.Error:
-                    SetStatusIndicator(StatusColor.Red);
-                    break;
-                case Severity.Warning:
-                    SetStatusIndicator(StatusColor.Yellow);
-                    break;
-                default:
-                    SetStatusIndicator(StatusColor.Green);
-                    break;
-            }
-        }
-
-        // Runs a consistency check against Neo4j and updates the status
-        // indicator. Dialog messages can be suppressed with the showDialogs
-        // flag.
-        // Vergleicht lokale Änderungen mit dem Graphen und setzt die Ampel. Optionale Dialoge informieren den Nutzer.
-        public static void PerformConsistencyCheck(Document doc, bool showDialogs)
-        {
-            LogMethodCall(nameof(PerformConsistencyCheck), new Dictionary<string, object>
-            {
-                { "doc", doc },
-                { "showDialogs", showDialogs }
-            });
-            var cmdMgr = CommandManager.Instance;
-            var connector = cmdMgr.Neo4jConnector;
-
-
-            //Solibri-Check ausführen
-            // und die Status-Ampel entsprechend der höchsten gefundenen
-            // Fehlerstufe setzen
-            try
-            {
-                var errs = SolibriRulesetValidator.Validate(doc).GetAwaiter().GetResult();
-                var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
-                UpdateConsistencyCheckerButton(sev);
-
-                if (showDialogs)
-                {
-                    int errCount = errs.Count(e => e.Severity == Severity.Error);
-                    int warnCount = errs.Count(e => e.Severity == Severity.Warning);
-                    Autodesk.Revit.UI.TaskDialog.Show(
-                        "Consistency Check",
-                        $"Solibri-Prüfung abgeschlossen: {errCount} Fehler, {warnCount} Warnungen.");
-                }
-
-                var mappingIssues = ValidateElementMappings(doc, connector);
-                if (mappingIssues.Count > 0 && showDialogs)
-                {
-                    Autodesk.Revit.UI.TaskDialog.Show(
-                        "Consistency Check",
-                        "Nicht zugeordnete Datensätze gefunden:\n" + string.Join("\n", mappingIssues));
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ConsistencyCheck] Solibri validation failed: {ex.Message}");
-            }
-        }
         private static List<string> ValidateElementMappings(Document doc, Neo4jConnector connector)
         {
             const string cypher =
@@ -313,20 +210,20 @@ namespace SpaceTracker
                 { "application", application.GetType().Name }
             });
 
-            Logger.LogToFile("STARTUP TRACE 1: OnStartup method called", "sync.log");
+            // Logger.LogToFile("STARTUP TRACE 1: OnStartup method called", "sync.log");
 
             var logDir = Path.Combine(
                            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                            "SpaceTracker", "log");
 
-            Logger.LogToFile("STARTUP TRACE 2: Log directory path determined", "sync.log");
+            // Logger.LogToFile("STARTUP TRACE 2: Log directory path determined", "sync.log");
 
             // Stelle sicher, dass der Ordner existiert
             if (!Directory.Exists(logDir))
                 Directory.CreateDirectory(logDir);
             // Nur Inhalte löschen, nicht den Ordner selbst
 
-            Logger.LogToFile("STARTUP TRACE 3: About to clear log files", "sync.log");
+            // Logger.LogToFile("STARTUP TRACE 3: About to clear log files", "sync.log");
 
             foreach (var file in Directory.GetFiles(logDir))
             {
@@ -339,85 +236,89 @@ namespace SpaceTracker
                 { }
             }
             
-            Logger.LogToFile("STARTUP TRACE 4: Log files cleared, starting component initialization", "sync.log");
+            //Logger.LogToFile("SpaceTracker startup: Initializing components", "sync.log");
             
             try
             {
-                Logger.LogToFile("STARTUP TRACE 5: Creating Neo4jConnector", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 5: Creating Neo4jConnector", "sync.log");
                 using var loggerFactory = LoggerFactory.Create(b => b.AddDebug());
                 _neo4jConnector = new Neo4jConnector(loggerFactory.CreateLogger<Neo4jConnector>());
-                Logger.LogToFile("STARTUP TRACE 6: Neo4jConnector created successfully", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 6: Neo4jConnector created successfully", "sync.log");
 
-                Logger.LogToFile("STARTUP TRACE 7: Initializing CommandManager", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 7: Initializing CommandManager", "sync.log");
                 CommandManager.Initialize(_neo4jConnector);
-                Logger.LogToFile("STARTUP TRACE 8: CommandManager initialized", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 8: CommandManager initialized", "sync.log");
 
-                Logger.LogToFile("STARTUP TRACE 9: Setting up HTTP client services", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 9: Setting up HTTP client services", "sync.log");
                 var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
                 services.AddHttpClient("solibri", c => c.BaseAddress = new Uri("http://localhost:10876/solibri/v1/"));
                 var provider = services.BuildServiceProvider();
                 var factory = provider.GetRequiredService<IHttpClientFactory>();
-                Logger.LogToFile("STARTUP TRACE 10: HTTP client factory created", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 10: HTTP client factory created", "sync.log");
                 
-                Logger.LogToFile("STARTUP TRACE 11: Initializing SolibriChecker", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 11: Initializing SolibriChecker", "sync.log");
                 SolibriChecker.Initialize(factory, _neo4jConnector);
-                Logger.LogToFile("STARTUP TRACE 12: SolibriChecker initialized", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 12: SolibriChecker initialized", "sync.log");
                 
-                Logger.LogToFile("STARTUP TRACE 13: Creating SpaceExtractor", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 13: Creating SpaceExtractor", "sync.log");
                 _extractor = new SpaceExtractor(CommandManager.Instance);
-                Logger.LogToFile("STARTUP TRACE 14: SpaceExtractor created", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 14: SpaceExtractor created", "sync.log");
                 
-                Logger.LogToFile("STARTUP TRACE 15: Creating DatabaseUpdateHandler", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 15: Creating DatabaseUpdateHandler", "sync.log");
                 _databaseUpdateHandler = new DatabaseUpdateHandler(_extractor);
-                Logger.LogToFile("STARTUP TRACE 16: DatabaseUpdateHandler created", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 16: DatabaseUpdateHandler created", "sync.log");
                 
-                Logger.LogToFile("STARTUP TRACE 17: Creating GraphPuller", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 16.1: Initializing DatabaseUpdateHandler", "sync.log");
+                _databaseUpdateHandler.Initialize();
+                // Logger.LogToFile("STARTUP TRACE 16.2: DatabaseUpdateHandler initialized", "sync.log");
+                
+                // Logger.LogToFile("STARTUP TRACE 17: Creating GraphPuller", "sync.log");
                 _graphPuller = new GraphPuller(_neo4jConnector);
                 GraphPullerInstance = _graphPuller;
-                Logger.LogToFile("STARTUP TRACE 18: GraphPuller created", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 18: GraphPuller created", "sync.log");
                 
-                Logger.LogToFile("STARTUP TRACE 19: Creating GraphPullHandler", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 19: Creating GraphPullHandler", "sync.log");
                 _graphPullHandler = new GraphPullHandler();
                 GraphPullHandlerInstance = _graphPullHandler;
                 _graphPullEvent = ExternalEvent.Create(_graphPullHandler);
                 _graphPullHandler.ExternalEvent = _graphPullEvent;
-                Logger.LogToFile("STARTUP TRACE 20: GraphPullHandler and ExternalEvent created", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 20: GraphPullHandler and ExternalEvent created", "sync.log");
                 
                 // Initialize AutoPullService for automatic pull operations
-                Logger.LogToFile("SPACETRACKER INIT: Initializing AutoPullService for automatic pull operations", "sync.log");
-                Logger.LogToFile("STARTUP TRACE 21: Creating AutoPullService", "sync.log");
+               // Logger.LogToFile("SpaceTracker startup: AutoPullService initialized", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 21: Creating AutoPullService", "sync.log");
                 _autoPullService = new AutoPullService(_neo4jConnector, _graphPuller);
                 AutoPullServiceInstance = _autoPullService;
-                Logger.LogToFile("STARTUP TRACE 22: AutoPullService created", "sync.log");
+                // Logger.LogToFile("STARTUP TRACE 22: AutoPullService created", "sync.log");
                 
                 // Initialize event-based change notification system
-                Logger.LogToFile("STARTUP TRACE 23: Creating Neo4jChangeNotifier", "sync.log");
+               // Logger.LogToFile("STARTUP TRACE 23: Creating Neo4jChangeNotifier", "sync.log");
                 ChangeNotifierInstance = new Neo4jChangeNotifier(_neo4jConnector.Driver);
-                Logger.LogToFile("SPACETRACKER INIT: Event-based change notification system initialized", "sync.log");
-                Logger.LogToFile("STARTUP TRACE 24: Neo4jChangeNotifier created", "sync.log");
+               // Logger.LogToFile("SPACETRACKER INIT: Event-based change notification system initialized", "sync.log");
+               // Logger.LogToFile("STARTUP TRACE 24: Neo4jChangeNotifier created", "sync.log");
                 
-                Logger.LogToFile("SPACETRACKER INIT: AutoPullService initialization completed", "sync.log");
+               // Logger.LogToFile("SPACETRACKER INIT: AutoPullService initialization completed", "sync.log");
                 
-                Logger.LogToFile("STARTUP TRACE 25: Creating CommandManager instance", "sync.log");
+              //  Logger.LogToFile("STARTUP TRACE 25: Creating CommandManager instance", "sync.log");
                 _cmdManager = CommandManager.Instance;
-                Logger.LogToFile("STARTUP TRACE 26: CommandManager instance obtained", "sync.log");
+              //  Logger.LogToFile("STARTUP TRACE 26: CommandManager instance obtained", "sync.log");
                 
-                Logger.LogToFile("STARTUP TRACE 27: Creating IfcExportHandler", "sync.log");
+              //  Logger.LogToFile("STARTUP TRACE 27: Creating IfcExportHandler", "sync.log");
                 _exportHandler = new IfcExportHandler();
                 _exportEvent = ExternalEvent.Create(_exportHandler);
-                Logger.LogToFile("STARTUP TRACE 28: IfcExportHandler and ExternalEvent created", "sync.log");
+               // Logger.LogToFile("STARTUP TRACE 28: IfcExportHandler and ExternalEvent created", "sync.log");
                 
-                Logger.LogToFile("STARTUP TRACE 29: Getting UIApplication", "sync.log");
+              //  Logger.LogToFile("STARTUP TRACE 29: Getting UIApplication", "sync.log");
                 var uiapp = TryGetUIApplication(application);
-                Logger.LogToFile("STARTUP TRACE 30: UIApplication obtained", "sync.log");
+             //   Logger.LogToFile("STARTUP TRACE 30: UIApplication obtained", "sync.log");
                 
                 // Set UIApplication reference for AutoPullService to access current document
                 if (uiapp != null)
                 {
-                    Logger.LogToFile("STARTUP TRACE 31: Setting UIApplication for AutoPullService", "sync.log");
+              //      Logger.LogToFile("STARTUP TRACE 31: Setting UIApplication for AutoPullService", "sync.log");
                     AutoPullService.SetUIApplication(uiapp);
-                    Logger.LogToFile("SPACETRACKER INIT: UIApplication reference set for AutoPullService", "sync.log");
-                    Logger.LogToFile("STARTUP TRACE 32: UIApplication set successfully", "sync.log");
+              //      Logger.LogToFile("SPACETRACKER INIT: UIApplication reference set for AutoPullService", "sync.log");
+              //      Logger.LogToFile("STARTUP TRACE 32: UIApplication set successfully", "sync.log");
                 }
                 else
                 {
@@ -432,18 +333,18 @@ namespace SpaceTracker
                 return Result.Failed;
             }
             
-            Logger.LogToFile("STARTUP TRACE 33: Starting background Solibri process task", "sync.log");
+          //  Logger.LogToFile("STARTUP TRACE 33: Starting background Solibri process task", "sync.log");
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    Logger.LogToFile("STARTUP TRACE 34: Background Solibri task started", "sync.log");
+              //      Logger.LogToFile("STARTUP TRACE 34: Background Solibri task started", "sync.log");
                     SolibriProcessManager.EnsureStarted();
-                    Logger.LogToFile("STARTUP TRACE 35: SolibriProcessManager.EnsureStarted() completed", "sync.log");
+              //      Logger.LogToFile("STARTUP TRACE 35: SolibriProcessManager.EnsureStarted() completed", "sync.log");
                     var client = new SolibriApiClient(SolibriApiPort);
-                    Logger.LogToFile("STARTUP TRACE 36: SolibriApiClient created", "sync.log");
+               //     Logger.LogToFile("STARTUP TRACE 36: SolibriApiClient created", "sync.log");
                     SolibriRulesetId = await client.ImportRulesetAsync(SolibriRulesetPath).ConfigureAwait(false);
-                    Logger.LogToFile("STARTUP TRACE 37: Solibri ruleset imported successfully", "sync.log");
+               //     Logger.LogToFile("STARTUP TRACE 37: Solibri ruleset imported successfully", "sync.log");
                 }
                 catch (Exception ex)
                 {
@@ -451,9 +352,9 @@ namespace SpaceTracker
                     Logger.LogCrash("Ruleset-Import", ex);
                 }
             });
-            Logger.LogToFile("STARTUP TRACE 38: Background Solibri task queued", "sync.log");
+          //  Logger.LogToFile("STARTUP TRACE 38: Background Solibri task queued", "sync.log");
             
-            Logger.LogToFile("STARTUP TRACE 39: Setting up thread exception handler", "sync.log");
+          //  Logger.LogToFile("STARTUP TRACE 39: Setting up thread exception handler", "sync.log");
             System.Windows.Forms.Application.ThreadException += (sender, args) =>
           {
               Logger.LogToFile($"STARTUP TRACE THREAD EXCEPTION: UI Thread Exception occurred: {args.Exception.Message}", "sync.log");
@@ -472,7 +373,7 @@ namespace SpaceTracker
                   writer.WriteLine($"{DateTime.Now:O} UI Thread Exception: {args.Exception}");
               }
           };
-            Logger.LogToFile("STARTUP TRACE 40: Thread exception handler set", "sync.log");
+          //  Logger.LogToFile("STARTUP TRACE 40: Thread exception handler set", "sync.log");
 
             // 1. Logging-Pfade in Benutzerverzeichnis verlegen
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -480,41 +381,41 @@ namespace SpaceTracker
             string crashLogPath = Path.Combine(logDir, "SpaceTracker_crash.log");
             string assemblyCheckPath = Path.Combine(logDir, "SpaceTracker_Assembly_Check.log");
 
-            Logger.LogToFile("STARTUP TRACE 41: Log paths determined", "sync.log");
+          //  Logger.LogToFile("STARTUP TRACE 41: Log paths determined", "sync.log");
 
             // 2. Ordnerstruktur sicher erstellen
             Directory.CreateDirectory(logDir);
-            Logger.LogToFile("STARTUP TRACE 42: Log directory created", "sync.log");
+          //  Logger.LogToFile("STARTUP TRACE 42: Log directory created", "sync.log");
 
             // 3. Zentralisierte Logging-Methode
 
 
             try
             {
-                Logger.LogToFile("STARTUP TRACE 43: Starting main initialization try block", "sync.log");
+             //   Logger.LogToFile("STARTUP TRACE 43: Starting main initialization try block", "sync.log");
                 
                 // 4. Debugger-Logging initialisieren
-                Debug.WriteLine("[SpaceTracker] OnStartup initialisiert");
-                Logger.LogToFile("STARTUP TRACE 44: Debug WriteLine executed", "sync.log");
+              //  Debug.WriteLine("[SpaceTracker] OnStartup initialisiert");
+             //   Logger.LogToFile("STARTUP TRACE 44: Debug WriteLine executed", "sync.log");
 
                 // 5. Assembly-Versionen protokollieren
                 var revitApiVersion = typeof(Document).Assembly.GetName().Version;
                 var revitUIVersion = typeof(UIApplication).Assembly.GetName().Version;
                 var addinVersion = Assembly.GetExecutingAssembly().GetName().Version; ;
-                Logger.LogToFile("STARTUP TRACE 45: Assembly versions checked", "sync.log");
+            //    Logger.LogToFile("STARTUP TRACE 45: Assembly versions checked", "sync.log");
 
                 // 8. Ribbon-UI erstellen
-                Logger.LogToFile("STARTUP TRACE 46: About to create Ribbon UI", "sync.log");
+             //   Logger.LogToFile("STARTUP TRACE 46: About to create Ribbon UI", "sync.log");
                 CreateRibbonUI(application);
-                Logger.LogToFile("STARTUP TRACE 47: Ribbon UI created successfully", "sync.log");
+             //   Logger.LogToFile("STARTUP TRACE 47: Ribbon UI created successfully", "sync.log");
 
                 // 9. Events registrieren
-                Logger.LogToFile("STARTUP TRACE 48: About to register document events", "sync.log");
+             //   Logger.LogToFile("STARTUP TRACE 48: About to register document events", "sync.log");
                 RegisterDocumentEvents(application);
-                Logger.LogToFile("Document-Events registriert");
-                Logger.LogToFile("STARTUP TRACE 49: Document events registered", "sync.log");
+             //   Logger.LogToFile("Document-Events registriert");
+             //   Logger.LogToFile("STARTUP TRACE 49: Document events registered", "sync.log");
 
-                Logger.LogToFile("STARTUP TRACE 50: Setting up session sync file handling", "sync.log");
+             //   Logger.LogToFile("STARTUP TRACE 50: Setting up session sync file handling", "sync.log");
                 string innerappDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string spaceTrackerDir = Path.Combine(innerappDataPath, "SpaceTracker");
                 string syncFile = Path.Combine(spaceTrackerDir, $"last_sync_{CommandManager.Instance.SessionId}.txt"); 
@@ -539,38 +440,38 @@ namespace SpaceTracker
                 }
 
                 // 10. Falls bereits ein Dokument geöffnet ist, initiale Treppen und andere Elemente übernehmen
-                Logger.LogToFile("STARTUP TRACE 52: About to get UIApplication again for document check", "sync.log");
+               // Logger.LogToFile("STARTUP TRACE 52: About to get UIApplication again for document check", "sync.log");
                 UIApplication uiApp = TryGetUIApplication(application);
-                Logger.LogToFile("STARTUP TRACE 53: UIApplication obtained for document check", "sync.log");
+              //  Logger.LogToFile("STARTUP TRACE 53: UIApplication obtained for document check", "sync.log");
                 
                 if (uiApp != null && uiApp.ActiveUIDocument != null)
                 {
-                    Logger.LogToFile("STARTUP TRACE 54: Active document found, starting initialization", "sync.log");
-                    Logger.LogToFile("STARTUP TRACE 55: About to call InitializeExistingElements", "sync.log");
+                //    Logger.LogToFile("STARTUP TRACE 54: Active document found, starting initialization", "sync.log");
+                 //   Logger.LogToFile("STARTUP TRACE 55: About to call InitializeExistingElements", "sync.log");
                     InitializeExistingElements(uiApp.ActiveUIDocument.Document);
-                    Logger.LogToFile("STARTUP TRACE 56: InitializeExistingElements completed", "sync.log");
+                 //   Logger.LogToFile("STARTUP TRACE 56: InitializeExistingElements completed", "sync.log");
                     
-                    Logger.LogToFile("STARTUP TRACE 57: About to trigger database push", "sync.log");
+                //    Logger.LogToFile("STARTUP TRACE 57: About to trigger database push", "sync.log");
                     _databaseUpdateHandler.TriggerPush();
-                    Logger.LogToFile("STARTUP TRACE 58: Database push triggered", "sync.log");
+                 //   Logger.LogToFile("STARTUP TRACE 58: Database push triggered", "sync.log");
                     
-                    Logger.LogToFile("STARTUP TRACE 59: About to add session", "sync.log");
+                //    Logger.LogToFile("STARTUP TRACE 59: About to add session", "sync.log");
                     string key = uiApp.ActiveUIDocument.Document.PathName ?? uiApp.ActiveUIDocument.Document.Title;
                     SessionManager.AddSession(key, new Session(uiApp.ActiveUIDocument.Document));
-                    Logger.LogToFile("STARTUP TRACE 60: Session added", "sync.log");
+                 //   Logger.LogToFile("STARTUP TRACE 60: Session added", "sync.log");
 
                     // CRITICAL FIX: Do NOT perform any Solibri operations in OnStartup
                     // This was causing the hanging - defer all initialization to documentOpened
-                    Logger.LogToFile("SPACETRACKER STARTUP: Initial Solibri import deferred to documentOpened event", "sync.log");
-                    Logger.LogToFile("STARTUP TRACE 61: Solibri initialization deferred", "sync.log");
+                //    Logger.LogToFile("SPACETRACKER STARTUP: Initial Solibri import deferred to documentOpened event", "sync.log");
+                //    Logger.LogToFile("STARTUP TRACE 61: Solibri initialization deferred", "sync.log");
                 }
                 else
                 {
                     Logger.LogToFile("STARTUP TRACE 54: No active document found during startup", "sync.log");
                 }
 
-                Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
-                Logger.LogToFile("STARTUP TRACE 62: OnStartup completed successfully", "sync.log");
+               // Logger.LogToFile("OnStartup erfolgreich abgeschlossen");
+               /// Logger.LogToFile("STARTUP TRACE 62: OnStartup completed successfully", "sync.log");
                 return Result.Succeeded;
             }
             catch (Exception e)
@@ -685,63 +586,6 @@ namespace SpaceTracker
                 pullBtn.ToolTip = "Holt neueste Änderungen vom Neo4j-Graph in das lokale Modell (Pull)";
                 Logger.LogToFile("RIBBON UI TRACE 11: Pull button created", "sync.log");
             }
-
-            // 4. Consistency-Check-Button (Ampelanzeige für Status)
-            Logger.LogToFile("RIBBON UI TRACE 12: Checking for existing consistency check button", "sync.log");
-            bool checkExists = _ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "ConsistencyCheckButton");
-            if (!checkExists)
-            {
-                Logger.LogToFile("RIBBON UI TRACE 13: Creating consistency check button", "sync.log");
-                var checkBtnData = new PushButtonData(
-                     "ConsistencyCheckButton", "Consistency Check",
-                     Assembly.GetExecutingAssembly().Location,
-                     "SpaceTracker.ConsistencyCheckCommand"
-                 );
-
-                // Ampel-Icons laden (Grün, Gelb, Rot)
-
-                string greenIconPath = Path.Combine(assemblyDir, "Green.png");
-                string yellowIconPath = Path.Combine(assemblyDir, "Yellow.png");
-                string redIconPath = Path.Combine(assemblyDir, "Red.png");
-
-                BitmapImage greenIcon = null, yellowIcon = null, redIcon = null;
-
-                if (File.Exists(greenIconPath))
-                {
-                    greenIcon = new BitmapImage();
-                    greenIcon.BeginInit();
-                    greenIcon.UriSource = new Uri(greenIconPath, UriKind.Absolute);
-                    greenIcon.EndInit();
-                    checkBtnData.LargeImage = greenIcon; // initial auf Grün (angenommen konsistent)
-                }
-
-                if (File.Exists(yellowIconPath))
-                {
-                    yellowIcon = new BitmapImage();
-                    yellowIcon.BeginInit();
-                    yellowIcon.UriSource = new Uri(yellowIconPath, UriKind.Absolute);
-                    yellowIcon.EndInit();
-                }
-
-                if (File.Exists(redIconPath))
-                {
-                    redIcon = new BitmapImage();
-                    redIcon.BeginInit();
-                    redIcon.UriSource = new Uri(redIconPath, UriKind.Absolute);
-                    redIcon.EndInit();
-                }
-
-                var checkBtn = _ribbonPanel.AddItem(checkBtnData) as PushButton;
-                checkBtn.ToolTip = "Prüft die Konsistenz zwischen lokalem Modell und Neo4j-Graph (Ampelanzeige)";
-
-                // Referenzen für dynamische Ampelanzeige speichern
-                SpaceTrackerClass.StatusIndicatorButton = checkBtn;
-                SpaceTrackerClass.GreenIcon = greenIcon;
-                SpaceTrackerClass.YellowIcon = yellowIcon;
-                SpaceTrackerClass.RedIcon = redIcon;
-                Logger.LogToFile("RIBBON UI TRACE 14: Consistency check button created", "sync.log");
-            }
-
             // 6. Info-Button (zeigt Beschreibung der Funktionen)
             Logger.LogToFile("RIBBON UI TRACE 15: Checking for existing info button", "sync.log");
             if (!_ribbonPanel.GetItems().OfType<PushButton>().Any(b => b.Name == "InfoButton"))
@@ -895,7 +739,7 @@ namespace SpaceTracker
             {
                 { "application", application }
             });
-            CommandManager.Instance.Dispose();
+            // Removed CommandManager.Instance.Dispose() to prevent race condition with active Neo4j operations
             application.ControlledApplication.DocumentOpened -= documentOpened;
             application.ControlledApplication.DocumentChanged -= documentChangedHandler;
             application.ControlledApplication.DocumentCreated -= documentCreated;
@@ -913,7 +757,7 @@ namespace SpaceTracker
             ChangeNotifierInstance = null;
             Logger.LogToFile("SPACETRACKER SHUTDOWN: ChangeNotifier disposed", "sync.log");
             
-            _neo4jConnector?.Dispose();
+            // Removed _neo4jConnector?.Dispose() to prevent race condition with active transactions
             GraphPullerInstance = null;
             GraphPullHandlerInstance = null;
             return Result.Succeeded;
@@ -1085,6 +929,13 @@ namespace SpaceTracker
                 foreach (var el in addedElements)
                 {
                     Logger.LogToFile($"DOCCHANGE ADDED: Element {el.Id} of type {el.GetType().Name} and category {el.Category?.Name} ({el.Category?.Id.Value})", "sync.log");
+                    
+                    // Special logging for ProvisionalSpaces
+                    if (el is FamilyInstance fi && el.Category?.Id.Value == (int)BuiltInCategory.OST_GenericModel)
+                    {
+                        bool isProvisionalSpace = ParameterUtils.IsProvisionalSpace(fi);
+                        Logger.LogToFile($"DOCCHANGE ADDED: GenericModel {el.Id} - IsProvisionalSpace: {isProvisionalSpace}", "sync.log");
+                    }
                 }
                 foreach (var el in modifiedElements) 
                 {
@@ -1135,39 +986,9 @@ namespace SpaceTracker
                     
                     Logger.LogToFile($"DOCUMENT CHANGE TARGETS: Found {targetSessions.Count} target sessions for notifications: [{string.Join(", ", targetSessions)}]", "sync.log");
                     
-                    // Create event-based notifications for each target session
-                    foreach (var targetSessionId in targetSessions)
-                    {
-                        Logger.LogToFile($"DOCUMENT CHANGE EVENT TARGET: Creating notifications for target session {targetSessionId}", "sync.log");
-                        
-                        foreach (var el in addedElements)
-                        {
-                            Logger.LogToFile($"DOCUMENT CHANGE LOG ADD: Creating event-based ChangeLog for added element {el.Id.Value} -> target {targetSessionId}", "sync.log");
-                            await ChangeNotifierInstance.CreateChangeLogWithNotificationAsync(
-                                (int)el.Id.Value, 
-                                ChangeType.Add.ToString(), 
-                                sessionId, 
-                                targetSessionId);
-                        }
-                        foreach (var el in modifiedElements)
-                        {
-                            Logger.LogToFile($"DOCUMENT CHANGE LOG MODIFY: Creating event-based ChangeLog for modified element {el.Id.Value} -> target {targetSessionId}", "sync.log");
-                            await ChangeNotifierInstance.CreateChangeLogWithNotificationAsync(
-                                (int)el.Id.Value, 
-                                ChangeType.Modify.ToString(), 
-                                sessionId, 
-                                targetSessionId);
-                        }
-                        foreach (var id in deletedIds)
-                        {
-                            Logger.LogToFile($"DOCUMENT CHANGE LOG DELETE: Creating event-based ChangeLog for deleted element {id.Value} -> target {targetSessionId}", "sync.log");
-                            await ChangeNotifierInstance.CreateChangeLogWithNotificationAsync(
-                                (int)id.Value, 
-                                ChangeType.Delete.ToString(), 
-                                sessionId, 
-                                targetSessionId);
-                        }
-                    }
+                    // DISABLED: Event-based ChangeLog creation completely removed to prevent conflicts with UpdateGraph system
+                    // All ChangeLog creation is now handled by UpdateGraph -> CreateChangeLogForElement system
+                    Logger.LogToFile("DOCUMENT CHANGE LOGGING: Event-based ChangeLog creation disabled - handled by UpdateGraph system", "sync.log");
                     
                     Logger.LogToFile($"DOCUMENT CHANGE LOGGING COMPLETE: All event-based ChangeLog entries created for session {sessionId}", "sync.log");
                     Logger.LogToFile("DOCUMENT CHANGE AUTO-PULL NOTE: Event-based automatic pull triggers are now active", "sync.log");
@@ -1328,6 +1149,8 @@ namespace SpaceTracker
                                     
                                     Logger.LogToFile("BACKGROUND SOLIBRI: Initial model import completed", "sync.log");
                                     
+                                    // REMOVED: Solibri validation - handled manually by user
+                                    /*
                                     // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
                                     Logger.LogToFile("BACKGROUND SOLIBRI: Running Solibri validation", "sync.log");
                                     // FIXED: Use async/await instead of GetAwaiter().GetResult() to prevent deadlock
@@ -1338,6 +1161,7 @@ namespace SpaceTracker
                                     
                                     // Note: UI updates would need ExternalEvent for thread safety
                                     // For now, just log the result
+                                    */
                                     
                                     Logger.LogToFile("BACKGROUND SOLIBRI: Background Solibri operations completed", "sync.log");
                                 }

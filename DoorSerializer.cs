@@ -20,9 +20,10 @@ public static class DoorSerializer
         double width = 0, height = 0, thickness = 0;
         if (bb != null)
         {
-            width = UnitConversion.ToMm(Math.Abs(bb.Max.X - bb.Min.X));
-            height = UnitConversion.ToMm(Math.Abs(bb.Max.Z - bb.Min.Z));
-            thickness = UnitConversion.ToMm(Math.Abs(bb.Max.Y - bb.Min.Y));
+            // CRITICAL FIX: Calculate dimensions but store in METERS for ChangeLog compatibility
+            width = Math.Abs(bb.Max.X - bb.Min.X);
+            height = Math.Abs(bb.Max.Z - bb.Min.Z);
+            thickness = Math.Abs(bb.Max.Y - bb.Min.Y);
         }
 
         var dict = new Dictionary<string, object>
@@ -37,13 +38,15 @@ public static class DoorSerializer
             ["levelId"] = door.LevelId.Value,
             ["hostId"] = door.Host?.Id.Value ?? -1,
             ["hostUid"] = door.Host?.UniqueId ?? string.Empty,
-            ["x"] = UnitConversion.ToMm(loc?.Point.X ?? 0),
-            ["y"] = UnitConversion.ToMm(loc?.Point.Y ?? 0),
-            ["z"] = UnitConversion.ToMm(loc?.Point.Z ?? 0),
-            ["rotation"] = loc?.Rotation ?? 0,
-            ["width"] = width,
-            ["height"] = height,
-            ["thickness"] = thickness,
+            // CRITICAL FIX: Store coordinates in METERS for ChangeLog compatibility (same as WallSerializer)
+            ["x"] = Math.Round(UnitConversion.ToMeters(loc?.Point.X ?? 0), 6),
+            ["y"] = Math.Round(UnitConversion.ToMeters(loc?.Point.Y ?? 0), 6),
+            ["z"] = Math.Round(UnitConversion.ToMeters(loc?.Point.Z ?? 0), 6),
+            ["rotation"] = Math.Round(loc?.Rotation ?? 0, 6),
+            // CRITICAL FIX: Store dimensions in METERS for ChangeLog compatibility
+            ["width"] = Math.Round(UnitConversion.ToMeters(width), 6),
+            ["height"] = Math.Round(UnitConversion.ToMeters(height), 6),
+            ["thickness"] = Math.Round(UnitConversion.ToMeters(thickness), 6),
             ["created"] = DateTime.UtcNow,
             ["modified"] = DateTime.UtcNow,
             ["user"] = CommandManager.Instance.SessionId

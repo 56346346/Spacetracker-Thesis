@@ -22,9 +22,10 @@ public static class ProvisionalSpaceSerializer
         double width = 0, height = 0, thickness = 0;
         if (bb != null)
         {
-            width = UnitConversion.ToMm(Math.Abs(bb.Max.X - bb.Min.X));
-            height = UnitConversion.ToMm(Math.Abs(bb.Max.Z - bb.Min.Z));
-            thickness = UnitConversion.ToMm(Math.Abs(bb.Max.Y - bb.Min.Y));
+            // CRITICAL FIX: Calculate dimensions but store in METERS for ChangeLog compatibility
+            width = Math.Abs(bb.Max.X - bb.Min.X);
+            height = Math.Abs(bb.Max.Z - bb.Min.Z);
+            thickness = Math.Abs(bb.Max.Y - bb.Min.Y);
         }
         bool isProv = ParameterUtils.IsProvisionalSpace(inst);
         Logger.LogToFile($"[Serializer] isProv {isProv}", LogFile);
@@ -54,15 +55,17 @@ public static class ProvisionalSpaceSerializer
             ["familyName"] = inst.Symbol?.FamilyName ?? string.Empty,
             ["symbolName"] = inst.Symbol?.Name ?? string.Empty,
             ["name"] = name,
-            ["width"] = width,
-            ["height"] = height,
-            ["thickness"] = thickness,
+            // CRITICAL FIX: Store dimensions in METERS for ChangeLog compatibility (same as WallSerializer)
+            ["width"] = Math.Round(UnitConversion.ToMeters(width), 6),
+            ["height"] = Math.Round(UnitConversion.ToMeters(height), 6),
+            ["thickness"] = Math.Round(UnitConversion.ToMeters(thickness), 6),
             ["level"] = levelName,
             ["levelId"] = inst.LevelId.Value,
-            ["x"] = UnitConversion.ToMm(loc?.Point.X ?? 0),
-            ["y"] = UnitConversion.ToMm(loc?.Point.Y ?? 0),
-            ["z"] = UnitConversion.ToMm(loc?.Point.Z ?? 0),
-            ["rotation"] = loc?.Rotation ?? 0,
+            // CRITICAL FIX: Store coordinates in METERS for ChangeLog compatibility (same as WallSerializer)
+            ["x"] = Math.Round(UnitConversion.ToMeters(loc?.Point.X ?? 0), 6),
+            ["y"] = Math.Round(UnitConversion.ToMeters(loc?.Point.Y ?? 0), 6),
+            ["z"] = Math.Round(UnitConversion.ToMeters(loc?.Point.Z ?? 0), 6),
+            ["rotation"] = Math.Round(loc?.Rotation ?? 0, 6),
             ["hostId"] = inst.Host?.Id.Value ?? -1,
             ["ifcType"] = inst.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT)?.AsString() ?? string.Empty,
             ["created"] = DateTime.UtcNow,
@@ -75,12 +78,13 @@ public static class ProvisionalSpaceSerializer
             dict["familyName"] = inst.Symbol?.FamilyName ?? string.Empty;
             dict["phaseCreated"] = inst.get_Parameter(BuiltInParameter.PHASE_CREATED)?.AsInteger() ?? -1;
             dict["phaseDemolished"] = inst.get_Parameter(BuiltInParameter.PHASE_DEMOLISHED)?.AsInteger() ?? -1;
-            dict["bbMinX"] = UnitConversion.ToMm(bbMin.X);
-            dict["bbMinY"] = UnitConversion.ToMm(bbMin.Y);
-            dict["bbMinZ"] = UnitConversion.ToMm(bbMin.Z);
-            dict["bbMaxX"] = UnitConversion.ToMm(bbMax.X);
-            dict["bbMaxY"] = UnitConversion.ToMm(bbMax.Y);
-            dict["bbMaxZ"] = UnitConversion.ToMm(bbMax.Z);
+            // CRITICAL FIX: Store bounding box in METERS for ChangeLog compatibility
+            dict["bbMinX"] = Math.Round(UnitConversion.ToMeters(bbMin.X), 6);
+            dict["bbMinY"] = Math.Round(UnitConversion.ToMeters(bbMin.Y), 6);
+            dict["bbMinZ"] = Math.Round(UnitConversion.ToMeters(bbMin.Z), 6);
+            dict["bbMaxX"] = Math.Round(UnitConversion.ToMeters(bbMax.X), 6);
+            dict["bbMaxY"] = Math.Round(UnitConversion.ToMeters(bbMax.Y), 6);
+            dict["bbMaxZ"] = Math.Round(UnitConversion.ToMeters(bbMax.Z), 6);
         }
 
         SerializeParameters(inst, dict);
