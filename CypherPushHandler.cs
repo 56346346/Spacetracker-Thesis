@@ -34,10 +34,11 @@ namespace SpaceTracker
                             await SpaceTrackerClass.SolibriLock.WaitAsync();
                             try
                             {
-                                var errs = await SolibriRulesetValidator.Validate(doc);
-                                var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
+                                // NOTE: SolibriRulesetValidator disabled - replaced by SolibriValidationService
+                                // var errs = await SolibriRulesetValidator.Validate(doc);
+                                // var sev = errs.Count == 0 ? Severity.Info : errs.Max(e => e.Severity);
                                 
-                                Logger.LogToFile($"SOLIBRI VALIDATION: Completed with {errs.Count} errors, severity: {sev}", "solibri.log");
+                                Logger.LogToFile("SOLIBRI VALIDATION: Skipping deprecated SolibriRulesetValidator - validation now handled by SolibriValidationService", "solibri.log");
                                 
                                 // Note: UI update would need to be done via ExternalEvent for thread safety
                                 // For now, just log the result

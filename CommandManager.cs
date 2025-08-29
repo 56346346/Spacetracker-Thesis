@@ -23,6 +23,9 @@ namespace SpaceTracker
         private Neo4jConnector _neo4jConnector;
         public Neo4jConnector Neo4jConnector => _neo4jConnector;
 
+        // Event to signal when Neo4j operations are completed - for Solibri timing
+        public static event Action<Document, List<long>> OnNeo4jOperationsCompleted;
+
         // NEU: Pull-Modus Flag
         private bool _isPullInProgress = false;
         
@@ -117,7 +120,6 @@ namespace SpaceTracker
             {
                 if (cypherCommands.IsEmpty)
                     return;
-                Logger.LogToFile($"Processing {cypherCommands.Count} cypher commands", "concurrency.log");
                 var commands = new List<string>();
                 var ids = new HashSet<long>();
                 var idRegex = new Regex(@"ElementId\D+(\d+)", RegexOptions.IgnoreCase);
@@ -135,8 +137,10 @@ namespace SpaceTracker
                 PersistSyncTime();
                 await _neo4jConnector.UpdateSessionLastSyncAsync(SessionId, LastSyncTime).ConfigureAwait(false);
                 
-                Logger.LogToFile("ProcessCypherQueueAsync core operations completed", "concurrency.log");
-
+                // CRITICAL: Notify that Neo4j operations are complete - this triggers Solibri validation
+                // This ensures Solibri gets the most recent data including all ChangeLog entries
+                OnNeo4jOperationsCompleted?.Invoke(currentDoc, ids.ToList());
+                
                 // Non-critical operations - run in background to prevent shutdown race conditions
                 _ = Task.Run(async () =>
                 {
@@ -145,14 +149,8 @@ namespace SpaceTracker
                         await _neo4jConnector.CleanupObsoleteChangeLogsAsync().ConfigureAwait(false);
                         if (currentDoc != null)
                         {
-                            foreach (var id in ids)
-                            {
-                                await SolibriChecker
-                                    .CheckElementAsync(new ElementId((int)id), currentDoc)
-                                    .ConfigureAwait(false);
-                            }
+                            // NOTE: Solibri checking is now handled by SolibriValidationService in GraphPuller
                         }
-                        Logger.LogToFile("ProcessCypherQueueAsync background operations completed", "concurrency.log");
                     }
                     catch (Exception ex)
                     {

@@ -21,8 +21,6 @@ namespace SpaceTracker
 
         private readonly SpaceExtractor _extractor;
 
-        private readonly SolibriApiClient _solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
-
 
         private static MarkSeverityHandler _markHandler = new MarkSeverityHandler();
         private ExternalEvent _markEvent;
@@ -38,7 +36,6 @@ namespace SpaceTracker
             var doc = app.ActiveUIDocument?.Document;
             if (doc == null) return;
             List<ChangeData> processedChanges = new List<ChangeData>();
-            Logger.LogToFile("DatabaseUpdateHandler Execute start", "concurrency.log");
             try
             {
                 // 1. Prozessiere alle wartenden Changes
@@ -52,15 +49,12 @@ namespace SpaceTracker
                 }
 
                 // CRITICAL FIX: Immediately push cypher commands to Neo4j after UpdateGraph
-                Logger.LogToFile("DatabaseUpdateHandler: Triggering immediate cypher push after UpdateGraph", "concurrency.log");
                 if (_pushEvent != null && !_pushEvent.IsPending)
                 {
                     _pushEvent.Raise();
-                    Logger.LogToFile("DatabaseUpdateHandler: Cypher push event raised", "concurrency.log");
                 }
                 else
                 {
-                    Logger.LogToFile("DatabaseUpdateHandler: Push event not available or already pending", "concurrency.log");
                 }
 
             }
@@ -117,62 +111,29 @@ namespace SpaceTracker
                 // 3. Solibri REST API-Aufrufe asynchron verarbeiten
                 _ = Task.Run(async () =>
               {
-                  Logger.LogToFile("Solibri async task start", "concurrency.log");
                   Dictionary<ElementId, string> severityMap = new();
 
                   try
                   {
-
-
-                      if (!await _solibriClient.PingAsync().ConfigureAwait(false))
-                      {
-                          Logger.LogToFile("Solibri REST API nicht erreichbar, überspringe Delta-Prüfung");
-                          return;
-                      }
-
-                      string modelId = SpaceTrackerClass.SolibriModelUUID;
-                      if (string.IsNullOrEmpty(SpaceTrackerClass.SolibriRulesetId))
-                      {
-                          SpaceTrackerClass.SolibriRulesetId = await _solibriClient
-                              .ImportRulesetAsync("C:/Users/Public/Solibri/SOLIBRI/Regelsaetze/RegelnThesis/DeltaRuleset.cset")
-                              .ConfigureAwait(false);
-                      }
-
-                      await SpaceTrackerClass.SolibriLock.WaitAsync().ConfigureAwait(false);
-                      try
-                      {
-                          modelId = await _solibriClient.PartialUpdateAsync(modelId, ifcPath).ConfigureAwait(false);
-                          SpaceTrackerClass.SolibriModelUUID = modelId;
-                          if (removedGuids.Count > 0)
-                              await _solibriClient.DeleteComponentsAsync(modelId, removedGuids).ConfigureAwait(false);
-                          Logger.LogToFile($"Starte Solibri Check für Modell {modelId}", "solibri.log");
-                          var results = await _solibriClient.RunRulesetCheckAsync(modelId).ConfigureAwait(false);
-                          Logger.LogToFile($"Solibri Check für Modell {modelId} abgeschlossen", "solibri.log");
-                          var (severity, map) = ProcessClashResults(results, guidMap);
-                          severityMap = map;
-        
-                      }
-                      finally
-
-                      {
-                          SpaceTrackerClass.SolibriLock.Release();
-
-                      }
+                      // NOTE: Solibri integration is now handled by SolibriValidationService via event-based system
+                      Logger.LogToFile("Solibri validation is now handled by SolibriValidationService via Neo4j completion events", "solibri.log");
+                      
+                      // All Solibri functionality has been moved to SolibriValidationService
+                      // This ensures better timing and integration with the ChangeLog system
                   }
                   catch (Exception ex)
                   {
-                      Logger.LogCrash("Solibri Delta-Prüfung", ex);
+                      Logger.LogToFile($"Skipped deprecated Solibri validation: {ex.Message}", "solibri.log");
                   }
                   finally
                   {
-                      if (severityMap.Count > 0 && _markEvent != null && !_markEvent.IsPending)
-                      {
-                          _markHandler.SeverityMap = severityMap;
-                          _markEvent.Raise();
-                      }
+                  if (severityMap.Count > 0 && _markEvent != null && !_markEvent.IsPending)
+                  {
+                      _markHandler.SeverityMap = severityMap;
+                      _markEvent.Raise();
+                  }
                       if (_pushEvent != null && !_pushEvent.IsPending)
                           _pushEvent.Raise();
-                      Logger.LogToFile("Solibri async task end", "concurrency.log");
                   }
               });
             }
@@ -181,7 +142,6 @@ namespace SpaceTracker
             {
                 Logger.LogCrash("Solibri Delta-Prüfung", ex);
             }
-            Logger.LogToFile("DatabaseUpdateHandler Execute finished", "concurrency.log");
         }
 
         private static (IssueSeverity Severity, Dictionary<ElementId, string> Map) ProcessClashResults(IEnumerable<ClashResult> results, Dictionary<string, ElementId> guidMap)

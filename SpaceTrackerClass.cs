@@ -257,7 +257,8 @@ namespace SpaceTracker
                 // Logger.LogToFile("STARTUP TRACE 10: HTTP client factory created", "sync.log");
                 
                 // Logger.LogToFile("STARTUP TRACE 11: Initializing SolibriChecker", "sync.log");
-                SolibriChecker.Initialize(factory, _neo4jConnector);
+                // NOTE: SolibriChecker initialization disabled - replaced by SolibriValidationService
+                // SolibriChecker.Initialize(factory, _neo4jConnector);
                 // Logger.LogToFile("STARTUP TRACE 12: SolibriChecker initialized", "sync.log");
                 
                 // Logger.LogToFile("STARTUP TRACE 13: Creating SpaceExtractor", "sync.log");
@@ -303,6 +304,10 @@ namespace SpaceTracker
                 _cmdManager = CommandManager.Instance;
               //  Logger.LogToFile("STARTUP TRACE 26: CommandManager instance obtained", "sync.log");
                 
+                // Register for Neo4j completion events to trigger Solibri validation
+                CommandManager.OnNeo4jOperationsCompleted += OnNeo4jOperationsCompleted;
+                Logger.LogToFile("SPACETRACKER INIT: Registered for Neo4j completion events to ensure proper Solibri timing", "solibri.log");
+                
               //  Logger.LogToFile("STARTUP TRACE 27: Creating IfcExportHandler", "sync.log");
                 _exportHandler = new IfcExportHandler();
                 _exportEvent = ExternalEvent.Create(_exportHandler);
@@ -339,16 +344,19 @@ namespace SpaceTracker
                 try
                 {
               //      Logger.LogToFile("STARTUP TRACE 34: Background Solibri task started", "sync.log");
-                    SolibriProcessManager.EnsureStarted();
+                    // NOTE: SolibriProcessManager disabled - replaced by SolibriValidationService
+                    // SolibriProcessManager.EnsureStarted();
               //      Logger.LogToFile("STARTUP TRACE 35: SolibriProcessManager.EnsureStarted() completed", "sync.log");
-                    var client = new SolibriApiClient(SolibriApiPort);
+                    // NOTE: SolibriApiClient replaced by integrated SolibriValidationService
+                    // var client = new SolibriApiClient(SolibriApiPort);
                //     Logger.LogToFile("STARTUP TRACE 36: SolibriApiClient created", "sync.log");
-                    SolibriRulesetId = await client.ImportRulesetAsync(SolibriRulesetPath).ConfigureAwait(false);
+                    // NOTE: ImportRulesetAsync disabled - replaced by SolibriValidationService
+                    // SolibriRulesetId = await client.ImportRulesetAsync(SolibriRulesetPath).ConfigureAwait(false);
                //     Logger.LogToFile("STARTUP TRACE 37: Solibri ruleset imported successfully", "sync.log");
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogToFile($"STARTUP TRACE ERROR: Background Solibri task failed: {ex.Message}", "sync.log");
+                    Logger.LogToFile($"STARTUP TRACE ERROR: Background Solibri task failed: {ex.Message}", "solibri.log");
                     Logger.LogCrash("Ruleset-Import", ex);
                 }
             });
@@ -848,16 +856,19 @@ namespace SpaceTracker
                         return;
                     }
                 }
-                var client = new SolibriApiClient(SolibriApiPort);
+                // NOTE: SolibriApiClient replaced by integrated SolibriValidationService
+                // var client = new SolibriApiClient(SolibriApiPort);
 
                 if (string.IsNullOrEmpty(SolibriRulesetId))
-                    SolibriRulesetId = client
-                        .ImportRulesetAsync(SolibriRulesetPath)
-                        .GetAwaiter().GetResult();
+                {
+                    // NOTE: ImportRulesetAsync disabled - replaced by SolibriValidationService
+                    // SolibriRulesetId = client.ImportRulesetAsync(SolibriRulesetPath).GetAwaiter().GetResult();
+                    Logger.LogToFile("Skipping deprecated ImportRulesetAsync", "solibri.log");
+                }
 
-                SolibriModelUUID = client
-                    .ImportIfcAsync(ifcPath)
-                    .GetAwaiter().GetResult();
+                // NOTE: ImportIfcAsync disabled - replaced by SolibriValidationService
+                // SolibriModelUUID = client.ImportIfcAsync(ifcPath).GetAwaiter().GetResult();
+                Logger.LogToFile("Skipping deprecated ImportIfcAsync", "solibri.log");
             }
             catch (Exception ex)
             {
@@ -993,14 +1004,18 @@ namespace SpaceTracker
                     Logger.LogToFile($"DOCUMENT CHANGE LOGGING COMPLETE: All event-based ChangeLog entries created for session {sessionId}", "sync.log");
                     Logger.LogToFile("DOCUMENT CHANGE AUTO-PULL NOTE: Event-based automatic pull triggers are now active", "sync.log");
                     
-                    Logger.LogToFile("DOCUMENT CHANGE SOLIBRI: Starting Solibri element checks", "sync.log");
+                    Logger.LogToFile("DOCUMENT CHANGE SOLIBRI: Starting Solibri element checks", "solibri.log");
                     var ids = addedElements.Concat(modifiedElements).Select(e => e.Id).Distinct();
                     foreach (var cid in ids)
-                        await SolibriChecker.CheckElementAsync(cid, doc);
+                    {
+                        // NOTE: SolibriChecker disabled - replaced by SolibriValidationService in GraphPuller
+                        // await SolibriChecker.CheckElementAsync(cid, doc);
+                        Logger.LogToFile($"Skipping deprecated SolibriChecker for element {cid}", "solibri.log");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogToFile($"DOCUMENT CHANGE ERROR: Error during ChangeLog creation or Solibri checks - {ex.Message}", "sync.log");
+                    Logger.LogToFile($"DOCUMENT CHANGE ERROR: Error during ChangeLog creation or Solibri checks - {ex.Message}", "solibri.log");
                     Logger.LogCrash("RealtimeSync", ex);
                 }
                 
@@ -1011,6 +1026,10 @@ namespace SpaceTracker
                     Logger.LogToFile($"DOCUMENT CHANGE SESSION PULL: Requesting pull for session document '{openSession.Document.Title}'", "sync.log");
                     _graphPullHandler.RequestPull(openSession.Document);
                 }
+
+                // Register for Neo4j completion events to trigger properly timed Solibri validation
+                // This ensures Solibri validation happens after all Neo4j operations are complete
+                Logger.LogToFile("DOCUMENT CHANGE TIMING: Relying on Neo4j completion event for Solibri validation", "solibri.log");
                 
                 var totalDuration = DateTime.Now - startTime;
                 Logger.LogToFile($"DOCUMENT CHANGE COMPLETED: Finished processing document changes in {totalDuration.TotalMilliseconds:F0}ms", "sync.log");
@@ -1047,23 +1066,23 @@ namespace SpaceTracker
                 SessionManager.AddSession(key, new Session(e.Document));
                 
                 // CRITICAL FIX: Move Solibri initialization to background to prevent hanging
-                Logger.LogToFile("DOCUMENT CREATED: Starting background Solibri initialization", "sync.log");
+                Logger.LogToFile("DOCUMENT CREATED: Starting background Solibri initialization", "solibri.log");
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        Logger.LogToFile("BACKGROUND SOLIBRI CREATE: Starting background Solibri operations", "sync.log");
+                        Logger.LogToFile("BACKGROUND SOLIBRI CREATE: Starting background Solibri operations", "solibri.log");
                         
                         // Give time for document to fully initialize
                         await Task.Delay(2000);
                         
                         ImportInitialSolibriModel(e.Document);
                         
-                        Logger.LogToFile("BACKGROUND SOLIBRI CREATE: Background Solibri operations completed", "sync.log");
+                        Logger.LogToFile("BACKGROUND SOLIBRI CREATE: Background Solibri operations completed", "solibri.log");
                     }
                     catch (Exception ex)
                     {
-                        Logger.LogToFile($"BACKGROUND SOLIBRI CREATE ERROR: {ex.Message}", "sync.log");
+                        Logger.LogToFile($"BACKGROUND SOLIBRI CREATE ERROR: {ex.Message}", "solibri.log");
                         Logger.LogCrash("Background Solibri initialization - DocumentCreated", ex);
                     }
                 });
@@ -1134,12 +1153,12 @@ namespace SpaceTracker
                             Logger.LogToFile("DOCUMENT OPENED: Push operations completed, continuing with background tasks", "sync.log");
 
                             // CRITICAL FIX: Move Solibri initialization to background to prevent hanging
-                            Logger.LogToFile("DOCUMENT OPENED: Starting background Solibri initialization", "sync.log");
+                            Logger.LogToFile("DOCUMENT OPENED: Starting background Solibri initialization", "solibri.log");
                             _ = Task.Run(async () =>
                             {
                                 try
                                 {
-                                    Logger.LogToFile("BACKGROUND SOLIBRI: Starting background Solibri operations", "sync.log");
+                                    Logger.LogToFile("BACKGROUND SOLIBRI: Starting background Solibri operations", "solibri.log");
                                     
                                     // Give time for main initialization to complete
                                     await Task.Delay(1000);
@@ -1147,27 +1166,27 @@ namespace SpaceTracker
                                     // Import initial Solibri model in background
                                     ImportInitialSolibriModel(doc);
                                     
-                                    Logger.LogToFile("BACKGROUND SOLIBRI: Initial model import completed", "sync.log");
+                                    Logger.LogToFile("BACKGROUND SOLIBRI: Initial model import completed", "solibri.log");
                                     
                                     // REMOVED: Solibri validation - handled manually by user
                                     /*
                                     // Nach initialem Push die Regeln prüfen und Ampel aktualisieren
-                                    Logger.LogToFile("BACKGROUND SOLIBRI: Running Solibri validation", "sync.log");
+                                    Logger.LogToFile("BACKGROUND SOLIBRI: Running Solibri validation", "solibri.log");
                                     // FIXED: Use async/await instead of GetAwaiter().GetResult() to prevent deadlock
                                     var errs = await SolibriRulesetValidator.Validate(doc).ConfigureAwait(false);
                                     var sev = errs.Count == 0 ? Severity.Info : errs.Max(err => err.Severity);
                                     
-                                    Logger.LogToFile($"BACKGROUND SOLIBRI: Validation completed with {errs.Count} errors, severity: {sev}", "sync.log");
+                                    Logger.LogToFile($"BACKGROUND SOLIBRI: Validation completed with {errs.Count} errors, severity: {sev}", "solibri.log");
                                     
                                     // Note: UI updates would need ExternalEvent for thread safety
                                     // For now, just log the result
                                     */
                                     
-                                    Logger.LogToFile("BACKGROUND SOLIBRI: Background Solibri operations completed", "sync.log");
+                                    Logger.LogToFile("BACKGROUND SOLIBRI: Background Solibri operations completed", "solibri.log");
                                 }
                                 catch (Exception ex)
                                 {
-                                    Logger.LogToFile($"BACKGROUND SOLIBRI ERROR: {ex.Message}", "sync.log");
+                                    Logger.LogToFile($"BACKGROUND SOLIBRI ERROR: {ex.Message}", "solibri.log");
                                     Logger.LogCrash("Background Solibri initialization", ex);
                                 }
                             });
@@ -1194,27 +1213,30 @@ namespace SpaceTracker
                     _graphPuller?.PullRemoteChanges(doc, CommandManager.Instance.SessionId);
                     
                     // CRITICAL FIX: Move Solibri operations to background for existing graphs too
-                    Logger.LogToFile("DOCUMENT OPENED: Starting background Solibri check for existing graph", "sync.log");
+                    Logger.LogToFile("DOCUMENT OPENED: Starting background Solibri check for existing graph", "solibri.log");
                     _ = Task.Run(async () =>
                     {
                         try
                         {
-                            Logger.LogToFile("BACKGROUND SOLIBRI: Starting background Solibri check", "sync.log");
+                            Logger.LogToFile("BACKGROUND SOLIBRI: Starting background Solibri check", "solibri.log");
                             
                             // Give time for pull to complete
                             await Task.Delay(2000);
                             
                             // Trigger Solibri consistency check after pull
-                            Logger.LogToFile("BACKGROUND SOLIBRI: Starting Solibri consistency check after pull", "sync.log");
-                            var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
-                            await solibriClient.CheckModelAsync(SpaceTrackerClass.SolibriModelUUID, SpaceTrackerClass.SolibriRulesetId);
-                            await solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(2));
+                            Logger.LogToFile("BACKGROUND SOLIBRI: Starting Solibri consistency check after pull", "solibri.log");
+                            // NOTE: SolibriApiClient replaced by integrated SolibriValidationService
+                            // var solibriClient = new SolibriApiClient(SpaceTrackerClass.SolibriApiPort);
+                            // NOTE: CheckModelAsync and WaitForCheckCompletionAsync disabled - replaced by SolibriValidationService
+                            // await solibriClient.CheckModelAsync(SpaceTrackerClass.SolibriModelUUID, SpaceTrackerClass.SolibriRulesetId);
+                            // await solibriClient.WaitForCheckCompletionAsync(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(2));
+                            Logger.LogToFile("Skipping deprecated Solibri model check - validation now handled by SolibriValidationService", "solibri.log");
                             
-                            Logger.LogToFile("BACKGROUND SOLIBRI: Solibri check completed", "sync.log");
+                            Logger.LogToFile("BACKGROUND SOLIBRI: Solibri check completed", "solibri.log");
                         }
                         catch (Exception ex)
                         {
-                            Logger.LogToFile($"BACKGROUND SOLIBRI CHECK ERROR: {ex.Message}", "sync.log");
+                            Logger.LogToFile($"BACKGROUND SOLIBRI CHECK ERROR: {ex.Message}", "solibri.log");
                             Logger.LogCrash("Background Solibri check", ex);
                         }
                     });
@@ -1251,6 +1273,48 @@ namespace SpaceTracker
                 Logger.LogCrash("DocumentClosing", ex);
             }
         }
+
+        /// <summary>
+        /// Event handler for when Neo4j operations are completed.
+        /// This ensures Solibri validation runs with the most recent data.
+        /// </summary>
+        private void OnNeo4jOperationsCompleted(Document doc, List<long> elementIds)
+        {
+            Logger.LogToFile($"NEO4J COMPLETION EVENT: Received completion signal for {elementIds.Count} elements", "solibri.log");
+            
+            // Run Solibri validation asynchronously after Neo4j operations are complete
+            Task.Run(async () =>
+            {
+                try
+                {
+                    // Small additional delay to ensure all database transactions are fully committed
+                    await Task.Delay(500);
+                    
+                    Logger.LogToFile("NEO4J COMPLETION SOLIBRI: Starting validation with guaranteed fresh data", "solibri.log");
+                    var solibriService = new SolibriValidationService();
+                    
+                    // Convert long IDs to ElementIds for validation
+                    var changedElementIds = elementIds.Select(id => new ElementId(id)).ToList();
+                    var deletedElementIds = new List<ElementId>(); // Empty for this event
+                    
+                    var success = await solibriService.ValidateChangeLogElementsAsync(doc, changedElementIds, deletedElementIds);
+                    if (success)
+                    {
+                        Logger.LogToFile("NEO4J COMPLETION SOLIBRI: Validation completed successfully with fresh data", "solibri.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile("NEO4J COMPLETION SOLIBRI: Validation failed or was skipped", "solibri.log");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"NEO4J COMPLETION SOLIBRI ERROR: {ex.Message}", "solibri.log");
+                    Logger.LogCrash("Neo4j Completion Solibri Validation", ex);
+                }
+            });
+        }
+
         #endregion
     }
 }

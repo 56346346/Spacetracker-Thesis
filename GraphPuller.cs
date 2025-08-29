@@ -26,9 +26,6 @@ public class GraphPuller
     private static readonly string _logDir =
        Path.Combine(GetFolderPath(Environment.SpecialFolder.ApplicationData),
        "SpaceTracker", "log");
-    private static readonly string _logPath =
-       Path.Combine(_logDir, nameof(GraphPuller) + ".log");
-    private static readonly object _logLock = new object();
 
     static GraphPuller()
     {
@@ -42,12 +39,14 @@ public class GraphPuller
         MethodLogger.Log(nameof(GraphPuller), methodName, parameters);
     }
     private readonly Neo4jConnector _connector;
+    private readonly SolibriValidationService _solibriValidationService;
     public DateTime LastPulledAt { get; private set; } = DateTime.MinValue;
     // Erzeugt den Puller mit optionalem Connector
 
     public GraphPuller(Neo4jConnector connector = null)
     {
         _connector = connector ?? CommandManager.Instance.Neo4jConnector;
+        _solibriValidationService = new SolibriValidationService();
     }
 
     // Applies pending changes from ChangeLog entries for this session (all element types)
@@ -178,6 +177,9 @@ public class GraphPuller
 
             var duration = DateTime.Now - startTime;
             Logger.LogToFile($"PULL APPLY COMPLETED: ApplyPendingWallChanges finished. Processed {processedCount} changes in {duration.TotalMilliseconds:F0}ms", "sync.log");
+
+            // NOTE: Solibri validation moved to UpdateGraph system to ensure proper timing
+            // This was too early - ChangeLog entries are created by UpdateGraph, not here
         }
         catch (Exception ex)
         {
