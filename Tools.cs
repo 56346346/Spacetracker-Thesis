@@ -31,6 +31,7 @@ namespace SpaceTracker
         public string Type { get; set; }
         public string Name { get; set; }
         public string Uid { get; set; } = string.Empty;
+        public string IfcGuid { get; set; } = string.Empty; // For Solibri deletion
     }
 
     #endregion

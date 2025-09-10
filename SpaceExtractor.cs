@@ -1439,45 +1439,36 @@ $"d.user = '{ParameterUtils.EscapeForCypher(data.GetValueOrDefault("user", Comma
             {
                 Logger.LogToFile($"CHANGELOG CREATION: Creating ChangeLog for element {elementId} with operation {operation}", "sync.log");
                 
-                // CRITICAL FIX: Create ChangeLog entries for ALL OTHER sessions, not the current one
+                // CRITICAL FIX: Create ChangeLog entries for ALL other sessions, not just the creating session
                 string creatingSessionId = CommandManager.Instance.SessionId;
                 var connector = CommandManager.Instance.Neo4jConnector;
                 
-                Logger.LogToFile($"CHANGELOG CREATION: Current session = {creatingSessionId}, creating entries for OTHER sessions", "sync.log");
-                
-                // Get all open sessions except the current one
+                // Get all sessions except the current one
                 var allSessions = SessionManager.OpenSessions.Keys.ToList();
                 var targetSessions = allSessions.Where(s => s != creatingSessionId).ToList();
                 
-                Logger.LogToFile($"CHANGELOG TARGET SESSIONS: Found {targetSessions.Count} target sessions: {string.Join(", ", targetSessions)}", "sync.log");
+                Logger.LogToFile($"CHANGELOG TARGETS: Creating ChangeLog for element {elementId} ({operation}) in {targetSessions.Count} target sessions: [{string.Join(", ", targetSessions)}]", "sync.log");
                 
-                if (targetSessions.Count == 0)
+                // Create ChangeLog entries for all other sessions
+                foreach (var targetSession in targetSessions)
                 {
-                    Logger.LogToFile($"CHANGELOG CREATION: No other sessions found - skipping ChangeLog creation", "sync.log");
-                    return;
+                    // Use async Task.Run to avoid blocking the UI thread
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await connector.CreateChangeLogEntryWithRelationshipsAsync(elementId, operation, targetSession);
+                            Logger.LogToFile($"CHANGELOG CREATED: Successfully created ChangeLog for element {elementId} ({operation}) in target session {targetSession}", "sync.log");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogToFile($"CHANGELOG ERROR: Failed to create ChangeLog for element {elementId} in session {targetSession}: {ex.Message}", "sync.log");
+                            Logger.LogCrash($"CreateChangeLogForElement failed for {elementId} in session {targetSession}", ex);
+                        }
+                    });
                 }
                 
-                // Create ChangeLog entries for each target session synchronously to ensure completion
-                foreach (var targetSessionId in targetSessions)
-                {
-                    try
-                    {
-                        Logger.LogToFile($"CHANGELOG CREATION: Creating entry for element {elementId} ({operation}) targeting session {targetSessionId}", "sync.log");
-                        
-                        // Use synchronous execution to ensure ChangeLog is created before transaction commits
-                        var task = connector.CreateChangeLogEntryWithRelationshipsAsync(elementId, operation, targetSessionId);
-                        task.Wait(); // Wait for completion to ensure ChangeLog is created
-                        
-                        Logger.LogToFile($"CHANGELOG CREATION SUCCESS: Created ChangeLog entry for element {elementId} ({operation}) in session {targetSessionId}", "sync.log");
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogToFile($"CHANGELOG CREATION ERROR: Failed to create ChangeLog for element {elementId} in session {targetSessionId}: {ex.Message}", "sync.log");
-                        Logger.LogCrash($"CreateChangeLogForElement failed for {elementId} in session {targetSessionId}", ex);
-                    }
-                }
-                
-                Logger.LogToFile($"CHANGELOG CREATION COMPLETED: Successfully created ChangeLog entries for element {elementId} ({operation}) in {targetSessions.Count} sessions", "sync.log");
+                Logger.LogToFile($"CHANGELOG CREATION INITIATED: ChangeLog creation started for element {elementId} in {targetSessions.Count} sessions", "sync.log");
             }
             catch (Exception ex)
             {

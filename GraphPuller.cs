@@ -150,8 +150,31 @@ public class GraphPuller
 
                             case "Delete":
                                 Logger.LogToFile($"Processing Delete operation for {elementType} {elementId}", "sync.log");
-                                DeleteElementByRemoteElementId(doc, elementId, elementType);
-                                Logger.LogToFile($"Successfully deleted {elementType} {elementId}", "sync.log");
+                                // Check if we have geographic properties for reliable deletion
+                                var hasGeographicData = HasRequiredGeographicProperties(elementProperties, elementType);
+                                
+                                if (hasGeographicData)
+                                {
+                                    Logger.LogToFile($"Delete: Using geographic deletion for {elementType} {elementId} (has geographic data)", "sync.log");
+                                    DeleteElementByGeographicProperties(doc, elementProperties, elementType);
+                                }
+                                else
+                                {
+                                    Logger.LogToFile($"Delete: Missing geographic data for {elementType} {elementId}, attempting to load from Neo4j", "sync.log");
+                                    // Try to load full properties from Neo4j for geographic deletion
+                                    var fullProperties = LoadElementPropertiesFromNeo4j(elementId, elementType);
+                                    if (fullProperties != null && HasRequiredGeographicProperties(fullProperties, elementType))
+                                    {
+                                        Logger.LogToFile($"Delete: Loaded geographic data from Neo4j for {elementType} {elementId}", "sync.log");
+                                        DeleteElementByGeographicProperties(doc, fullProperties, elementType);
+                                    }
+                                    else
+                                    {
+                                        Logger.LogToFile($"Delete: Fallback to ElementId-based deletion for {elementType} {elementId}", "sync.log");
+                                        DeleteElementByRemoteElementId(doc, elementId, elementType);
+                                    }
+                                }
+                                Logger.LogToFile($"Successfully processed delete operation for {elementType} {elementId}", "sync.log");
                                 break;
 
                             default:
@@ -490,6 +513,18 @@ public class GraphPuller
 
                 // KRITISCH: Markiere die Wand als SpaceTracker-Element um Feedback-Loops zu vermeiden
                 MarkWallWithRemoteId(wall, Convert.ToInt32(w["elementId"]));
+
+                // KRITISCH: Setze IFC-GUID für Solibri-Synchronisation
+                if (w.ContainsKey("uid"))
+                {
+                    var uid = w["uid"].ToString();
+                    var ifcGuidParam = wall.get_Parameter(BuiltInParameter.IFC_GUID);
+                    if (ifcGuidParam != null && !ifcGuidParam.IsReadOnly)
+                    {
+                        ifcGuidParam.Set(uid);
+                        Logger.LogToFile($"Set wall IFC-GUID to {uid} for Solibri synchronization", "sync.log");
+                    }
+                }
 
                 // Auto-join with nearby walls to prevent overlap conflicts
                 try
@@ -1008,8 +1043,274 @@ public class GraphPuller
         var wall = FindLocalWallByRemoteId(doc, remoteId);
         if (wall != null)
         {
+            // Get wall GUID for Solibri deletion before deleting from Revit
+            var wallGuidParam = wall.get_Parameter(BuiltInParameter.IFC_GUID);
+            var wallGuid = wallGuidParam?.AsString();
+            
             doc.Delete(wall.Id);
             Logger.LogToFile($"Deleted wall for remote ElementId {remoteId}", "sync.log");
+            
+            // Delete from Solibri if we have a GUID
+            if (!string.IsNullOrEmpty(wallGuid))
+            {
+                try
+                {
+                    Logger.LogToFile($"DELETE BY ELEMENT ID: Deleting wall component from Solibri with GUID {wallGuid}", "sync.log");
+                    
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _solibriValidationService.DeleteComponentsAsync(new List<string> { wallGuid });
+                            Logger.LogToFile($"DELETE BY ELEMENT ID: Successfully deleted wall component from Solibri", "sync.log");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogToFile($"DELETE BY ELEMENT ID: Failed to delete wall component from Solibri: {ex.Message}", "sync.log");
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY ELEMENT ID: Error initiating Solibri wall deletion: {ex.Message}", "sync.log");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deletes a wall based on geographic properties (coordinates, thickness, height) instead of ElementId
+    /// This method finds walls at the same location and deletes them, handling cases where ElementIds differ between sessions
+    /// </summary>
+    private void DeleteWallByGeographicProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            var remoteElementId = Convert.ToInt32(properties.GetValueOrDefault("elementId", -1));
+            Logger.LogToFile($"DELETE BY GEOGRAPHY: Starting geographic deletion for wall with remoteElementId={remoteElementId}", "sync.log");
+
+            // Validate that we have the minimum required geographic data
+            var requiredGeometryFields = new[] { "x1", "y1", "z1", "x2", "y2", "z2" };
+            var missingGeometryFields = requiredGeometryFields.Where(field => !properties.ContainsKey(field)).ToList();
+            if (missingGeometryFields.Any())
+            {
+                Logger.LogToFile($"DELETE BY GEOGRAPHY: Missing required geometry fields: {string.Join(", ", missingGeometryFields)}, cannot delete geographically", "sync.log");
+                return;
+            }
+
+            // Find all walls that match the geographic properties
+            var matchingWalls = FindWallsByGeographicProperties(doc, properties, remoteElementId);
+            
+            if (matchingWalls.Count == 0)
+            {
+                Logger.LogToFile($"DELETE BY GEOGRAPHY: No walls found at the specified geographic location for remoteElementId={remoteElementId}", "sync.log");
+                return;
+            }
+
+            // Delete all matching walls
+            var deletedGuids = new List<string>();
+            foreach (var wall in matchingWalls)
+            {
+                try
+                {
+                    var wallTag = wall.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString();
+                    
+                    // Get wall GUID for Solibri deletion
+                    var wallGuidParam = wall.get_Parameter(BuiltInParameter.IFC_GUID);
+                    var wallGuid = wallGuidParam?.AsString();
+                    if (!string.IsNullOrEmpty(wallGuid))
+                    {
+                        deletedGuids.Add(wallGuid);
+                        Logger.LogToFile($"DELETE BY GEOGRAPHY: Wall {wall.Id} has GUID {wallGuid} for Solibri deletion", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"DELETE BY GEOGRAPHY: Wall {wall.Id} has no GUID, cannot delete from Solibri", "sync.log");
+                    }
+                    
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Deleting wall {wall.Id} with tag '{wallTag ?? "no tag"}'", "sync.log");
+                    
+                    doc.Delete(wall.Id);
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Successfully deleted wall {wall.Id} based on geographic match", "sync.log");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Failed to delete wall {wall.Id}: {ex.Message}", "sync.log");
+                }
+            }
+
+            // Delete components from Solibri if we have GUIDs
+            if (deletedGuids.Any())
+            {
+                try
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Deleting {deletedGuids.Count} components from Solibri: [{string.Join(", ", deletedGuids)}]", "sync.log");
+                    
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _solibriValidationService.DeleteComponentsAsync(deletedGuids);
+                            Logger.LogToFile($"DELETE BY GEOGRAPHY: Successfully deleted {deletedGuids.Count} components from Solibri", "sync.log");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogToFile($"DELETE BY GEOGRAPHY: Failed to delete components from Solibri: {ex.Message}", "sync.log");
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Error initiating Solibri deletion: {ex.Message}", "sync.log");
+                }
+            }
+
+            Logger.LogToFile($"DELETE BY GEOGRAPHY: Completed geographic deletion, deleted {matchingWalls.Count} walls for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("DeleteWallByGeographicProperties failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Finds walls that match the geographic properties (location, thickness, height)
+    /// Excludes the original wall with the same ElementId to prevent self-deletion
+    /// </summary>
+    private List<Wall> FindWallsByGeographicProperties(Document doc, Dictionary<string, object> properties, int remoteElementId)
+    {
+        var matchingWalls = new List<Wall>();
+        
+        try
+        {
+            Logger.LogToFile($"FIND BY GEOGRAPHY: Searching for walls matching geographic properties (excluding original ElementId {remoteElementId})", "sync.log");
+            
+            var walls = new FilteredElementCollector(doc).OfClass(typeof(Wall)).Cast<Wall>();
+            int checkedCount = 0;
+            
+            foreach (var wall in walls)
+            {
+                checkedCount++;
+                
+                // CRITICAL: Skip the original wall with the same ElementId to prevent self-deletion
+                if (wall.Id.Value == remoteElementId)
+                {
+                    Logger.LogToFile($"FIND BY GEOGRAPHY: Skipping original wall {wall.Id} (same ElementId as remoteElementId)", "sync.log");
+                    continue;
+                }
+                
+                // Check if this wall matches the geographic properties
+                if (IsWallGeographicallyIdentical(wall, properties))
+                {
+                    var wallTag = wall.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString();
+                    Logger.LogToFile($"FIND BY GEOGRAPHY: Found matching wall {wall.Id} with tag '{wallTag ?? "no tag"}'", "sync.log");
+                    matchingWalls.Add(wall);
+                }
+            }
+            
+            Logger.LogToFile($"FIND BY GEOGRAPHY: Checked {checkedCount} walls, found {matchingWalls.Count} matches for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("FindWallsByGeographicProperties failed", ex);
+        }
+        
+        return matchingWalls;
+    }
+
+    /// <summary>
+    /// Checks if a wall is geographically identical to Neo4j properties
+    /// Uses the same logic as IsWallIdentical but focuses on geographic matching for deletion
+    /// </summary>
+    private bool IsWallGeographicallyIdentical(Wall wall, Dictionary<string, object> properties)
+    {
+        try
+        {
+            const double TOLERANCE = 0.001; // 1mm tolerance for coordinates
+            
+            // Get existing wall location curve
+            var locationCurve = wall.Location as LocationCurve;
+            if (locationCurve?.Curve == null)
+            {
+                return false;
+            }
+            
+            var line = locationCurve.Curve as Line;
+            if (line == null)
+            {
+                return false;
+            }
+            
+            var existingStart = line.GetEndPoint(0);
+            var existingEnd = line.GetEndPoint(1);
+            
+            // Convert Neo4j coordinates to feet
+            double neoX1 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("x1", 0.0)), "DeleteGeographyX1");
+            double neoY1 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("y1", 0.0)), "DeleteGeographyY1");
+            double neoZ1 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("z1", 0.0)), "DeleteGeographyZ1");
+            double neoX2 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("x2", 0.0)), "DeleteGeographyX2");
+            double neoY2 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("y2", 0.0)), "DeleteGeographyY2");
+            double neoZ2 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("z2", 0.0)), "DeleteGeographyZ2");
+            
+            // Check if geometry matches (either direction)
+            bool geometryMatch1 = Math.Abs(existingStart.X - neoX1) < TOLERANCE &&
+                                 Math.Abs(existingStart.Y - neoY1) < TOLERANCE &&
+                                 Math.Abs(existingStart.Z - neoZ1) < TOLERANCE &&
+                                 Math.Abs(existingEnd.X - neoX2) < TOLERANCE &&
+                                 Math.Abs(existingEnd.Y - neoY2) < TOLERANCE &&
+                                 Math.Abs(existingEnd.Z - neoZ2) < TOLERANCE;
+            
+            bool geometryMatch2 = Math.Abs(existingStart.X - neoX2) < TOLERANCE &&
+                                 Math.Abs(existingStart.Y - neoY2) < TOLERANCE &&
+                                 Math.Abs(existingStart.Z - neoZ2) < TOLERANCE &&
+                                 Math.Abs(existingEnd.X - neoX1) < TOLERANCE &&
+                                 Math.Abs(existingEnd.Y - neoY1) < TOLERANCE &&
+                                 Math.Abs(existingEnd.Z - neoZ1) < TOLERANCE;
+            
+            bool geometryMatches = geometryMatch1 || geometryMatch2;
+            
+            if (!geometryMatches)
+            {
+                return false;
+            }
+            
+            // Check wall type/thickness if available for more precise matching
+            if (properties.ContainsKey("thickness_m"))
+            {
+                double neoThickness = ToFeetPreciseWithLogging(Convert.ToDouble(properties["thickness_m"]), "DeleteGeographyThickness");
+                double existingThickness = wall.Width;
+                
+                if (Math.Abs(existingThickness - neoThickness) >= TOLERANCE)
+                {
+                    return false;
+                }
+            }
+            
+            // Check height if available for more precise matching
+            if (properties.ContainsKey("height") || properties.ContainsKey("height_mm"))
+            {
+                var heightParam = wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM);
+                if (heightParam != null)
+                {
+                    double existingHeight = heightParam.AsDouble();
+                    double neoHeight = properties.ContainsKey("height") ? 
+                        ToFeetPreciseWithLogging(Convert.ToDouble(properties["height"]), "DeleteGeographyHeight") :
+                        ToFeetPreciseWithLogging(Convert.ToDouble(properties["height_mm"]) / 1000.0, "DeleteGeographyHeightMm");
+                    
+                    if (Math.Abs(existingHeight - neoHeight) >= TOLERANCE)
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            Logger.LogToFile($"DELETE GEOGRAPHY: Wall {wall.Id} matches geographic properties", "sync.log");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("IsWallGeographicallyIdentical failed", ex);
+            return false;
         }
     }
 
@@ -1188,6 +1489,147 @@ public class GraphPuller
         }
     }
 
+    /// <summary>
+    /// Delete element by geographic properties based on type - NEW GEOGRAPHIC DELETION METHOD
+    /// Uses geographic data (coordinates, dimensions) instead of ElementId for more reliable cross-session deletion
+    /// </summary>
+    private void DeleteElementByGeographicProperties(Document doc, Dictionary<string, object> properties, string elementType)
+    {
+        var remoteElementId = Convert.ToInt32(properties.GetValueOrDefault("elementId", -1));
+        Logger.LogToFile($"GEOGRAPHIC DELETE: Starting geographic deletion for {elementType} with remoteElementId={remoteElementId}", "sync.log");
+        
+        switch (elementType)
+        {
+            case "Wall":
+                DeleteWallByGeographicProperties(doc, properties);
+                break;
+            case "Door":
+                DeleteDoorByGeographicProperties(doc, properties);
+                break;
+            case "Pipe":
+                DeletePipeByGeographicProperties(doc, properties);
+                break;
+            case "ProvisionalSpace":
+                DeleteProvisionalSpaceByGeographicProperties(doc, properties);
+                break;
+            default:
+                Logger.LogToFile($"WARNING: Unknown element type {elementType} for geographic deletion", "sync.log");
+                break;
+        }
+        
+        Logger.LogToFile($"GEOGRAPHIC DELETE: Completed geographic deletion for {elementType} with remoteElementId={remoteElementId}", "sync.log");
+    }
+
+    /// <summary>
+    /// Checks if the properties contain the required geographic data for reliable deletion
+    /// </summary>
+    private bool HasRequiredGeographicProperties(Dictionary<string, object> properties, string elementType)
+    {
+        if (properties == null || properties.Count == 0)
+            return false;
+
+        switch (elementType)
+        {
+            case "Wall":
+                // Walls need line geometry
+                return properties.ContainsKey("x1") && properties.ContainsKey("y1") && properties.ContainsKey("z1") &&
+                       properties.ContainsKey("x2") && properties.ContainsKey("y2") && properties.ContainsKey("z2");
+            
+            case "Door":
+                // Doors need host information
+                return properties.ContainsKey("hostUid") || properties.ContainsKey("hostId");
+            
+            case "Pipe":
+                // Pipes need line geometry
+                return properties.ContainsKey("x1") && properties.ContainsKey("y1") && properties.ContainsKey("z1") &&
+                       properties.ContainsKey("x2") && properties.ContainsKey("y2") && properties.ContainsKey("z2");
+            
+            case "ProvisionalSpace":
+                // Provisional spaces need GUID or position
+                return properties.ContainsKey("guid") || 
+                       (properties.ContainsKey("x") && properties.ContainsKey("y") && properties.ContainsKey("z"));
+            
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Loads full element properties from Neo4j for geographic deletion
+    /// </summary>
+    private Dictionary<string, object> LoadElementPropertiesFromNeo4j(int elementId, string elementType)
+    {
+        try
+        {
+            Logger.LogToFile($"LOAD PROPERTIES: Loading full properties for {elementType} {elementId} from Neo4j", "sync.log");
+            
+            // Query Neo4j for the full element properties
+            string cypher = "";
+            switch (elementType)
+            {
+                case "Wall":
+                    cypher = @"
+                        MATCH (w:Wall {elementId: $elementId})
+                        RETURN w.elementId as elementId, w.x1 as x1, w.y1 as y1, w.z1 as z1, 
+                               w.x2 as x2, w.y2 as y2, w.z2 as z2, w.thickness_m as thickness_m,
+                               w.height as height, w.height_mm as height_mm, w.baseLevelUid as baseLevelUid,
+                               w.typeName as typeName, w.familyName as familyName";
+                    break;
+                    
+                case "Door":
+                    cypher = @"
+                        MATCH (d:Door {elementId: $elementId})
+                        RETURN d.elementId as elementId, d.hostUid as hostUid, d.hostId as hostId,
+                               d.x as x, d.y as y, d.z as z, d.width as width, d.height as height";
+                    break;
+                    
+                case "Pipe":
+                    cypher = @"
+                        MATCH (p:Pipe {elementId: $elementId})
+                        RETURN p.elementId as elementId, p.x1 as x1, p.y1 as y1, p.z1 as z1,
+                               p.x2 as x2, p.y2 as y2, p.z2 as z2, p.diameter as diameter";
+                    break;
+                    
+                case "ProvisionalSpace":
+                    cypher = @"
+                        MATCH (s:ProvisionalSpace {elementId: $elementId})
+                        RETURN s.elementId as elementId, s.guid as guid, s.x as x, s.y as y, s.z as z,
+                               s.familyName as familyName";
+                    break;
+                    
+                default:
+                    Logger.LogToFile($"LOAD PROPERTIES: Unknown element type {elementType}", "sync.log");
+                    return null;
+            }
+
+            var records = _connector.RunReadQueryAsync(cypher, new { elementId = elementId }).GetAwaiter().GetResult();
+            var record = records.FirstOrDefault();
+            
+            if (record != null)
+            {
+                var properties = new Dictionary<string, object>();
+                foreach (var key in record.Keys)
+                {
+                    properties[key] = record[key].As<object>();
+                }
+                
+                Logger.LogToFile($"LOAD PROPERTIES: Successfully loaded {properties.Count} properties for {elementType} {elementId}", "sync.log");
+                return properties;
+            }
+            else
+            {
+                Logger.LogToFile($"LOAD PROPERTIES: No properties found for {elementType} {elementId} in Neo4j", "sync.log");
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogToFile($"LOAD PROPERTIES: Failed to load properties for {elementType} {elementId}: {ex.Message}", "sync.log");
+            Logger.LogCrash("LoadElementPropertiesFromNeo4j failed", ex);
+            return null;
+        }
+    }
+
     #region Door Methods
 
     /// <summary>
@@ -1351,6 +1793,18 @@ public class GraphPuller
             // Mark with SpaceTracker tag
             MarkDoorWithRemoteId(door, remoteElementId);
             
+            // KRITISCH: Setze IFC-GUID für Solibri-Synchronisation
+            if (properties.ContainsKey("uid"))
+            {
+                var uid = properties["uid"].ToString();
+                var ifcGuidParam = door.get_Parameter(BuiltInParameter.IFC_GUID);
+                if (ifcGuidParam != null && !ifcGuidParam.IsReadOnly)
+                {
+                    ifcGuidParam.Set(uid);
+                    Logger.LogToFile($"Set door IFC-GUID to {uid} for Solibri synchronization", "sync.log");
+                }
+            }
+            
             Logger.LogToFile($"DOOR CREATE: Created door ElementId={door.Id} for remoteElementId={remoteElementId}", "sync.log");
         }
         catch (Exception ex)
@@ -1469,8 +1923,38 @@ public class GraphPuller
             FamilyInstance door = FindElementByRemoteElementId<FamilyInstance>(doc, remoteElementId);
             if (door != null)
             {
+                // Get door GUID for Solibri deletion before deleting from Revit
+                var doorGuidParam = door.get_Parameter(BuiltInParameter.IFC_GUID);
+                var doorGuid = doorGuidParam?.AsString();
+                
                 Logger.LogToFile($"DOOR DELETE: Deleting door ElementId={door.Id} for remoteElementId={remoteElementId}", "sync.log");
                 doc.Delete(door.Id);
+                
+                // Delete from Solibri if we have a GUID
+                if (!string.IsNullOrEmpty(doorGuid))
+                {
+                    try
+                    {
+                        Logger.LogToFile($"DELETE BY ELEMENT ID: Deleting door component from Solibri with GUID {doorGuid}", "sync.log");
+                        
+                        Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await _solibriValidationService.DeleteComponentsAsync(new List<string> { doorGuid });
+                                Logger.LogToFile($"DELETE BY ELEMENT ID: Successfully deleted door component from Solibri", "sync.log");
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogToFile($"DELETE BY ELEMENT ID: Failed to delete door component from Solibri: {ex.Message}", "sync.log");
+                            }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogToFile($"DELETE BY ELEMENT ID: Error initiating Solibri door deletion: {ex.Message}", "sync.log");
+                    }
+                }
             }
             else
             {
@@ -1480,6 +1964,219 @@ public class GraphPuller
         catch (Exception ex)
         {
             Logger.LogCrash($"ERROR in DeleteDoorByRemoteElementId: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Deletes doors based on geographic properties (host wall, position, dimensions) instead of ElementId
+    /// </summary>
+    private void DeleteDoorByGeographicProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            var remoteElementId = Convert.ToInt32(properties.GetValueOrDefault("elementId", -1));
+            Logger.LogToFile($"DELETE BY GEOGRAPHY: Starting geographic deletion for door with remoteElementId={remoteElementId}", "sync.log");
+
+            // Validate that we have the minimum required geographic data for doors
+            if (!properties.ContainsKey("hostUid") && !properties.ContainsKey("hostId"))
+            {
+                Logger.LogToFile($"DELETE BY GEOGRAPHY: Missing host information for door, cannot delete geographically", "sync.log");
+                return;
+            }
+
+            // Find all doors that match the geographic properties
+            var matchingDoors = FindDoorsByGeographicProperties(doc, properties, remoteElementId);
+            
+            if (matchingDoors.Count == 0)
+            {
+                Logger.LogToFile($"DELETE BY GEOGRAPHY: No doors found at the specified geographic location for remoteElementId={remoteElementId}", "sync.log");
+                return;
+            }
+
+            // Delete all matching doors
+            var deletedGuids = new List<string>();
+            foreach (var door in matchingDoors)
+            {
+                try
+                {
+                    var doorTag = door.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString();
+                    
+                    // Get door GUID for Solibri deletion
+                    var doorGuidParam = door.get_Parameter(BuiltInParameter.IFC_GUID);
+                    var doorGuid = doorGuidParam?.AsString();
+                    if (!string.IsNullOrEmpty(doorGuid))
+                    {
+                        deletedGuids.Add(doorGuid);
+                        Logger.LogToFile($"DELETE BY GEOGRAPHY: Door {door.Id} has GUID {doorGuid} for Solibri deletion", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"DELETE BY GEOGRAPHY: Door {door.Id} has no GUID, cannot delete from Solibri", "sync.log");
+                    }
+                    
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Deleting door {door.Id} with tag '{doorTag ?? "no tag"}'", "sync.log");
+                    
+                    doc.Delete(door.Id);
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Successfully deleted door {door.Id} based on geographic match", "sync.log");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Failed to delete door {door.Id}: {ex.Message}", "sync.log");
+                }
+            }
+
+            // Delete components from Solibri if we have GUIDs
+            if (deletedGuids.Any())
+            {
+                try
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Deleting {deletedGuids.Count} door components from Solibri: [{string.Join(", ", deletedGuids)}]", "sync.log");
+                    
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _solibriValidationService.DeleteComponentsAsync(deletedGuids);
+                            Logger.LogToFile($"DELETE BY GEOGRAPHY: Successfully deleted {deletedGuids.Count} door components from Solibri", "sync.log");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogToFile($"DELETE BY GEOGRAPHY: Failed to delete door components from Solibri: {ex.Message}", "sync.log");
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Error initiating Solibri door deletion: {ex.Message}", "sync.log");
+                }
+            }
+
+            Logger.LogToFile($"DELETE BY GEOGRAPHY: Completed geographic deletion, deleted {matchingDoors.Count} doors for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("DeleteDoorByGeographicProperties failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Finds doors that match the geographic properties (host wall, position, dimensions)
+    /// </summary>
+    private List<FamilyInstance> FindDoorsByGeographicProperties(Document doc, Dictionary<string, object> properties, int remoteElementId)
+    {
+        var matchingDoors = new List<FamilyInstance>();
+        
+        try
+        {
+            Logger.LogToFile($"FIND BY GEOGRAPHY: Searching for doors matching geographic properties (excluding original ElementId {remoteElementId})", "sync.log");
+            
+            var doors = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Doors).WhereElementIsNotElementType().Cast<FamilyInstance>();
+            int checkedCount = 0;
+            
+            foreach (var door in doors)
+            {
+                checkedCount++;
+                
+                // CRITICAL: Skip the original door with the same ElementId to prevent self-deletion
+                if (door.Id.Value == remoteElementId)
+                {
+                    Logger.LogToFile($"FIND BY GEOGRAPHY: Skipping original door {door.Id} (same ElementId as remoteElementId)", "sync.log");
+                    continue;
+                }
+                
+                // Check if this door matches the geographic properties
+                if (IsDoorGeographicallyIdentical(door, properties))
+                {
+                    var doorTag = door.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString();
+                    Logger.LogToFile($"FIND BY GEOGRAPHY: Found matching door {door.Id} with tag '{doorTag ?? "no tag"}'", "sync.log");
+                    matchingDoors.Add(door);
+                }
+            }
+            
+            Logger.LogToFile($"FIND BY GEOGRAPHY: Checked {checkedCount} doors, found {matchingDoors.Count} matches for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("FindDoorsByGeographicProperties failed", ex);
+        }
+        
+        return matchingDoors;
+    }
+
+    /// <summary>
+    /// Checks if a door is geographically identical to Neo4j properties
+    /// </summary>
+    private bool IsDoorGeographicallyIdentical(FamilyInstance door, Dictionary<string, object> properties)
+    {
+        try
+        {
+            const double TOLERANCE = 0.001; // 1mm tolerance
+            
+            // Check host wall match
+            if (properties.ContainsKey("hostUid"))
+            {
+                var hostUid = properties["hostUid"].ToString();
+                var hostWall = door.Host;
+                if (hostWall == null || hostWall.UniqueId != hostUid)
+                {
+                    return false;
+                }
+            }
+            else if (properties.ContainsKey("hostId"))
+            {
+                var hostId = Convert.ToInt64(properties["hostId"]);
+                var hostWall = door.Host;
+                if (hostWall == null || hostWall.Id.Value != hostId)
+                {
+                    return false;
+                }
+            }
+            
+            // Check position if available
+            if (properties.ContainsKey("x") && properties.ContainsKey("y") && properties.ContainsKey("z"))
+            {
+                var doorLocation = (door.Location as LocationPoint)?.Point;
+                if (doorLocation != null)
+                {
+                    double neoX = ToFeetPreciseWithLogging(Convert.ToDouble(properties["x"]), "DeleteDoorGeographyX");
+                    double neoY = ToFeetPreciseWithLogging(Convert.ToDouble(properties["y"]), "DeleteDoorGeographyY");
+                    double neoZ = ToFeetPreciseWithLogging(Convert.ToDouble(properties["z"]), "DeleteDoorGeographyZ");
+                    
+                    if (Math.Abs(doorLocation.X - neoX) >= TOLERANCE ||
+                        Math.Abs(doorLocation.Y - neoY) >= TOLERANCE ||
+                        Math.Abs(doorLocation.Z - neoZ) >= TOLERANCE)
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            // Check dimensions if available
+            if (properties.ContainsKey("width") && properties.ContainsKey("height"))
+            {
+                var widthParam = door.get_Parameter(BuiltInParameter.DOOR_WIDTH);
+                var heightParam = door.get_Parameter(BuiltInParameter.DOOR_HEIGHT);
+                
+                if (widthParam != null && heightParam != null)
+                {
+                    double neoWidth = ToFeetPreciseWithLogging(Convert.ToDouble(properties["width"]), "DeleteDoorGeographyWidth");
+                    double neoHeight = ToFeetPreciseWithLogging(Convert.ToDouble(properties["height"]), "DeleteDoorGeographyHeight");
+                    
+                    if (Math.Abs(widthParam.AsDouble() - neoWidth) >= TOLERANCE ||
+                        Math.Abs(heightParam.AsDouble() - neoHeight) >= TOLERANCE)
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            Logger.LogToFile($"DELETE GEOGRAPHY: Door {door.Id} matches geographic properties", "sync.log");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("IsDoorGeographicallyIdentical failed", ex);
+            return false;
         }
     }
 
@@ -1616,6 +2313,18 @@ public class GraphPuller
                 // Mark with SpaceTracker tag
                 MarkPipeWithRemoteId(pipe, remoteElementId);
                 
+                // KRITISCH: Setze IFC-GUID für Solibri-Synchronisation
+                if (properties.ContainsKey("uid"))
+                {
+                    var uid = properties["uid"].ToString();
+                    var ifcGuidParam = pipe.get_Parameter(BuiltInParameter.IFC_GUID);
+                    if (ifcGuidParam != null && !ifcGuidParam.IsReadOnly)
+                    {
+                        ifcGuidParam.Set(uid);
+                        Logger.LogToFile($"Set pipe IFC-GUID to {uid} for Solibri synchronization", "sync.log");
+                    }
+                }
+                
                 // CRITICAL FIX: Update relationships when Pipe is created/modified via pull
                 Logger.LogToFile($"PIPE RELATIONSHIPS: Updating relationships for new/modified Pipe {pipe.Id}", "sync.log");
                 UpdatePipeRelationships(pipe, doc);
@@ -1740,8 +2449,38 @@ public class GraphPuller
             Pipe pipe = FindElementByRemoteElementId<Pipe>(doc, remoteElementId);
             if (pipe != null)
             {
+                // Get pipe GUID for Solibri deletion before deleting from Revit
+                var pipeGuidParam = pipe.get_Parameter(BuiltInParameter.IFC_GUID);
+                var pipeGuid = pipeGuidParam?.AsString();
+                
                 Logger.LogToFile($"PIPE DELETE: Deleting pipe ElementId={pipe.Id} for remoteElementId={remoteElementId}", "sync.log");
                 doc.Delete(pipe.Id);
+                
+                // Delete from Solibri if we have a GUID
+                if (!string.IsNullOrEmpty(pipeGuid))
+                {
+                    try
+                    {
+                        Logger.LogToFile($"DELETE BY ELEMENT ID: Deleting pipe component from Solibri with GUID {pipeGuid}", "sync.log");
+                        
+                        Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await _solibriValidationService.DeleteComponentsAsync(new List<string> { pipeGuid });
+                                Logger.LogToFile($"DELETE BY ELEMENT ID: Successfully deleted pipe component from Solibri", "sync.log");
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogToFile($"DELETE BY ELEMENT ID: Failed to delete pipe component from Solibri: {ex.Message}", "sync.log");
+                            }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogToFile($"DELETE BY ELEMENT ID: Error initiating Solibri pipe deletion: {ex.Message}", "sync.log");
+                    }
+                }
             }
             else
             {
@@ -1751,6 +2490,225 @@ public class GraphPuller
         catch (Exception ex)
         {
             Logger.LogCrash($"ERROR in DeletePipeByRemoteElementId: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Deletes pipes based on geographic properties (coordinates, diameter) instead of ElementId
+    /// </summary>
+    private void DeletePipeByGeographicProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            var remoteElementId = Convert.ToInt32(properties.GetValueOrDefault("elementId", -1));
+            Logger.LogToFile($"DELETE BY GEOGRAPHY: Starting geographic deletion for pipe with remoteElementId={remoteElementId}", "sync.log");
+
+            // Validate that we have the minimum required geographic data for pipes
+            var requiredGeometryFields = new[] { "x1", "y1", "z1", "x2", "y2", "z2" };
+            var missingGeometryFields = requiredGeometryFields.Where(field => !properties.ContainsKey(field)).ToList();
+            if (missingGeometryFields.Any())
+            {
+                Logger.LogToFile($"DELETE BY GEOGRAPHY: Missing required geometry fields: {string.Join(", ", missingGeometryFields)}, cannot delete geographically", "sync.log");
+                return;
+            }
+
+            // Find all pipes that match the geographic properties
+            var matchingPipes = FindPipesByGeographicProperties(doc, properties, remoteElementId);
+            
+            if (matchingPipes.Count == 0)
+            {
+                Logger.LogToFile($"DELETE BY GEOGRAPHY: No pipes found at the specified geographic location for remoteElementId={remoteElementId}", "sync.log");
+                return;
+            }
+
+            // Delete all matching pipes
+            var deletedGuids = new List<string>();
+            foreach (var pipe in matchingPipes)
+            {
+                try
+                {
+                    var pipeTag = pipe.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString();
+                    
+                    // Get pipe GUID for Solibri deletion
+                    var pipeGuidParam = pipe.get_Parameter(BuiltInParameter.IFC_GUID);
+                    var pipeGuid = pipeGuidParam?.AsString();
+                    if (!string.IsNullOrEmpty(pipeGuid))
+                    {
+                        deletedGuids.Add(pipeGuid);
+                        Logger.LogToFile($"DELETE BY GEOGRAPHY: Pipe {pipe.Id} has GUID {pipeGuid} for Solibri deletion", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"DELETE BY GEOGRAPHY: Pipe {pipe.Id} has no GUID, cannot delete from Solibri", "sync.log");
+                    }
+                    
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Deleting pipe {pipe.Id} with tag '{pipeTag ?? "no tag"}'", "sync.log");
+                    
+                    doc.Delete(pipe.Id);
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Successfully deleted pipe {pipe.Id} based on geographic match", "sync.log");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Failed to delete pipe {pipe.Id}: {ex.Message}", "sync.log");
+                }
+            }
+
+            // Delete components from Solibri if we have GUIDs
+            if (deletedGuids.Any())
+            {
+                try
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Deleting {deletedGuids.Count} pipe components from Solibri: [{string.Join(", ", deletedGuids)}]", "sync.log");
+                    
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _solibriValidationService.DeleteComponentsAsync(deletedGuids);
+                            Logger.LogToFile($"DELETE BY GEOGRAPHY: Successfully deleted {deletedGuids.Count} pipe components from Solibri", "sync.log");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogToFile($"DELETE BY GEOGRAPHY: Failed to delete pipe components from Solibri: {ex.Message}", "sync.log");
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Error initiating Solibri pipe deletion: {ex.Message}", "sync.log");
+                }
+            }
+
+            Logger.LogToFile($"DELETE BY GEOGRAPHY: Completed geographic deletion, deleted {matchingPipes.Count} pipes for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("DeletePipeByGeographicProperties failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Finds pipes that match the geographic properties (coordinates, diameter)
+    /// </summary>
+    private List<Pipe> FindPipesByGeographicProperties(Document doc, Dictionary<string, object> properties, int remoteElementId)
+    {
+        var matchingPipes = new List<Pipe>();
+        
+        try
+        {
+            Logger.LogToFile($"FIND BY GEOGRAPHY: Searching for pipes matching geographic properties (excluding original ElementId {remoteElementId})", "sync.log");
+            
+            var pipes = new FilteredElementCollector(doc).OfClass(typeof(Pipe)).Cast<Pipe>();
+            int checkedCount = 0;
+            
+            foreach (var pipe in pipes)
+            {
+                checkedCount++;
+                
+                // CRITICAL: Skip the original pipe with the same ElementId to prevent self-deletion
+                if (pipe.Id.Value == remoteElementId)
+                {
+                    Logger.LogToFile($"FIND BY GEOGRAPHY: Skipping original pipe {pipe.Id} (same ElementId as remoteElementId)", "sync.log");
+                    continue;
+                }
+                
+                // Check if this pipe matches the geographic properties
+                if (IsPipeGeographicallyIdentical(pipe, properties))
+                {
+                    var pipeTag = pipe.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString();
+                    Logger.LogToFile($"FIND BY GEOGRAPHY: Found matching pipe {pipe.Id} with tag '{pipeTag ?? "no tag"}'", "sync.log");
+                    matchingPipes.Add(pipe);
+                }
+            }
+            
+            Logger.LogToFile($"FIND BY GEOGRAPHY: Checked {checkedCount} pipes, found {matchingPipes.Count} matches for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("FindPipesByGeographicProperties failed", ex);
+        }
+        
+        return matchingPipes;
+    }
+
+    /// <summary>
+    /// Checks if a pipe is geographically identical to Neo4j properties
+    /// </summary>
+    private bool IsPipeGeographicallyIdentical(Pipe pipe, Dictionary<string, object> properties)
+    {
+        try
+        {
+            const double TOLERANCE = 0.001; // 1mm tolerance
+            
+            // Get pipe location curve
+            var locationCurve = pipe.Location as LocationCurve;
+            if (locationCurve?.Curve == null)
+            {
+                return false;
+            }
+            
+            var line = locationCurve.Curve as Line;
+            if (line == null)
+            {
+                return false;
+            }
+            
+            var existingStart = line.GetEndPoint(0);
+            var existingEnd = line.GetEndPoint(1);
+            
+            // Convert Neo4j coordinates to feet
+            double neoX1 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("x1", 0.0)), "DeletePipeGeographyX1");
+            double neoY1 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("y1", 0.0)), "DeletePipeGeographyY1");
+            double neoZ1 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("z1", 0.0)), "DeletePipeGeographyZ1");
+            double neoX2 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("x2", 0.0)), "DeletePipeGeographyX2");
+            double neoY2 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("y2", 0.0)), "DeletePipeGeographyY2");
+            double neoZ2 = ToFeetPreciseWithLogging(Convert.ToDouble(properties.GetValueOrDefault("z2", 0.0)), "DeletePipeGeographyZ2");
+            
+            // Check if geometry matches (either direction)
+            bool geometryMatch1 = Math.Abs(existingStart.X - neoX1) < TOLERANCE &&
+                                 Math.Abs(existingStart.Y - neoY1) < TOLERANCE &&
+                                 Math.Abs(existingStart.Z - neoZ1) < TOLERANCE &&
+                                 Math.Abs(existingEnd.X - neoX2) < TOLERANCE &&
+                                 Math.Abs(existingEnd.Y - neoY2) < TOLERANCE &&
+                                 Math.Abs(existingEnd.Z - neoZ2) < TOLERANCE;
+            
+            bool geometryMatch2 = Math.Abs(existingStart.X - neoX2) < TOLERANCE &&
+                                 Math.Abs(existingStart.Y - neoY2) < TOLERANCE &&
+                                 Math.Abs(existingStart.Z - neoZ2) < TOLERANCE &&
+                                 Math.Abs(existingEnd.X - neoX1) < TOLERANCE &&
+                                 Math.Abs(existingEnd.Y - neoY1) < TOLERANCE &&
+                                 Math.Abs(existingEnd.Z - neoZ1) < TOLERANCE;
+            
+            bool geometryMatches = geometryMatch1 || geometryMatch2;
+            
+            if (!geometryMatches)
+            {
+                return false;
+            }
+            
+            // Check diameter if available (using pipe's diameter parameter)
+            if (properties.ContainsKey("diameter"))
+            {
+                var diameterParam = pipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM);
+                if (diameterParam != null)
+                {
+                    double neoDiameter = ToFeetPreciseWithLogging(Convert.ToDouble(properties["diameter"]), "DeletePipeGeographyDiameter");
+                    double existingDiameter = diameterParam.AsDouble();
+                    
+                    if (Math.Abs(existingDiameter - neoDiameter) >= TOLERANCE)
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            Logger.LogToFile($"DELETE GEOGRAPHY: Pipe {pipe.Id} matches geographic properties", "sync.log");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("IsPipeGeographicallyIdentical failed", ex);
+            return false;
         }
     }
 
@@ -2226,6 +3184,18 @@ public class GraphPuller
             // Mark with SpaceTracker tag
             MarkProvisionalSpaceWithRemoteId(space, remoteElementId);
             
+            // KRITISCH: Setze IFC-GUID für Solibri-Synchronisation (ProvisionalSpaces verwenden "guid")
+            if (properties.ContainsKey("guid"))
+            {
+                var guid = properties["guid"].ToString();
+                var ifcGuidParam = space.get_Parameter(BuiltInParameter.IFC_GUID);
+                if (ifcGuidParam != null && !ifcGuidParam.IsReadOnly)
+                {
+                    ifcGuidParam.Set(guid);
+                    Logger.LogToFile($"Set provisional space IFC-GUID to {guid} for Solibri synchronization", "sync.log");
+                }
+            }
+            
             // CRITICAL FIX: Update pipe relationships when ProvisionalSpace is created/modified via pull
             Logger.LogToFile($"PROVISIONALSPACE RELATIONSHIPS: Updating relationships for new/modified ProvisionalSpace {space.Id}", "sync.log");
             UpdateProvisionalSpaceRelationships(space, doc);
@@ -2502,8 +3472,38 @@ public class GraphPuller
             FamilyInstance space = FindElementByRemoteElementId<FamilyInstance>(doc, remoteElementId);
             if (space != null)
             {
+                // Get provisional space GUID for Solibri deletion before deleting from Revit
+                var spaceGuidParam = space.get_Parameter(BuiltInParameter.IFC_GUID);
+                var spaceGuid = spaceGuidParam?.AsString();
+                
                 Logger.LogToFile($"PROVISIONALSPACE DELETE: Deleting provisional space ElementId={space.Id} for remoteElementId={remoteElementId}", "sync.log");
                 doc.Delete(space.Id);
+                
+                // Delete from Solibri if we have a GUID
+                if (!string.IsNullOrEmpty(spaceGuid))
+                {
+                    try
+                    {
+                        Logger.LogToFile($"DELETE BY ELEMENT ID: Deleting provisional space component from Solibri with GUID {spaceGuid}", "sync.log");
+                        
+                        Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await _solibriValidationService.DeleteComponentsAsync(new List<string> { spaceGuid });
+                                Logger.LogToFile($"DELETE BY ELEMENT ID: Successfully deleted provisional space component from Solibri", "sync.log");
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogToFile($"DELETE BY ELEMENT ID: Failed to delete provisional space component from Solibri: {ex.Message}", "sync.log");
+                            }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogToFile($"DELETE BY ELEMENT ID: Error initiating Solibri provisional space deletion: {ex.Message}", "sync.log");
+                    }
+                }
             }
             else
             {
@@ -2513,6 +3513,203 @@ public class GraphPuller
         catch (Exception ex)
         {
             Logger.LogCrash($"ERROR in DeleteProvisionalSpaceByRemoteElementId: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Deletes provisional spaces based on geographic properties (position, GUID) instead of ElementId
+    /// </summary>
+    private void DeleteProvisionalSpaceByGeographicProperties(Document doc, Dictionary<string, object> properties)
+    {
+        try
+        {
+            var remoteElementId = Convert.ToInt32(properties.GetValueOrDefault("elementId", -1));
+            Logger.LogToFile($"DELETE BY GEOGRAPHY: Starting geographic deletion for provisional space with remoteElementId={remoteElementId}", "sync.log");
+
+            // Validate that we have the minimum required geographic data for provisional spaces
+            if (!properties.ContainsKey("guid") && !properties.ContainsKey("x") && !properties.ContainsKey("y") && !properties.ContainsKey("z"))
+            {
+                Logger.LogToFile($"DELETE BY GEOGRAPHY: Missing geographic identification data (GUID or position) for provisional space, cannot delete geographically", "sync.log");
+                return;
+            }
+
+            // Find all provisional spaces that match the geographic properties
+            var matchingSpaces = FindProvisionalSpacesByGeographicProperties(doc, properties, remoteElementId);
+            
+            if (matchingSpaces.Count == 0)
+            {
+                Logger.LogToFile($"DELETE BY GEOGRAPHY: No provisional spaces found at the specified geographic location for remoteElementId={remoteElementId}", "sync.log");
+                return;
+            }
+
+            // Delete all matching provisional spaces
+            var deletedGuids = new List<string>();
+            foreach (var space in matchingSpaces)
+            {
+                try
+                {
+                    var spaceTag = space.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString();
+                    
+                    // Get provisional space GUID for Solibri deletion
+                    var spaceGuidParam = space.get_Parameter(BuiltInParameter.IFC_GUID);
+                    var spaceGuid = spaceGuidParam?.AsString();
+                    if (!string.IsNullOrEmpty(spaceGuid))
+                    {
+                        deletedGuids.Add(spaceGuid);
+                        Logger.LogToFile($"DELETE BY GEOGRAPHY: Provisional space {space.Id} has GUID {spaceGuid} for Solibri deletion", "sync.log");
+                    }
+                    else
+                    {
+                        Logger.LogToFile($"DELETE BY GEOGRAPHY: Provisional space {space.Id} has no GUID, cannot delete from Solibri", "sync.log");
+                    }
+                    
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Deleting provisional space {space.Id} with tag '{spaceTag ?? "no tag"}'", "sync.log");
+                    
+                    doc.Delete(space.Id);
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Successfully deleted provisional space {space.Id} based on geographic match", "sync.log");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Failed to delete provisional space {space.Id}: {ex.Message}", "sync.log");
+                }
+            }
+
+            // Delete components from Solibri if we have GUIDs
+            if (deletedGuids.Any())
+            {
+                try
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Deleting {deletedGuids.Count} provisional space components from Solibri: [{string.Join(", ", deletedGuids)}]", "sync.log");
+                    
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _solibriValidationService.DeleteComponentsAsync(deletedGuids);
+                            Logger.LogToFile($"DELETE BY GEOGRAPHY: Successfully deleted {deletedGuids.Count} provisional space components from Solibri", "sync.log");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogToFile($"DELETE BY GEOGRAPHY: Failed to delete provisional space components from Solibri: {ex.Message}", "sync.log");
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogToFile($"DELETE BY GEOGRAPHY: Error initiating Solibri provisional space deletion: {ex.Message}", "sync.log");
+                }
+            }
+
+            Logger.LogToFile($"DELETE BY GEOGRAPHY: Completed geographic deletion, deleted {matchingSpaces.Count} provisional spaces for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("DeleteProvisionalSpaceByGeographicProperties failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Finds provisional spaces that match the geographic properties (position, GUID, family name)
+    /// </summary>
+    private List<FamilyInstance> FindProvisionalSpacesByGeographicProperties(Document doc, Dictionary<string, object> properties, int remoteElementId)
+    {
+        var matchingSpaces = new List<FamilyInstance>();
+        
+        try
+        {
+            Logger.LogToFile($"FIND BY GEOGRAPHY: Searching for provisional spaces matching geographic properties (excluding original ElementId {remoteElementId})", "sync.log");
+            
+            var spaces = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType().Cast<FamilyInstance>();
+            int checkedCount = 0;
+            
+            foreach (var space in spaces)
+            {
+                checkedCount++;
+                
+                // CRITICAL: Skip the original space with the same ElementId to prevent self-deletion
+                if (space.Id.Value == remoteElementId)
+                {
+                    Logger.LogToFile($"FIND BY GEOGRAPHY: Skipping original provisional space {space.Id} (same ElementId as remoteElementId)", "sync.log");
+                    continue;
+                }
+                
+                // Check if this space matches the geographic properties
+                if (IsProvisionalSpaceGeographicallyIdentical(space, properties))
+                {
+                    var spaceTag = space.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString();
+                    Logger.LogToFile($"FIND BY GEOGRAPHY: Found matching provisional space {space.Id} with tag '{spaceTag ?? "no tag"}'", "sync.log");
+                    matchingSpaces.Add(space);
+                }
+            }
+            
+            Logger.LogToFile($"FIND BY GEOGRAPHY: Checked {checkedCount} provisional spaces, found {matchingSpaces.Count} matches for remoteElementId={remoteElementId}", "sync.log");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("FindProvisionalSpacesByGeographicProperties failed", ex);
+        }
+        
+        return matchingSpaces;
+    }
+
+    /// <summary>
+    /// Checks if a provisional space is geographically identical to Neo4j properties
+    /// </summary>
+    private bool IsProvisionalSpaceGeographicallyIdentical(FamilyInstance space, Dictionary<string, object> properties)
+    {
+        try
+        {
+            const double TOLERANCE = 0.001; // 1mm tolerance
+            
+            // Check GUID first if available (most reliable identifier)
+            if (properties.ContainsKey("guid"))
+            {
+                var neoGuid = properties["guid"].ToString();
+                var existingGuid = space.UniqueId;
+                if (existingGuid == neoGuid)
+                {
+                    Logger.LogToFile($"DELETE GEOGRAPHY: Provisional space {space.Id} matches by GUID", "sync.log");
+                    return true;
+                }
+            }
+            
+            // Check family name match
+            if (properties.ContainsKey("familyName"))
+            {
+                var neoFamilyName = properties["familyName"].ToString();
+                var existingFamilyName = space.Symbol?.FamilyName;
+                if (existingFamilyName != neoFamilyName)
+                {
+                    return false;
+                }
+            }
+            
+            // Check position if available
+            if (properties.ContainsKey("x") && properties.ContainsKey("y") && properties.ContainsKey("z"))
+            {
+                var spaceLocation = (space.Location as LocationPoint)?.Point;
+                if (spaceLocation != null)
+                {
+                    double neoX = ToFeetPreciseWithLogging(Convert.ToDouble(properties["x"]), "DeleteProvisionalSpaceGeographyX");
+                    double neoY = ToFeetPreciseWithLogging(Convert.ToDouble(properties["y"]), "DeleteProvisionalSpaceGeographyY");
+                    double neoZ = ToFeetPreciseWithLogging(Convert.ToDouble(properties["z"]), "DeleteProvisionalSpaceGeographyZ");
+                    
+                    if (Math.Abs(spaceLocation.X - neoX) >= TOLERANCE ||
+                        Math.Abs(spaceLocation.Y - neoY) >= TOLERANCE ||
+                        Math.Abs(spaceLocation.Z - neoZ) >= TOLERANCE)
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            Logger.LogToFile($"DELETE GEOGRAPHY: Provisional space {space.Id} matches geographic properties", "sync.log");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogCrash("IsProvisionalSpaceGeographicallyIdentical failed", ex);
+            return false;
         }
     }
 

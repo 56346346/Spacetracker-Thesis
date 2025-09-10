@@ -81,6 +81,10 @@ namespace SpaceTracker
         }
         private readonly Dictionary<ElementId, ElementMetadata> _elementCache =
        new Dictionary<ElementId, ElementMetadata>();
+       
+        // Static storage for deleted element IFC-GUIDs (for Solibri deletion)
+        private static readonly Dictionary<long, string> _deletedElementIfcGuids = new Dictionary<long, string>();
+        
         private SpaceExtractor _extractor;
         private CommandManager _cmdManager;
         private static IfcExportHandler _exportHandler;
@@ -706,18 +710,30 @@ namespace SpaceTracker
                 var el = element;
                 if (!_elementCache.TryGetValue(el.Id, out var meta))
                 {
+                    // Get IFC GUID for Solibri deletion support
+                    var ifcGuidParam = el.get_Parameter(BuiltInParameter.IFC_GUID);
+                    var ifcGuid = ifcGuidParam?.AsString() ?? string.Empty;
+                    
                     _elementCache[el.Id] = new ElementMetadata
                     {
                         Id = el.Id,
                         Type = el.GetType().Name,
                         Name = el.Name ?? "Unnamed",
-                        Uid = ParameterUtils.GetNeo4jUid(el)
+                        Uid = ParameterUtils.GetNeo4jUid(el),
+                        IfcGuid = ifcGuid
                     };
                 }
                 else
                 {
                     meta.Name = el.Name ?? meta.Name;
                     meta.Uid = ParameterUtils.GetNeo4jUid(el);
+                    
+                    // Update IFC GUID if not set or if element was modified
+                    if (string.IsNullOrEmpty(meta.IfcGuid))
+                    {
+                        var ifcGuidParam = el.get_Parameter(BuiltInParameter.IFC_GUID);
+                        meta.IfcGuid = ifcGuidParam?.AsString() ?? string.Empty;
+                    }
                 }
             }
             foreach (var delId in deletedIds)
@@ -740,6 +756,21 @@ namespace SpaceTracker
                    .Where(el => el != null)
                    .ToList();
         }
+
+        /// <summary>
+        /// Gets cached IFC-GUID for a deleted element
+        /// </summary>
+        public static string GetCachedIfcGuid(ElementId elementId)
+        {
+            if (_deletedElementIfcGuids.TryGetValue(elementId.Value, out string ifcGuid))
+            {
+                // Remove from cache after retrieval to avoid memory leaks
+                _deletedElementIfcGuids.Remove(elementId.Value);
+                return ifcGuid;
+            }
+            return string.Empty;
+        }
+
         // Aufräumarbeiten beim Beenden von Revit.
         public Result OnShutdown(UIControlledApplication application)
         {
@@ -922,9 +953,24 @@ namespace SpaceTracker
                    .Select(id => _elementCache.TryGetValue(id, out var meta) ? meta.Uid : null)
                    .Where(uid => !string.IsNullOrEmpty(uid))
                    .ToList();
+                var deletedIfcGuids = deletedIds
+                   .Select(id => _elementCache.TryGetValue(id, out var meta) ? meta.IfcGuid : null)
+                   .Where(guid => !string.IsNullOrEmpty(guid))
+                   .ToList();
                 var modifiedIds = e.GetModifiedElementIds(filter);
 
                 Logger.LogToFile($"DOCUMENT CHANGE ANALYSIS: Added={addedIds.Count}, Modified={modifiedIds.Count}, Deleted={deletedIds.Count}", "sync.log");
+                if (deletedIfcGuids.Count > 0)
+                {
+                    Logger.LogToFile($"DOCUMENT CHANGE DELETED IFC-GUIDs: [{string.Join(", ", deletedIfcGuids)}]", "sync.log");
+                    
+                    // Store IFC-GUIDs for Solibri deletion
+                    var deletedIdsList = deletedIds.ToList();
+                    for (int i = 0; i < Math.Min(deletedIdsList.Count, deletedIfcGuids.Count); i++)
+                    {
+                        _deletedElementIfcGuids[deletedIdsList[i].Value] = deletedIfcGuids[i];
+                    }
+                }
 
                 // 3. Early Exit bei keinen relevanten Änderungen
 
@@ -1278,15 +1324,21 @@ namespace SpaceTracker
         /// Event handler for when Neo4j operations are completed.
         /// This ensures Solibri validation runs with the most recent data.
         /// </summary>
-        private void OnNeo4jOperationsCompleted(Document doc, List<long> elementIds)
+        private void OnNeo4jOperationsCompleted(Document doc, List<long> changedElementIds, List<long> deletedElementIds)
         {
-            Logger.LogToFile($"NEO4J COMPLETION EVENT: Received completion signal for {elementIds.Count} elements", "solibri.log");
+            Logger.LogToFile($"=== NEO4J COMPLETION EVENT START ===", "solibri.log");
+            Logger.LogToFile($"NEO4J COMPLETION EVENT: Received completion signal for {changedElementIds.Count} changed and {deletedElementIds.Count} deleted elements", "solibri.log");
+            Logger.LogToFile($"NEO4J COMPLETION EVENT: Changed Element IDs: [{string.Join(", ", changedElementIds)}]", "solibri.log");
+            Logger.LogToFile($"NEO4J COMPLETION EVENT: Deleted Element IDs: [{string.Join(", ", deletedElementIds)}]", "solibri.log");
+            Logger.LogToFile($"NEO4J COMPLETION EVENT: Document: {doc?.Title ?? "NULL"}", "solibri.log");
             
             // Run Solibri validation asynchronously after Neo4j operations are complete
             Task.Run(async () =>
             {
                 try
                 {
+                    Logger.LogToFile($"NEO4J COMPLETION TASK: Starting background validation task", "solibri.log");
+                    
                     // Small additional delay to ensure all database transactions are fully committed
                     await Task.Delay(500);
                     
@@ -1294,10 +1346,20 @@ namespace SpaceTracker
                     var solibriService = new SolibriValidationService();
                     
                     // Convert long IDs to ElementIds for validation
-                    var changedElementIds = elementIds.Select(id => new ElementId(id)).ToList();
-                    var deletedElementIds = new List<ElementId>(); // Empty for this event
+                    var changedElementIdsForValidation = changedElementIds.Select(id => new ElementId(id)).ToList();
+                    var deletedElementIdsForValidation = deletedElementIds.Select(id => new ElementId(id)).ToList();
                     
-                    var success = await solibriService.ValidateChangeLogElementsAsync(doc, changedElementIds, deletedElementIds);
+                    Logger.LogToFile($"NEO4J COMPLETION TASK: Calling ValidateChangeLogElementsAsync with {changedElementIdsForValidation.Count} changed and {deletedElementIdsForValidation.Count} deleted elements", "solibri.log");
+                    
+                    // Get IFC-GUIDs for deleted elements from cache
+                    var deletedIfcGuids = deletedElementIds
+                        .Select(id => SpaceTrackerClass.GetCachedIfcGuid(new ElementId(id)))
+                        .Where(guid => !string.IsNullOrEmpty(guid))
+                        .ToList();
+                    
+                    Logger.LogToFile($"NEO4J COMPLETION TASK: Found {deletedIfcGuids.Count} IFC-GUIDs for deleted elements: [{string.Join(", ", deletedIfcGuids)}]", "solibri.log");
+                    
+                    var success = await solibriService.ValidateChangeLogElementsAsync(doc, changedElementIdsForValidation, deletedElementIdsForValidation, deletedIfcGuids);
                     if (success)
                     {
                         Logger.LogToFile("NEO4J COMPLETION SOLIBRI: Validation completed successfully with fresh data", "solibri.log");

@@ -24,7 +24,7 @@ namespace SpaceTracker
         public Neo4jConnector Neo4jConnector => _neo4jConnector;
 
         // Event to signal when Neo4j operations are completed - for Solibri timing
-        public static event Action<Document, List<long>> OnNeo4jOperationsCompleted;
+        public static event Action<Document, List<long>, List<long>> OnNeo4jOperationsCompleted;
 
         // NEU: Pull-Modus Flag
         private bool _isPullInProgress = false;
@@ -121,14 +121,28 @@ namespace SpaceTracker
                 if (cypherCommands.IsEmpty)
                     return;
                 var commands = new List<string>();
-                var ids = new HashSet<long>();
-                var idRegex = new Regex(@"ElementId\D+(\d+)", RegexOptions.IgnoreCase);
+                var changedIds = new HashSet<long>();
+                var deletedIds = new HashSet<long>();
+                var idRegex = new Regex(@"[eE]lementId\s*:\s*(\d+)", RegexOptions.IgnoreCase);
+                
                 while (cypherCommands.TryDequeue(out string cyCommand))
                 {
                     commands.Add(cyCommand);
-                    var match = idRegex.Match(cyCommand);
-                    if (match.Success && long.TryParse(match.Groups[1].Value, out long parsed))
-                        ids.Add(parsed);
+                    var matches = idRegex.Matches(cyCommand);
+                    
+                    // Check if this is a DELETE operation
+                    bool isDeleteOperation = cyCommand.ToUpper().Contains("DELETE") || cyCommand.ToUpper().Contains("DETACH DELETE");
+                    
+                    foreach (Match match in matches)
+                    {
+                        if (long.TryParse(match.Groups[1].Value, out long parsed))
+                        {
+                            if (isDeleteOperation)
+                                deletedIds.Add(parsed);
+                            else
+                                changedIds.Add(parsed);
+                        }
+                    }
                 }
 
                 // Critical Neo4j operations only - must complete fast
@@ -139,7 +153,10 @@ namespace SpaceTracker
                 
                 // CRITICAL: Notify that Neo4j operations are complete - this triggers Solibri validation
                 // This ensures Solibri gets the most recent data including all ChangeLog entries
-                OnNeo4jOperationsCompleted?.Invoke(currentDoc, ids.ToList());
+                Logger.LogToFile($"NEO4J COMPLETION: Invoking OnNeo4jOperationsCompleted with {changedIds.Count} changed and {deletedIds.Count} deleted element IDs", "sync.log");
+                Logger.LogToFile($"NEO4J COMPLETION: Changed IDs: [{string.Join(", ", changedIds)}]", "sync.log");
+                Logger.LogToFile($"NEO4J COMPLETION: Deleted IDs: [{string.Join(", ", deletedIds)}]", "sync.log");
+                OnNeo4jOperationsCompleted?.Invoke(currentDoc, changedIds.ToList(), deletedIds.ToList());
                 
                 // Non-critical operations - run in background to prevent shutdown race conditions
                 _ = Task.Run(async () =>

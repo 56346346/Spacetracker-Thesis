@@ -26,7 +26,7 @@ namespace SpaceTracker
         private static UIApplication _uiApplication;
         
         // Delay before executing pull after detecting changes (allows batching)
-        private static readonly TimeSpan PullDelay = TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan PullDelay = TimeSpan.FromSeconds(0.5);
 
         public AutoPullService(Neo4jConnector neo4jConnector, GraphPuller graphPuller)
         {

@@ -51,11 +51,17 @@ namespace SpaceTracker
         /// <summary>
         /// Validates elements from ChangeLog entries against Solibri ruleset
         /// </summary>
-        public async Task<bool> ValidateChangeLogElementsAsync(Document doc, List<ElementId> changedElementIds, List<ElementId> deletedElementIds)
+        public async Task<bool> ValidateChangeLogElementsAsync(Document doc, List<ElementId> changedElementIds, List<ElementId> deletedElementIds, List<string> deletedIfcGuids = null)
         {
             try
             {
                 Logger.LogToFile($"SOLIBRI VALIDATION: Starting validation for {changedElementIds.Count} changed + {deletedElementIds.Count} deleted elements", "solibri.log");
+                Logger.LogToFile($"SOLIBRI VALIDATION: Changed elements: [{string.Join(", ", changedElementIds)}]", "solibri.log");
+                Logger.LogToFile($"SOLIBRI VALIDATION: Deleted elements: [{string.Join(", ", deletedElementIds)}]", "solibri.log");
+                if (deletedIfcGuids != null && deletedIfcGuids.Count > 0)
+                {
+                    Logger.LogToFile($"SOLIBRI VALIDATION: Deleted IFC-GUIDs: [{string.Join(", ", deletedIfcGuids)}]", "solibri.log");
+                }
 
                 // Check if Solibri is running
                 if (!await PingAsync())
@@ -65,48 +71,106 @@ namespace SpaceTracker
                     return false;
                 }
 
-                // Export changed elements to IFC
-                string ifcPath = await ExportElementsToIfcAsync(doc, changedElementIds);
-                if (string.IsNullOrEmpty(ifcPath))
+                // Export changed elements to IFC (only if there are changed elements)
+                string ifcPath = null;
+                if (changedElementIds.Any())
                 {
-                    Logger.LogToFile("SOLIBRI VALIDATION: IFC export failed", "solibri.log");
-                    return false;
+                    ifcPath = await ExportElementsToIfcAsync(doc, changedElementIds);
+                    if (string.IsNullOrEmpty(ifcPath))
+                    {
+                        Logger.LogToFile("SOLIBRI VALIDATION: IFC export failed", "solibri.log");
+                        return false;
+                    }
+                    
+                    // Upload to Solibri (new model or partial update)
+                    string modelId = await UploadIfcAsync(ifcPath, _isModelLoaded);
+                    _isModelLoaded = true;
                 }
-
-                // Upload to Solibri (new model or partial update)
-                string modelId = await UploadIfcAsync(ifcPath, _isModelLoaded);
-                _isModelLoaded = true;
+                else
+                {
+                    Logger.LogToFile("SOLIBRI VALIDATION: No changed elements to export, skipping IFC export", "solibri.log");
+                }
 
                 // Delete components if needed
                 if (deletedElementIds.Any())
                 {
-                    var deletedGuids = GetIfcGuidsForElements(doc, deletedElementIds);
-                    if (deletedGuids.Any())
+                    List<string> guidsToDelete = new List<string>();
+                    
+                    if (deletedIfcGuids != null && deletedIfcGuids.Count > 0)
                     {
-                        await DeleteComponentsAsync(deletedGuids);
+                        // Use provided IFC-GUIDs
+                        guidsToDelete = deletedIfcGuids;
+                        Logger.LogToFile($"SOLIBRI DELETE: Using provided IFC-GUIDs: [{string.Join(", ", guidsToDelete)}]", "solibri.log");
+                    }
+                    else
+                    {
+                        // Fallback: try to extract from elements (likely to fail for deleted elements)
+                        guidsToDelete = GetIfcGuidsForElements(doc, deletedElementIds);
+                        Logger.LogToFile($"SOLIBRI DELETE: Extracted IFC-GUIDs from elements: [{string.Join(", ", guidsToDelete)}]", "solibri.log");
+                    }
+                    
+                    if (guidsToDelete.Any())
+                    {
+                        // Ensure we have a model ID for deletion
+                        if (string.IsNullOrEmpty(_currentModelId))
+                        {
+                            Logger.LogToFile("SOLIBRI DELETE: No current model ID for deletion operation", "solibri.log");
+                            Logger.LogToFile("SOLIBRI DELETE: Cannot delete components without model ID", "solibri.log");
+                            return false;
+                        }
+                        
+                        Logger.LogToFile($"SOLIBRI DELETE: Deleting {guidsToDelete.Count} components from Solibri", "solibri.log");
+                        await DeleteComponentsAsync(guidsToDelete);
+                    }
+                    else
+                    {
+                        Logger.LogToFile("SOLIBRI DELETE: No IFC GUIDs found for deleted elements", "solibri.log");
                     }
                 }
 
-                // Start validation
-                await StartCheckingAsync();
-
-                // Wait for completion
-                bool completed = await WaitForCheckingCompleteAsync(TimeSpan.FromMinutes(5));
-                if (!completed)
+                // Ensure we have at least some operation to perform
+                bool hasChangedElements = changedElementIds.Any();
+                bool hasDeletedElements = deletedElementIds.Any();
+                
+                if (!hasChangedElements && !hasDeletedElements)
                 {
-                    Logger.LogToFile("SOLIBRI VALIDATION: Validation timeout", "solibri.log");
-                    Autodesk.Revit.UI.TaskDialog.Show("Solibri Validation", "Validierung hat das Zeitlimit überschritten");
-                    return false;
+                    Logger.LogToFile("SOLIBRI VALIDATION: No changes to validate", "solibri.log");
+                    return true;
                 }
 
-                // Export BCF results
-                string bcfPath = await ExportBcfXmlAsync(_tempDirectory);
+                // Start validation only if we have a model to validate
+                if (hasChangedElements || !string.IsNullOrEmpty(_currentModelId))
+                {
+                    // Wait for Solibri to process the uploaded model
+                    Logger.LogToFile($"SOLIBRI VALIDATION: Waiting 2 seconds for model processing...", "solibri.log");
+                    await Task.Delay(2000);
+                    
+                    Logger.LogToFile("SOLIBRI VALIDATION: Starting validation run", "solibri.log");
+                    await StartCheckingAsync();
 
-                // Parse BCF and display in Revit
-                var issues = ParseBcfXml(bcfPath);
-                await DisplayValidationResultsInRevitAsync(doc, issues);
+                    // Wait for completion
+                    bool completed = await WaitForCheckingCompleteAsync(TimeSpan.FromMinutes(5));
+                    if (!completed)
+                    {
+                        Logger.LogToFile("SOLIBRI VALIDATION: Validation timeout", "solibri.log");
+                        Autodesk.Revit.UI.TaskDialog.Show("Solibri Validation", "Validierung hat das Zeitlimit überschritten");
+                        return false;
+                    }
 
-                Logger.LogToFile($"SOLIBRI VALIDATION: Completed successfully with {issues.Count} issues", "solibri.log");
+                    // Export BCF results
+                    string bcfPath = await ExportBcfXmlAsync(_tempDirectory);
+
+                    // Parse BCF and display in Revit
+                    var issues = ParseBcfXml(bcfPath);
+                    await DisplayValidationResultsInRevitAsync(doc, issues);
+
+                    Logger.LogToFile($"SOLIBRI VALIDATION: Completed successfully with {issues.Count} issues", "solibri.log");
+                }
+                else
+                {
+                    Logger.LogToFile("SOLIBRI VALIDATION: Only deletions performed, no validation needed", "solibri.log");
+                }
+                
                 return true;
             }
             catch (Exception ex)
@@ -514,21 +578,55 @@ namespace SpaceTracker
         /// </summary>
         public async Task DeleteComponentsAsync(IEnumerable<string> ifcGuids)
         {
+            Logger.LogToFile($"=== SOLIBRI DELETE START ===", "solibri.log");
+            Logger.LogToFile($"SOLIBRI DELETE: Current model ID: '{_currentModelId}'", "solibri.log");
+            
             if (string.IsNullOrEmpty(_currentModelId))
+            {
+                Logger.LogToFile("SOLIBRI DELETE: No model loaded, cannot delete components", "solibri.log");
                 throw new InvalidOperationException("No model loaded");
+            }
 
             var guidList = ifcGuids.ToList();
+            Logger.LogToFile($"SOLIBRI DELETE: Attempting to delete {guidList.Count} components", "solibri.log");
+            Logger.LogToFile($"SOLIBRI DELETE: Component GUIDs: [{string.Join(", ", guidList)}]", "solibri.log");
+            
             if (!guidList.Any())
+            {
+                Logger.LogToFile("SOLIBRI DELETE: No components to delete", "solibri.log");
                 return;
+            }
 
-            Logger.LogToFile($"SOLIBRI DELETE: Deleting {guidList.Count} components", "solibri.log");
-            
-            var json = JsonSerializer.Serialize(guidList);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await Http.PostAsync($"models/{_currentModelId}/deleteComponents", content);
-            response.EnsureSuccessStatusCode();
-            
-            Logger.LogToFile("SOLIBRI DELETE: Components deleted", "solibri.log");
+            try
+            {
+                var json = JsonSerializer.Serialize(guidList);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                
+                var url = $"models/{_currentModelId}/deleteComponents";
+                Logger.LogToFile($"SOLIBRI DELETE: Sending POST to: {_baseUrl}{url}", "solibri.log");
+                Logger.LogToFile($"SOLIBRI DELETE: Request payload: {json}", "solibri.log");
+                
+                var response = await Http.PostAsync(url, content);
+                
+                Logger.LogToFile($"SOLIBRI DELETE: Response status: {response.StatusCode} ({(int)response.StatusCode})", "solibri.log");
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    Logger.LogToFile($"SOLIBRI DELETE: Success! Response: '{responseContent}'", "solibri.log");
+                }
+                else
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    Logger.LogToFile($"SOLIBRI DELETE: Failed with status {response.StatusCode}: {error}", "solibri.log");
+                    throw new HttpRequestException($"Failed to delete components: {response.StatusCode} - {error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogToFile($"SOLIBRI DELETE: Exception during deletion: {ex.Message}", "solibri.log");
+                throw;
+            }
         }
 
         private async Task<string> ExtractModelIdFromResponse(HttpResponseMessage response)

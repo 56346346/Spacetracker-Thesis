@@ -942,7 +942,8 @@ RETURN ps";
                     Logger.LogToFile($"SAMPLE PS IDs: {string.Join(", ", nodeStats.samplePsIds)}", "sync.log");
                 }
 
-                // Step 3: Get Wall, Door, Pipe, and ProvisionalSpace ChangeLog entries that have corresponding nodes
+                // Step 3: Get Wall, Door, Pipe, and ProvisionalSpace ChangeLog entries 
+                // CRITICAL FIX: Include Delete operations even when nodes no longer exist
                 const string cypher = @"
                     MATCH (c:ChangeLog)
                     WHERE c.acknowledged = false AND c.sessionId <> $sessionId
@@ -951,7 +952,7 @@ RETURN ps";
                     OPTIONAL MATCH (p:Pipe) WHERE p.elementId = c.elementId
                     OPTIONAL MATCH (ps:ProvisionalSpace) WHERE ps.elementId = c.elementId
                     WITH c, w, d, p, ps
-                    WHERE w IS NOT NULL OR d IS NOT NULL OR p IS NOT NULL OR ps IS NOT NULL
+                    WHERE w IS NOT NULL OR d IS NOT NULL OR p IS NOT NULL OR ps IS NOT NULL OR c.type = 'Delete'
                     RETURN id(c) AS changeId, c.type AS op, c.elementId AS elementId, 
                            w AS wall, d AS door, p AS pipe, ps AS provisionalSpace
                     ORDER BY c.timestamp ASC";
@@ -1002,9 +1003,20 @@ RETURN ps";
                         }
                         else
                         {
-                            Logger.LogToFile($"WARNING: No element node found for ElementId {elementId}", "sync.log");
-                            elementProperties["elementId"] = elementId;
-                            elementProperties["__element_type__"] = "Unknown";
+                            // For Delete operations, nodes may no longer exist - handle this case
+                            if (op == "Delete")
+                            {
+                                Logger.LogToFile($"DELETE OPERATION: No element node found for ElementId {elementId} (expected for Delete)", "sync.log");
+                                elementProperties["elementId"] = elementId;
+                                elementProperties["__element_type__"] = "Wall"; // Default to Wall for Delete operations - will be determined geographically
+                                elementProperties["__deleted__"] = true; // Mark as deleted operation
+                            }
+                            else
+                            {
+                                Logger.LogToFile($"WARNING: No element node found for ElementId {elementId}", "sync.log");
+                                elementProperties["elementId"] = elementId;
+                                elementProperties["__element_type__"] = "Unknown";
+                            }
                         }
                     }
                     catch (Exception ex)
